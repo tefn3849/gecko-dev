@@ -116,7 +116,6 @@ SerializeOpusCommentHeader(const nsCString& aVendor,
 OpusTrackEncoder::OpusTrackEncoder()
   : AudioTrackEncoder()
   , mEncoder(nullptr)
-  , mSourceSegment(new AudioSegment())
   , mLookahead(0)
   , mResampler(nullptr)
 {
@@ -195,12 +194,12 @@ OpusTrackEncoder::GetMetadata()
   {
     // Wait if mEncoder is not initialized.
     ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-    while (!mCanceled && !mEncoder) {
+    while (!mCanceled && !mInitialized) {
       mReentrantMonitor.Wait();
     }
   }
 
-  if (mCanceled || mDoneEncoding) {
+  if (mCanceled || mEncodingComplete) {
     return nullptr;
   }
 
@@ -238,29 +237,30 @@ OpusTrackEncoder::GetEncodedTrack(EncodedFrameContainer& aData)
 
     // Wait if mEncoder is not initialized, or when not enough raw data, but is
     // not the end of stream nor is being canceled.
-    while (!mCanceled && (!mEncoder || (mRawSegment->GetDuration() +
-           mSourceSegment->GetDuration() < GetPacketDuration() &&
+    while (!mCanceled && (!mInitialized || (mRawSegment.GetDuration() +
+           mSourceSegment.GetDuration() < GetPacketDuration() &&
            !mEndOfStream))) {
       mReentrantMonitor.Wait();
     }
 
-    if (mCanceled || mDoneEncoding) {
+    if (mCanceled || mEncodingComplete) {
       return NS_ERROR_FAILURE;
     }
 
-    mSourceSegment->AppendFrom(mRawSegment);
+    mSourceSegment.AppendFrom(&mRawSegment);
 
     // Pad |mLookahead| samples to the end of source stream to prevent lost of
     // original data, the pcm duration will be calculated at rate 48K later.
-    if (mEndOfStream) {
-      mSourceSegment->AppendNullData(mLookahead);
+    if (mEndOfStream && !mEosSetInEncoder) {
+      mEosSetInEncoder = true;
+      mSourceSegment.AppendNullData(mLookahead);
     }
   }
 
   // Start encoding data.
   nsAutoTArray<AudioDataValue, 9600> pcm;
   pcm.SetLength(GetPacketDuration() * mChannels);
-  AudioSegment::ChunkIterator iter(*mSourceSegment);
+  AudioSegment::ChunkIterator iter(mSourceSegment);
   int frameCopied = 0;
   while (!iter.IsEnded() && frameCopied < GetPacketDuration()) {
     AudioChunk chunk = *iter;
@@ -319,12 +319,12 @@ OpusTrackEncoder::GetEncodedTrack(EncodedFrameContainer& aData)
   // Remove the raw data which has been pulled to pcm buffer.
   // The value of frameCopied should equal to (or smaller than, if eos)
   // GetPacketDuration().
-  mSourceSegment->RemoveLeading(frameCopied);
+  mSourceSegment.RemoveLeading(frameCopied);
 
   // Has reached the end of input stream and all queued data has pulled for
   // encoding.
-  if (mSourceSegment->GetDuration() == 0 && mEndOfStream) {
-    mDoneEncoding = true;
+  if (mSourceSegment.GetDuration() == 0 && mEndOfStream) {
+    mEncodingComplete = true;
     LOG("[Opus] Done encoding.");
   }
 
