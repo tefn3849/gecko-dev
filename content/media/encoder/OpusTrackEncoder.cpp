@@ -353,7 +353,7 @@ OpusTrackEncoder::GetEncodedTrack(EncodedFrameContainer& aData)
   if (result < 0) {
     LOG("[Opus] Fail to encode data! Result: %s.", opus_strerror(result));
   }
-  if (mDoneEncoding) {
+  if (mEncodingComplete) {
     if (mResampler) {
       speex_resampler_destroy(mResampler);
       mResampler = nullptr;
