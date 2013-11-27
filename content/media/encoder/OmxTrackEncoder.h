@@ -16,7 +16,8 @@
  */
 
 namespace android {
-  class OMXCodecWrapper;
+  class OMXAudioEncoder;
+  class OMXVideoEncoder;
 }
 
 namespace mozilla {
@@ -36,7 +37,35 @@ protected:
   nsresult Init(int aWidth, int aHeight, TrackRate aTrackRate) MOZ_OVERRIDE;
 
 private:
-  nsAutoPtr<android::OMXCodecWrapper> mEncoder;
+  nsRefPtr<android::OMXVideoEncoder> mEncoder;
+};
+
+class OmxAudioTrackEncoder: public AudioTrackEncoder
+{
+public:
+  OmxAudioTrackEncoder()
+    : AudioTrackEncoder()
+    , mSampleDurationNs(0)
+  {};
+
+  virtual ~OmxAudioTrackEncoder() {};
+
+  already_AddRefed<TrackMetadataBase> GetMetadata() MOZ_OVERRIDE;
+
+  nsresult GetEncodedTrack(EncodedFrameContainer& aData) MOZ_OVERRIDE;
+
+protected:
+  nsresult Init(int aChannels, int aSamplingRate) MOZ_OVERRIDE;
+
+private:
+  // Copy audio samples from segment
+  size_t fillPCMBuffer(AudioSegment& aSegment, nsTArray<int16_t>& aBuffer);
+
+  nsRefPtr<android::OMXAudioEncoder> mEncoder;
+
+  // The total duration of audio samples that have been copied from segment.
+  int64_t mTimestamp; // in microseconds
+  int64_t mSampleDurationNs; // time per sample in nanoseconds
 };
 
 }

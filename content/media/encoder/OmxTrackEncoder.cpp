@@ -6,13 +6,13 @@
 #include "OmxTrackEncoder.h"
 #include "OMXCodecWrapper.h"
 #include "VideoUtils.h"
+#include "ISOTrackMetadata.h"
 
-#undef LOG
 #ifdef MOZ_WIDGET_GONK
 #include <android/log.h>
-#define LOG(args...) __android_log_print(ANDROID_LOG_INFO, "MediaEncoder", ## args);
+#define OMX_LOG(args...) __android_log_print(ANDROID_LOG_INFO, "MediaEncoder", ## args);
 #else
-#define LOG(args, ...)
+#define OMX_LOG(args, ...)
 #endif
 
 using namespace android;
@@ -29,7 +29,7 @@ OmxVideoTrackEncoder::Init(int aWidth, int aHeight, TrackRate aTrackRate)
   mFrameHeight = aHeight;
   mTrackRate = aTrackRate;
 
-  mEncoder = OMXCodecWrapper::CreateEncoder(MediaSegment::Type::VIDEO);
+  mEncoder = OMXCodecWrapper::CreateAVCEncoder();
   NS_ENSURE_TRUE(mEncoder, NS_ERROR_FAILURE);
 
   nsresult rv = mEncoder->ConfigureVideo(mFrameWidth, mFrameHeight,
@@ -59,8 +59,12 @@ OmxVideoTrackEncoder::GetMetadata()
   }
 
   //TODO: Create a metadata of AVCTrackMetadata().
-
-  return nullptr;
+  nsRefPtr<AVCTrackMetadata> meta = new AVCTrackMetadata();
+  meta->Width = mFrameWidth;
+  meta->Height = mFrameHeight;
+  meta->FrameRate = ENCODER_CONFIG_FRAME_RATE;
+  meta->VideoFrequence = 90000; // Hz
+  return meta.forget();
 }
 
 nsresult
@@ -129,7 +133,7 @@ OmxVideoTrackEncoder::GetEncodedTrack(EncodedFrameContainer& aData)
   if (!buffer.IsEmpty()) {
     nsRefPtr<EncodedFrame> videoData = new EncodedFrame();
     if (outFlags & OMXCodecWrapper::BUFFER_CODEC_CONFIG) {
-      videoData->SetFrameType(EncodedFrame::UNKNOW);
+      videoData->SetFrameType(EncodedFrame::AVC_CSD);
     } else {
       videoData->SetFrameType((outFlags & OMXCodecWrapper::BUFFER_SYNC_FRAME) ?
                               EncodedFrame::I_FRAME : EncodedFrame::P_FRAME);
@@ -141,7 +145,179 @@ OmxVideoTrackEncoder::GetEncodedTrack(EncodedFrameContainer& aData)
 
   if (outFlags & OMXCodecWrapper::BUFFER_EOS) {
     mEncodingComplete = true;
-    LOG("OmxVideoTrackEncoder::GetEncodedTrack, Done encoding.");
+    OMX_LOG("OmxVideoTrackEncoder::GetEncodedTrack, Done encoding.");
+  }
+
+  return NS_OK;
+}
+
+nsresult
+OmxAudioTrackEncoder::Init(int aChannels, int aSamplingRate)
+{
+  MOZ_ASSERT(!mInitialized && !mEncoder);
+
+  mChannels = aChannels;
+  mSamplingRate = aSamplingRate;
+  mSampleDurationNs = 1000000000 / aSamplingRate; // in nanoseconds
+
+  OMX_LOG("OmxAudioTrackEncoder::Init() ch:%d, rate:%d", mChannels, mSamplingRate);
+
+  mEncoder = OMXCodecWrapper::CreateAACEncoder();
+  nsresult rv = mEncoder->ConfigureAudio(mChannels, mSamplingRate);
+
+  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  mInitialized = (rv == NS_OK);
+
+  mReentrantMonitor.NotifyAll();
+
+  return NS_OK;
+}
+
+already_AddRefed<TrackMetadataBase>
+OmxAudioTrackEncoder::GetMetadata()
+{
+  {
+    // Wait if mEncoder is not initialized nor is being canceled.
+    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+    while (!mCanceled && !mInitialized) {
+      mReentrantMonitor.Wait();
+    }
+  }
+
+  if (mCanceled || mEncodingComplete) {
+    return nullptr;
+  }
+
+  nsRefPtr<AACTrackMetadata> meta = new AACTrackMetadata();
+  meta->AACProfile = k14496_3_AAC;
+  meta->MaxBitrate = meta->AvgBitrate = OMXCodecWrapper::kAACBitrate;
+  meta->SampleRate = mSamplingRate;
+  meta->Channels = mChannels;
+  meta->FrameSize = OMXCodecWrapper::kAACFrameSize;
+  meta->FrameDuration = OMXCodecWrapper::kAACFrameDuration;
+
+  OMX_LOG("OmxAudioTrackEncoder::GetMetadata() r:%u d:%u s:%u",
+      meta->SampleRate, meta->FrameDuration, meta->FrameSize);
+
+  return meta.forget();
+}
+
+size_t
+OmxAudioTrackEncoder::fillPCMBuffer(AudioSegment& aSegment,
+                                    nsTArray<AudioDataValue>& aBuffer)
+{
+  size_t frames = aSegment.GetDuration();
+  OMX_LOG("fillPCMBuffer() frames:%u", frames);
+  MOZ_ASSERT(frames > 0);
+
+  size_t copied = 0;
+  // Sent input PCM data to encoder until queue is empty
+  if (frames > 0) {
+    // Get raw data from source
+    AudioSegment::ChunkIterator iter(aSegment);
+    size_t toCopy = 0;
+    while (!iter.IsEnded()) {
+      AudioChunk chunk = *iter;
+      toCopy = chunk.GetDuration();
+      aBuffer.SetLength((copied + toCopy) * mChannels);
+
+      if (!chunk.IsNull()) {
+        // Append the interleaved data to the end of pcm buffer.
+        InterleaveTrackData(chunk, toCopy, mChannels,
+                            aBuffer.Elements() + copied * mChannels);
+      } else {
+        memset(aBuffer.Elements() + copied * mChannels, 0,
+               toCopy * mChannels * sizeof(AudioDataValue));
+      }
+
+      copied += toCopy;
+      iter.Next();
+      OMX_LOG("fillPCMBuffer() copied:%u", copied);
+    }
+    MOZ_ASSERT(copied == frames);
+  }
+  return copied;
+}
+
+nsresult
+OmxAudioTrackEncoder::GetEncodedTrack(EncodedFrameContainer& aData)
+{
+  OMX_LOG("GetEncodedTrack() done:%d eos:%d init:%d cancel:%d",
+    mEncodingComplete, mEndOfStream, mInitialized, mCanceled);
+  MOZ_ASSERT(!mEncodingComplete);
+
+  AudioSegment segment;
+  // Move all the samples from mRawSegment to segment. We only hold
+  // the monitor in this block.
+  {
+    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+
+    // Wait if mEncoder is not initialized nor canceled.
+    while (!mInitialized && !mCanceled) {
+      OMX_LOG("GetEncodedTrack() waiting...");
+      mReentrantMonitor.Wait();
+      OMX_LOG("GetEncodedTrack() done waiting");
+    }
+
+    if (mCanceled || mEncodingComplete) {
+      OMX_LOG("GetEncodedTrack() fail");
+      return NS_ERROR_FAILURE;
+    }
+
+    segment.AppendFrom(&mRawSegment);
+  }
+
+  size_t copied = 0;
+  int64_t duration = 0;
+  if (segment.GetDuration() > 0) {
+    nsAutoTArray<AudioDataValue, 9600> pcm;
+    copied = fillPCMBuffer(segment, pcm);
+    duration = copied * mSampleDurationNs / 1000; // ns -> us
+    MOZ_ASSERT(copied == segment.GetDuration());
+    segment.RemoveLeading(copied);
+
+    OMX_LOG("GetEncodedTrack() encoding...");
+    // feed PCM to encoder
+    mEncoder->EncodeAudioSamples(pcm, mTimestamp,
+                                 duration,
+                                 mEndOfStream? OMXCodecWrapper::BUFFER_EOS:0);
+    OMX_LOG("GetEncodedTrack() done encoding");
+  } else if (mEndOfStream) {
+    // No audio data left in segment but we still have to feed something to
+    // MediaCodec in order to notify EOS.
+    nsAutoTArray<AudioDataValue, 1> dummy;
+    dummy.SetLength(mChannels);
+    memset(dummy.Elements(), 0, sizeof(AudioDataValue) * mChannels);
+    duration = mSampleDurationNs / 1000;
+    mEncoder->EncodeAudioSamples(dummy, mTimestamp, duration,
+                                 OMXCodecWrapper::BUFFER_EOS);
+  }
+  mTimestamp += duration; // ns -> us
+
+  nsTArray<uint8_t> frameData;
+  int outFlags = 0;
+  int64_t outTime = -1;
+  OMX_LOG("GetEncodedTrack() getting next...");
+  mEncoder->GetNextEncodedFrame(&frameData, &outTime, &outFlags,
+                                3 * 1000); // wait up to 3ms
+  OMX_LOG("GetEncodedTrack() done next %s", frameData.IsEmpty()? "not ok":"ok");
+  if (!frameData.IsEmpty()) {
+    bool isCSD = false;
+    OMX_LOG("GetEncodedTrack() flags:0x%x, time:%lld len:%u", outFlags, outTime, frameData.Length());
+    if (outFlags & OMXCodecWrapper::BUFFER_CODEC_CONFIG) { // codec specific data
+      isCSD = true;
+    } else if (outFlags & OMXCodecWrapper::BUFFER_EOS) { // last frame
+      mEncodingComplete = true;
+    } else {
+      MOZ_ASSERT(frameData.Length() == OMXCodecWrapper::kAACFrameSize);
+    }
+
+    EncodedFrame* audiodata = new EncodedFrame();
+    audiodata->SetFrameType(isCSD?
+      EncodedFrame::AAC_CSD : EncodedFrame::AUDIO_FRAME);
+    audiodata->SetDuration(OMXCodecWrapper::kAACFrameDuration);
+    audiodata->SetFrameData(&frameData);
+    aData.AppendEncodedFrame(audiodata);
   }
 
   return NS_OK;
