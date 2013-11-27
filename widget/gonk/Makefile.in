@@ -25,6 +25,10 @@ ifdef MOZ_OMX_DECODER
 DEFINES += -DMOZ_OMX_DECODER
 endif
 
+ifdef MOZ_OMX_ENCODER
+DEFINES += -DMOZ_OMX_ENCODER
+endif
+
 LOCAL_INCLUDES += \
 	-I$(ANDROID_SOURCE)/hardware/libhardware/include \
 	-I$(ANDROID_SOURCE)/hardware/libhardware_legacy/include \
