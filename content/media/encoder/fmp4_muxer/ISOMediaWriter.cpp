@@ -15,6 +15,9 @@
 #define LOG(args, ...)
 #endif
 
+#include <cstdio>
+static FILE* debugOut = nullptr;
+
 namespace mozilla {
 
 const static uint32_t FRAG_DURATION = 10;
@@ -36,6 +39,9 @@ ISOMediaWriter::RunState(uint32_t aTrackType)
   switch (mState) {
     case MUXING_HEAD:
     {
+      if (!debugOut) {
+        debugOut = fopen("/data/local/tmp/fmp4.mp4", "w+");
+      }
       rv = mCompositor->GenerateFtyp();
       NS_ENSURE_SUCCESS(rv, rv);
       rv = mCompositor->GenerateMoov();
@@ -138,7 +144,15 @@ ISOMediaWriter::GetContainerData(nsTArray<nsTArray<uint8_t> >* aOutputBufs,
   if (mBlobReady) {
     mBlobReady = false;
     aOutputBufs->AppendElement();
-    return mCompositor->GetBuf(aOutputBufs->LastElement());
+    nsresult err = mCompositor->GetBuf(aOutputBufs->LastElement());
+    if (err == NS_OK && debugOut) {
+      fwrite(aOutputBufs->LastElement().Elements(), aOutputBufs->LastElement().Length(), 1, debugOut);
+      if (mState == MUXING_DONE) {
+        fclose(debugOut);
+        debugOut = nullptr;
+      }
+    }
+    return err;
   }
   return NS_OK;
 }

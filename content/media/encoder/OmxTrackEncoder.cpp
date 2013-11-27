@@ -15,6 +15,15 @@
 #define OMX_LOG(args, ...)
 #endif
 
+#define DEBUG
+#ifdef DEBUG
+#include "stagefright/MediaDefs.h"
+#include "stagefright/MediaErrors.h"
+#include "stagefright/MediaMuxer.h"
+static android::sp<android::MediaMuxer> sMuxer;
+static ssize_t sTrackIndex = -1;
+#endif
+
 using namespace android;
 
 namespace mozilla {
@@ -311,6 +320,31 @@ OmxAudioTrackEncoder::GetEncodedTrack(EncodedFrameContainer& aData)
     } else {
       MOZ_ASSERT(frameData.Length() == OMXCodecWrapper::kAACFrameSize);
     }
+
+#ifdef DEBUG
+    if (!sMuxer.get()) {
+      sMuxer = new android::MediaMuxer("/data/local/tmp/muxer.mp4", android::MediaMuxer::OUTPUT_FORMAT_MPEG_4);
+      if (sMuxer.get()) {
+        sp<AMessage> format = new AMessage();
+        format->setString("mime", MEDIA_MIMETYPE_AUDIO_AAC);
+        format->setInt32("channel-count", mChannels);
+        format->setInt32("sample-rate", mSamplingRate);
+        MOZ_ASSERT(isCSD);
+        sp<ABuffer> csd = new ABuffer(frameData.Elements() + 2, frameData.Length() - 2);
+        format->setBuffer("csd-0", csd);
+        sTrackIndex = sMuxer->addTrack(format);
+        sMuxer->start();
+      }
+    }
+    if (sMuxer.get() && !isCSD) {
+      sp<ABuffer> buffer = new ABuffer(frameData.Elements(), frameData.Length());
+      sMuxer->writeSampleData(buffer, sTrackIndex, outTime, outFlags);
+      if (mEncodingComplete) {
+        sMuxer->stop();
+        sMuxer.clear();
+      }
+    }
+#endif
 
     EncodedFrame* audiodata = new EncodedFrame();
     audiodata->SetFrameType(isCSD?
