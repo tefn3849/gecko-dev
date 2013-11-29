@@ -32,6 +32,7 @@ public:
   // Check metadata type integrity and reject unacceptable track encoder.
   nsresult SetMetadata(TrackMetadataBase* aMetadata) MOZ_OVERRIDE;
 
+  bool IsWritingComplete() { return mIsWritingComplete; };
 private:
   nsresult Init();
 

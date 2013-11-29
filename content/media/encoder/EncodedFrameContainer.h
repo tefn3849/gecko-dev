@@ -45,14 +45,16 @@ public:
   EncodedFrame() :
     mTimeStamp(0),
     mDuration(0),
-    mFrameType(UNKNOW)
+    mFrameType(UNKNOWN)
   {}
   enum FrameType {
     I_FRAME,      // intraframe
     P_FRAME,      // predicted frame
     B_FRAME,      // bidirectionally predicted frame
     AUDIO_FRAME,  // audio frame
-    UNKNOW        // FrameType not set
+    AAC_CSD,      // AAC codec specific data
+    AVC_CSD,      // AVC codec specific data
+    UNKNOWN        // FrameType not set
   };
   const nsTArray<uint8_t>& GetFrameData() const
   {

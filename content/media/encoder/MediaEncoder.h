@@ -91,8 +91,9 @@ public :
    * to create the encoder. For now, default aMIMEType to "audio/ogg" and use
    * Ogg+Opus if it is empty.
    */
-  static already_AddRefed<MediaEncoder> CreateEncoder(const nsAString& aMIMEType);
+  static already_AddRefed<MediaEncoder> CreateEncoder(const nsAString& aMIMEType, uint8_t aTrackTypes);
 
+  static void GetDefaultEncodeMIMEType(uint8_t aTrackTypes, nsAString& aMIMEType);
   /**
    * Encodes the raw track data and returns the final container data. Assuming
    * it is called on a single worker thread. The buffer of container data is
@@ -128,6 +129,8 @@ public :
   }
 
 private:
+  template<class T> nsresult WrtieEncodedDataToMuxer(T aEncoder);
+  template<class T> nsresult SetEncodedMetadataToMuxer(T aEncoder);
   nsAutoPtr<ContainerWriter> mWriter;
   nsAutoPtr<AudioTrackEncoder> mAudioEncoder;
   nsAutoPtr<VideoTrackEncoder> mVideoEncoder;

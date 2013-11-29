@@ -21,8 +21,8 @@ namespace mozilla {
 
 namespace dom {
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_1(MediaRecorder, nsDOMEventTargetHelper,
-                                     mStream)
+NS_IMPL_CYCLE_COLLECTION_INHERITED_2(MediaRecorder, nsDOMEventTargetHelper,
+                                     mStream, mSession)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(MediaRecorder)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
@@ -90,7 +90,7 @@ class MediaRecorder::Session: public nsIObserver
     }
 
   private:
-    Session *mSession;
+    nsRefPtr<Session> mSession;
   };
 
   // Record thread task.
@@ -110,7 +110,21 @@ class MediaRecorder::Session: public nsIObserver
     }
 
   private:
-    Session *mSession;
+    nsRefPtr<Session> mSession;
+  };
+
+  // For Ensure recorder has tracks to record.
+  class TracksAvailableCallback : public DOMMediaStream::OnTracksAvailableCallback
+  {
+  public:
+    TracksAvailableCallback(Session *aSession)
+     : mSession(aSession) {}
+    virtual void NotifyTracksAvailable(DOMMediaStream* aStream)
+    {
+      mSession->AfterTracksAdded(aStream->GetHintContents());
+    }
+  private:
+    nsRefPtr<Session> mSession;
   };
 
   // Main thread task.
@@ -154,6 +168,7 @@ class MediaRecorder::Session: public nsIObserver
   friend class PushBlobRunnable;
   friend class ExtractRunnable;
   friend class DestroyRunnable;
+  friend class TracksAvailableCallback;
 
 public:
   Session(MediaRecorder* aRecorder, int32_t aTimeSlice)
@@ -179,22 +194,6 @@ public:
     MOZ_ASSERT(NS_IsMainThread());
 
     SetupStreams();
-
-    // Create a thread to read encode media data from MediaEncoder.
-    if (!mReadThread) {
-      nsresult rv = NS_NewNamedThread("Media Encoder", getter_AddRefs(mReadThread));
-      if (NS_FAILED(rv)) {
-        CleanupStreams();
-        mRecorder->NotifyError(rv);
-        return;
-      }
-    }
-
-    // In case source media stream does not notify track end, recieve
-    // shutdown notification and stop Read Thread.
-    nsContentUtils::RegisterShutdownObserver(this);
-
-    mReadThread->Dispatch(new ExtractRunnable(this), NS_DISPATCH_NORMAL);
   }
 
   void Stop()
@@ -290,12 +289,35 @@ private:
     mInputPort = mTrackUnionStream->AllocateInputPort(mRecorder->mStream->GetStream(), MediaInputPort::FLAG_BLOCK_OUTPUT);
 
     // Allocate encoder and bind with the Track Union Stream.
-    mEncoder = MediaEncoder::CreateEncoder(NS_LITERAL_STRING(""));
+    TracksAvailableCallback* tracksAvailableCallback = new TracksAvailableCallback(mRecorder->mSession);
+    mRecorder->mStream->OnTracksAvailable(tracksAvailableCallback);
+  }
+
+  void AfterTracksAdded(uint8_t aTrackTypes)
+  {
+    // Allocate encoder and bind with union stream.
+    // At this stage, the API doesn't allow UA to choose the output mimeType format.
+    mEncoder = MediaEncoder::CreateEncoder(NS_LITERAL_STRING(""), aTrackTypes);
     MOZ_ASSERT(mEncoder, "CreateEncoder failed");
 
     if (mEncoder) {
       mTrackUnionStream->AddListener(mEncoder);
     }
+    // Create a thread to read encode media data from MediaEncoder.
+    if (!mReadThread) {
+      nsresult rv = NS_NewNamedThread("Media Encoder", getter_AddRefs(mReadThread));
+      if (NS_FAILED(rv)) {
+        CleanupStreams();
+        mRecorder->NotifyError(rv);
+        return;
+      }
+    }
+
+    // In case source media stream does not notify track end, recieve
+    // shutdown notification and stop Read Thread.
+    nsContentUtils::RegisterShutdownObserver(this);
+
+    mReadThread->Dispatch(new ExtractRunnable(this), NS_DISPATCH_NORMAL);
   }
 
   void CleanupStreams()
