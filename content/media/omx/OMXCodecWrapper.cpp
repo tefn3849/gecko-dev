@@ -4,6 +4,7 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "OMXCodecWrapper.h"
+#include "TrackEncoder.h"
 
 #include <binder/ProcessState.h>
 #include <media/ICrypto.h>
@@ -178,35 +179,32 @@ OMXAudioEncoder::ConfigureAudio(int aChannels, int aSamplingRate)
 }
 
 void
-OMXVideoEncoder::EncodeVideoFrame(const Image& aImage, int64_t aTimestamp,
-                                  int aInputFlags)
+OMXVideoEncoder::EncodeVideoFrame(const Image* aImage, int aWidth, int aHeight,
+                               int64_t aTimestamp, int aInputFlags)
 {
   MOZ_ASSERT(mStarted);
 
-  GrallocImage& nativeImage = const_cast<GrallocImage&>(
-                              static_cast<const GrallocImage&>(aImage));
-  SurfaceDescriptor handle = nativeImage.GetSurfaceDescriptor();
-  SurfaceDescriptorGralloc grallocHandle = handle.get_SurfaceDescriptorGralloc();
-  sp<GraphicBuffer> graphicBuffer = GrallocBufferActor::GetFrom(grallocHandle);
+  Image* img = const_cast<Image*>(aImage);
+  if (img && img->GetFormat() == GRALLOC_PLANAR_YCBCR) {
+    GrallocImage* nativeImage = static_cast<GrallocImage*>(img);
+    SurfaceDescriptor handle = nativeImage->GetSurfaceDescriptor();
+    SurfaceDescriptorGralloc grallocHandle = handle.get_SurfaceDescriptorGralloc();
+    sp<GraphicBuffer> graphicBuffer = GrallocBufferActor::GetFrom(grallocHandle);
 
-  // Size of PLANAR_YCBCR 4:2:0.
-  uint32_t frameLen = graphicBuffer->getWidth()*graphicBuffer->getHeight()*3/2;
-  //
-  void *imgPtr = nullptr;
-  graphicBuffer->lock(GraphicBuffer::USAGE_SW_READ_MASK, &imgPtr);
-  PushInput(imgPtr, frameLen, aTimestamp, 0, aInputFlags,
-            INPUT_BUFFER_TIMEOUT_US);
-  graphicBuffer->unlock();
-}
-
-void
-OMXVideoEncoder::EncodeVideoFrame(const nsTArray<uint8_t>& aImage,
-                                  int64_t aTimestamp, int aInputFlags)
-{
-  MOZ_ASSERT(mStarted);
-
-  PushInput(aImage.Elements(), aImage.Length(), aTimestamp, 0, aInputFlags,
-            INPUT_BUFFER_TIMEOUT_US);
+    // Size of PLANAR_YCBCR 4:2:0.
+    uint32_t frameLen = aWidth * aHeight * 3 / 2;
+    //
+    void *imgPtr = nullptr;
+    graphicBuffer->lock(GraphicBuffer::USAGE_SW_READ_MASK, &imgPtr);
+    PushInput(imgPtr, frameLen, aTimestamp, 0, aInputFlags,
+              INPUT_BUFFER_TIMEOUT_US);
+    graphicBuffer->unlock();
+  } else {
+    nsTArray<uint8_t> imgBuf;
+    VideoTrackEncoder::CreateMutedFrame(&imgBuf, aWidth, aHeight);
+    PushInput(imgBuf.Elements(), imgBuf.Length(), aTimestamp, 0, aInputFlags,
+              INPUT_BUFFER_TIMEOUT_US);
+  }
 }
 
 void

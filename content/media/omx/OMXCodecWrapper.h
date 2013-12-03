@@ -207,16 +207,8 @@ public:
    * aImage. aTimestamp gives the frame timestamp/presentation time (in
    * microseconds). To notify end of stream, set aInputFlags to BUFFER_EOS.
    */
-  void EncodeVideoFrame(const mozilla::layers::Image& aImage,
-                        int64_t aTimestamp, int aInputFlags = 0);
-
-  /**
-   * Encode a video frame of semi-planar YUV420 format stored in the aImage
-   * array. aTimestamp gives the frame timestamp/presentation time (in
-   * microseconds). To notify end of stream, set aInputFlags to BUFFER_EOS.
-   */
-  void EncodeVideoFrame(const nsTArray<uint8_t>& aImage,
-                        int64_t aTimestamp, int aInputFlags = 0);
+  void EncodeVideoFrame(const mozilla::layers::Image* aImage, int aWidth,
+                        int aHeight, int64_t aTimestamp, int aInputFlags = 0);
 
 private:
   // Hide these. User should always use creator functions to get a media codec.
