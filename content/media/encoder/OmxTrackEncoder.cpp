@@ -100,37 +100,32 @@ OmxVideoTrackEncoder::GetEncodedTrack(EncodedFrameContainer& aData)
 
   // Start queuing raw frames to the input buffers of OMXCodecWrapper.
   VideoSegment::ChunkIterator iter(segment);
-
-  // Send the EOS signal and an empty frame to OMXCodecWrapper.
-  if (mEndOfStream && iter.IsEnded() && !mEosSetInEncoder) {
-    mEosSetInEncoder = true;
-    nsTArray<uint8_t> imgBuf;
-    CreateMutedFrame(&imgBuf);
-    uint64_t totalDurationUs = mTotalFrameDuration * USECS_PER_S / mTrackRate;
-    mEncoder->EncodeVideoFrame(imgBuf, totalDurationUs,
-                               OMXCodecWrapper::BUFFER_EOS);
-  }
-
   while (!iter.IsEnded()) {
     VideoChunk chunk = *iter;
 
     // Send only the unique video frames to OMXCodecWrapper.
     if (mLastFrame != chunk.mFrame) {
       uint64_t totalDurationUs = mTotalFrameDuration * USECS_PER_S / mTrackRate;
-      if (chunk.IsNull() || chunk.mFrame.GetForceBlack()) {
-        nsTArray<uint8_t> imgBuf;
-        CreateMutedFrame(&imgBuf);
-        mEncoder->EncodeVideoFrame(imgBuf, totalDurationUs);
-      } else {
-        mEncoder->EncodeVideoFrame(*chunk.mFrame.GetImage(), totalDurationUs);
-      }
+      layers::Image* img = (chunk.IsNull() || chunk.mFrame.GetForceBlack()) ?
+                           nullptr : chunk.mFrame.GetImage();
+      mEncoder->EncodeVideoFrame(img, mFrameWidth, mFrameHeight,
+                                 totalDurationUs);
     }
 
     mLastFrame.TakeFrom(&chunk.mFrame);
-    mLastFrame.SetForceBlack(chunk.mFrame.GetForceBlack());
     mTotalFrameDuration += chunk.GetDuration();
 
     iter.Next();
+  }
+
+  // Send the EOS signal to OMXCodecWrapper.
+  if (mEndOfStream && !mEosSetInEncoder) {
+    mEosSetInEncoder = true;
+    uint64_t totalDurationUs = mTotalFrameDuration * USECS_PER_S / mTrackRate;
+    layers::Image* img = (!mLastFrame.GetImage() || mLastFrame.GetForceBlack())
+                         ? nullptr : mLastFrame.GetImage();
+    mEncoder->EncodeVideoFrame(img, mFrameWidth, mFrameHeight, totalDurationUs,
+                               OMXCodecWrapper::BUFFER_EOS);
   }
 
   // Dequeue an encoded frame from the output buffers of OMXCodecWrapper.
