@@ -7,10 +7,64 @@
 #ifndef GECKO_TASK_TRACER_IMPL_H
 #define GECKO_TASK_TRACER_IMPL_H
 
+#include "GeckoTaskTracer.h"
+#include "mozilla/RefPtr.h"
+
+
 #define TASK_TRACE_BUF_SIZE 2048
 
 namespace mozilla {
 namespace tasktracer {
+
+class SourceEventBase : public RefCounted<SourceEventBase>
+{
+public:
+  enum SourceEventType {
+    UNKNOWN,
+    TOUCH,
+    MOUSE,
+    POWER_KEY,
+    HOME_KEY,
+  };
+
+  SourceEventBase()
+  {
+    uint64_t newTaskId = GenNewUniqueTaskId();
+    // Install new task Id.
+    *GetCurrentThreadTaskIdPtr() = newTaskId;
+    mOriginTaskId = newTaskId;
+  }
+
+  virtual ~SourceEventBase() {}
+
+  virtual SourceEventType GetType() const = 0;
+
+  uint64_t mOriginTaskId;
+};
+
+class SourceEventTouch : public SourceEventBase
+{
+public:
+  SourceEventTouch(int aX, int aY)
+    : SourceEventBase()
+    , mPositionX(aX)
+    , mPositionY(aY)
+  {}
+
+  SourceEventType GetType() const MOZ_OVERRIDE { return TOUCH; }
+
+  int mPositionX;
+  int mPositionY;
+
+};
+
+class SourceEventDummy : public SourceEventBase
+{
+public:
+  SourceEventDummy() : SourceEventBase() {}
+
+  SourceEventType GetType() const MOZ_OVERRIDE { return UNKNOWN; }
+};
 
 enum ActionType {
   ACTION_DISPATCH,
@@ -22,8 +76,9 @@ enum ActionType {
  * A snapshot of the current tracing activity.
  */
 struct TracedActivity {
+  RefPtr<SourceEventBase> sourceEvent;
   ActionType actionType;
-  uint64_t tm;                  // Current time in uni-seconds.
+  uint64_t tm;                  // Current time in microseconds.
   uint64_t taskId;              // Task id.
   uint64_t originTaskId;        // Origin's task id.
 };
@@ -33,6 +88,7 @@ struct TracedActivity {
  * all information of TracedRunnable tasks dispatched from this thread.
  */
 struct TracedInfo {
+  RefPtr<SourceEventBase> currentlyTracedSourceEvent;
   uint32_t threadId;            // Thread id of its owner thread.
   uint64_t currentTracedTaskId; // Task id of the currently-traced TracedRunnable task.
   uint32_t lastUniqueTaskId;    // A serial number to generate an unique task id for a new TracedRunnable.
@@ -45,24 +101,28 @@ struct TracedInfo {
 /**
  * Returns the TracedInfo of this thread, allocate a new one if not exit.
  */
-TracedInfo *GetTracedInfo();
+TracedInfo* GetTracedInfo();
 
 /**
  * Log the snapshot the current tracing activity.
  */
 void LogAction(ActionType aType, uint64_t aTid, uint64_t aOTid);
 
+void LogTaskAction(ActionType aType, uint64_t aTaskId, SourceEventBase* aSourceEvent);
+
 /**
  * Clear the TracedInfo when the Run() of its factual object is done,
  * this should be in pair with SetupTracedInfo().
  */
-void ClearTracedInfo();
+//void ClearTracedInfo();
 
 void LogSamplerEnter(const char *aInfo);
 
 void LogSamplerExit(const char *aInfo);
 
 void InitRunnableTrace();
+
+
 
 } // namespace mozilla
 } // namespace tasktracer

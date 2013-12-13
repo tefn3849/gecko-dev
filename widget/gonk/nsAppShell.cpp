@@ -46,7 +46,9 @@
 #endif
 #include "nsAppShell.h"
 #include "mozilla/dom/Touch.h"
+#ifdef MOZ_TASK_TRACER
 #include "GeckoTaskTracer.h"
+#endif
 #include "nsGkAtoms.h"
 #include "nsIObserverService.h"
 #include "nsIScreen.h"
@@ -608,10 +610,7 @@ GeckoInputDispatcher::dispatchOnce()
     }
 
 #ifdef MOZ_TASK_TRACER
-    uint64_t savedTaskId = *GetCurrentThreadTaskIdPtr();
-    uint64_t newTaskId = GenNewUniqueTaskId();
-    // Install new task Id.
-    *GetCurrentThreadTaskIdPtr() = newTaskId;
+    SourceEventBase* savedSourceEvent = GetCurrentlyTracedSourceEvent();
 #endif
 
     switch (data.type) {
@@ -621,12 +620,16 @@ GeckoInputDispatcher::dispatchOnce()
             AMOTION_EVENT_ACTION_HOVER_MOVE) {
             bool captured;
 #ifdef MOZ_TASK_TRACER
+            mozilla::TemporaryRef<SourceEventTouch> source =
+                new SourceEventTouch(data.motion.touches[0].coords.getX(),
+                                     data.motion.touches[0].coords.getY());
+            CreateCurrentlyTracedSourceEvent(source);
             // FIXME Encapsulate using TracedTaskSource.
-            LOG("Task id: %lld: sendTouchEvent(). Touch count: %d, coords[0]: (%d, %d)",
-                newTaskId,
-                data.motion.touchCount,
-                data.motion.touches[0].coords.getX(),
-                data.motion.touches[0].coords.getY());
+//            LOG("Task id: %lld: sendTouchEvent(). Touch count: %d, coords[0]: (%d, %d)",
+//                newTaskId,
+//                data.motion.touchCount,
+//                data.motion.touches[0].coords.getX(),
+//                data.motion.touches[0].coords.getY());
 #endif
             status = sendTouchEvent(data, &captured);
             if (captured) {
@@ -656,12 +659,16 @@ GeckoInputDispatcher::dispatchOnce()
             break;
         }
 #ifdef MOZ_TASK_TRACER
+        mozilla::TemporaryRef<SourceEventTouch> source =
+            new SourceEventTouch(data.motion.touches[0].coords.getX(),
+                                 data.motion.touches[0].coords.getY());
+        CreateCurrentlyTracedSourceEvent(source);
         // FIXME Encapsulate using TracedTaskSource.
-        LOG("Task id: %lld: sendMouseEvent(). type=%s coords[0]: (%d, %d)",
-            newTaskId,
-            msgText,
-            data.motion.touches[0].coords.getX(),
-            data.motion.touches[0].coords.getY());
+//        LOG("Task id: %lld: sendMouseEvent(). type=%s coords[0]: (%d, %d)",
+//            newTaskId,
+//            msgText,
+//            data.motion.touches[0].coords.getX(),
+//            data.motion.touches[0].coords.getY());
 #endif
         sendMouseEvent(msg,
                        data.timeMs,
@@ -679,7 +686,7 @@ GeckoInputDispatcher::dispatchOnce()
     }
 #ifdef MOZ_TASK_TRACER
     // Restore new task Id.
-    *GetCurrentThreadTaskIdPtr() = savedTaskId;
+    SetCurrentlyTracedSourceEvent(savedSourceEvent);
 #endif
 }
 

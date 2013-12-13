@@ -38,6 +38,7 @@ public:
   // if not exist, and sets the origin taskId of this runnable to the currently-
   // traced taskID from the TracedInfo of current thread.
   void InitOriginTaskId();
+  void InitSourceEvent();
 
   // Returns the original runnable object wrapped by this TracedRunnable.
   already_AddRefed<nsIRunnable> GetFatualObject() {
@@ -51,9 +52,8 @@ private:
   // taskID from the TracedInfo of current thread, to its origin's taskId.
   // Setup other information is needed.
   // Should call ClearTracedInfo() to reset them when done.
-  void SetupTracedInfo() {
-    *GetCurrentThreadTaskIdPtr() = GetOriginTaskId();
-  }
+  void AttachTracedInfo();
+  void ClearTracedInfo();
 
   // Its own taskID, an unique number base on the tid of current thread and
   // a last unique taskID from the TracedInfo of current thread.
@@ -62,6 +62,7 @@ private:
   // The origin taskId, it's being set to the currently-traced taskID from the
   // TracedInfo of current thread in the call of InitOriginTaskId().
   uint64_t mOriginTaskId;
+  RefPtr<SourceEventBase> mSourceEvent;
 
   // The factual runnable object wrapped by this TracedRunnable wrapper.
   nsCOMPtr<nsIRunnable> mFactualObj;
@@ -79,18 +80,19 @@ public:
 
   virtual ~TracedTask();
 
-  void SetupTracedInfo()
-  {
-    *GetCurrentThreadTaskIdPtr() = mOriginTaskId;
-  }
-
   virtual void Run();
+
   void InitOriginTaskId();
+  void InitSourceEvent();
 
 private:
+  void AttachTracedInfo();
+  void ClearTracedInfo();
+
   Task *mBackedObject;
   uint64_t mTaskId;
   uint64_t mOriginTaskId;
+  RefPtr<SourceEventBase> mSourceEvent;
 };
 
 } // namespace tasktracer

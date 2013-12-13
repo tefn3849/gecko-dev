@@ -7,11 +7,15 @@
 #ifndef GECKO_TASK_TRACER_H
 #define GECKO_TASK_TRACER_H
 
+#include "mozilla/RefPtr.h"
+
 class Task;
 class nsIRunnable;
 
 namespace mozilla {
 namespace tasktracer {
+
+class SourceEventBase;
 
 /**
  * Create a traced Task to be run by a message loop.
@@ -29,6 +33,11 @@ nsIRunnable *CreateTracedRunnable(nsIRunnable *aRunnable);
  * of current thread.
  */
 uint64_t *GetCurrentThreadTaskIdPtr();
+
+void CreateCurrentlyTracedSourceEvent(mozilla::TemporaryRef<SourceEventBase> aSourceEvent);
+
+void SetCurrentlyTracedSourceEvent(mozilla::RefPtr<SourceEventBase> aSourceEvent);
+SourceEventBase* GetCurrentlyTracedSourceEvent();
 
 /**
  * Generates an unique task id for a TeacedRunnable base on its owner thread

@@ -25,6 +25,7 @@ if CONFIG['MOZ_ENABLE_PROFILER_SPS']:
     ]
     UNIFIED_SOURCES += [
         'BreakpadSampler.cpp',
+        'GeckoTaskTracer.cpp',
         'IOInterposer.cpp',
         'JSCustomObjectBuilder.cpp',
         'JSObjectBuilder.cpp',
@@ -39,7 +40,6 @@ if CONFIG['MOZ_ENABLE_PROFILER_SPS']:
         'SaveProfileTask.cpp',
         'SyncProfile.cpp',
         'TableTicker.cpp',
-        'TaskTracerCommon.cpp',
         'TracedRunnable.cpp',
         'UnwinderThread2.cpp',
     ]
