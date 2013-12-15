@@ -26,24 +26,14 @@ public:
   TracedRunnable(nsIRunnable *aFactualObj);
   virtual ~TracedRunnable();
 
-  uint64_t GetOriginTaskId() {
-    return mOriginTaskId;
-  }
-
-  void SetOriginTaskId(uint64_t aId) {
-    mOriginTaskId = aId;
-  }
-
   // Allocates a TracedInfo for the current thread on its thread local storage
   // if not exist, and sets the origin taskId of this runnable to the currently-
   // traced taskID from the TracedInfo of current thread.
-  void InitOriginTaskId();
   void InitSourceEvent();
 
   // Returns the original runnable object wrapped by this TracedRunnable.
   already_AddRefed<nsIRunnable> GetFatualObject() {
     nsCOMPtr<nsIRunnable> factualObj = mFactualObj;
-
     return factualObj.forget();
   }
 
@@ -61,7 +51,6 @@ private:
 
   // The origin taskId, it's being set to the currently-traced taskID from the
   // TracedInfo of current thread in the call of InitOriginTaskId().
-  uint64_t mOriginTaskId;
   RefPtr<SourceEventBase> mSourceEvent;
 
   // The factual runnable object wrapped by this TracedRunnable wrapper.
@@ -71,28 +60,20 @@ private:
 class TracedTask : public Task
 {
 public:
-  TracedTask(Task *aBackedObject)
-    : mBackedObject(aBackedObject)
-    , mOriginTaskId(0)
-  {
-    mTaskId = GenNewUniqueTaskId();
-  }
-
+  TracedTask(Task *aFactualObj);
   virtual ~TracedTask();
 
   virtual void Run();
 
-  void InitOriginTaskId();
   void InitSourceEvent();
 
 private:
   void AttachTracedInfo();
   void ClearTracedInfo();
 
-  Task *mBackedObject;
   uint64_t mTaskId;
-  uint64_t mOriginTaskId;
   RefPtr<SourceEventBase> mSourceEvent;
+  Task *mFactualObj;
 };
 
 } // namespace tasktracer

@@ -18,6 +18,10 @@
 #include "base/ref_counted.h"
 #endif
 
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracer.h"
+#endif
+
 namespace base {
 struct FileDescriptor;
 }
@@ -337,7 +341,7 @@ class Message : public Pickle {
     // Sequence number
     int32_t seqno;
 #ifdef MOZ_TASK_TRACER
-    uint64_t orig_task_id;
+    mozilla::RefPtr<mozilla::tasktracer::SourceEventBase> source_event;
 #endif
   };
 

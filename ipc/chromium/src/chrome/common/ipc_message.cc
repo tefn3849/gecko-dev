@@ -45,7 +45,7 @@ Message::Message(int32_t routing_id, msgid_t type, PriorityValue priority,
   header()->cookie = 0;
 #endif
 #ifdef MOZ_TASK_TRACER
-  header()->orig_task_id = 0;
+  header()->source_event = nullptr;
 #endif
   InitLoggingVariables(name);
 }
@@ -60,7 +60,7 @@ Message::Message(const Message& other) : Pickle(other) {
   file_descriptor_set_ = other.file_descriptor_set_;
 #endif
 #ifdef MOZ_TASK_TRACER
-  header()->orig_task_id = other.header()->orig_task_id;
+  header()->source_event = other.header()->source_event;
 #endif
 }
 

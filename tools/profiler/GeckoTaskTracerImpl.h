@@ -16,32 +16,6 @@
 namespace mozilla {
 namespace tasktracer {
 
-class SourceEventBase : public RefCounted<SourceEventBase>
-{
-public:
-  enum SourceEventType {
-    UNKNOWN,
-    TOUCH,
-    MOUSE,
-    POWER_KEY,
-    HOME_KEY,
-  };
-
-  SourceEventBase()
-  {
-    uint64_t newTaskId = GenNewUniqueTaskId();
-    // Install new task Id.
-    *GetCurrentThreadTaskIdPtr() = newTaskId;
-    mOriginTaskId = newTaskId;
-  }
-
-  virtual ~SourceEventBase() {}
-
-  virtual SourceEventType GetType() const = 0;
-
-  uint64_t mOriginTaskId;
-};
-
 class SourceEventTouch : public SourceEventBase
 {
 public:
@@ -109,12 +83,6 @@ TracedInfo* GetTracedInfo();
 void LogAction(ActionType aType, uint64_t aTid, uint64_t aOTid);
 
 void LogTaskAction(ActionType aType, uint64_t aTaskId, SourceEventBase* aSourceEvent);
-
-/**
- * Clear the TracedInfo when the Run() of its factual object is done,
- * this should be in pair with SetupTracedInfo().
- */
-//void ClearTracedInfo();
 
 void LogSamplerEnter(const char *aInfo);
 

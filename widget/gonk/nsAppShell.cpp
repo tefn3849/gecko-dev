@@ -88,7 +88,9 @@ using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::services;
 using namespace mozilla::widget;
+#ifdef MOZ_TASK_TRACER
 using namespace mozilla::tasktracer;
+#endif
 
 bool gDrawRequest = false;
 static nsAppShell *gAppShell = nullptr;

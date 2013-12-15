@@ -58,7 +58,6 @@ AllocTraceInfo(int aTid)
         if (sAllTracedInfo[i].threadId == 0) {
             TracedInfo *info = sAllTracedInfo + i;
             info->threadId = aTid;
-            PRThread *thread = PR_GetCurrentThread();
             pthread_mutex_unlock(&sTracedInfoLock);
             return info;
         }
@@ -135,17 +134,18 @@ LogAction(ActionType aType, uint64_t aTid, uint64_t aOTid)
 void
 LogTaskAction(ActionType aType, uint64_t aTaskId, SourceEventBase* aSourceEvent)
 {
-  NS_ENSURE_TRUE_VOID(sDebugRunnable && aSourceEvent);
+  //NS_ENSURE_TRUE_VOID(sDebugRunnable && aSourceEvent);
+  NS_ENSURE_TRUE_VOID(aSourceEvent);
 
   if (aSourceEvent->GetType() == SourceEventBase::TOUCH) {
     SourceEventTouch* aSource = static_cast<SourceEventTouch*>(aSourceEvent);
-    LOG("[TouchEvent] (x:%d, y:%d), tid:%d (%s), task id:%d, orig id:%d",
-        aSource->mPositionX, aSource->mPositionY, gettid(), GetCurrentThreadName(),
-        aTaskId, aSource->mOriginTaskId);
-  } else {
-    SourceEventDummy* aSource = static_cast<SourceEventDummy*>(aSourceEvent);
-    LOG("[UnknownEvent] tid:%d (%s), task id:%d, orig id:%d", gettid(),
+    LOG("[TouchEvent:%d] (x:%d, y:%d), tid:%d (%s), task id:%d, orig id:%d",
+        aType, aSource->mPositionX, aSource->mPositionY, gettid(),
         GetCurrentThreadName(), aTaskId, aSource->mOriginTaskId);
+  } else {
+//    SourceEventDummy* aSource = static_cast<SourceEventDummy*>(aSourceEvent);
+//    LOG("[UnknownEvent:%d] tid:%d (%s), task id:%d, orig id:%d",
+//        aType, gettid(), GetCurrentThreadName(), aTaskId, aSource->mOriginTaskId);
   }
 }
 
@@ -195,10 +195,6 @@ GenNewUniqueTaskId()
     return taskid;
 }
 
-//void ClearTracedInfo() {
-//  *GetCurrentThreadTaskIdPtr() = 0;
-//}
-
 void
 CreateCurrentlyTracedSourceEvent(mozilla::TemporaryRef<SourceEventBase> aSourceEvent)
 {
@@ -207,7 +203,7 @@ CreateCurrentlyTracedSourceEvent(mozilla::TemporaryRef<SourceEventBase> aSourceE
 }
 
 void
-SetCurrentlyTracedSourceEvent(mozilla::RefPtr<SourceEventBase> aSourceEvent)
+SetCurrentlyTracedSourceEvent(SourceEventBase* aSourceEvent)
 {
   TracedInfo* info = GetTracedInfo();
   info->currentlyTracedSourceEvent = aSourceEvent;
@@ -218,6 +214,12 @@ GetCurrentlyTracedSourceEvent()
 {
   TracedInfo* info = GetTracedInfo();
   return info->currentlyTracedSourceEvent.get();
+}
+
+SourceEventBase::SourceEventBase(){
+  uint64_t newTaskId = GenNewUniqueTaskId();
+  // Install new task Id.
+  mOriginTaskId = newTaskId;
 }
 
 } // namespace tasktracer

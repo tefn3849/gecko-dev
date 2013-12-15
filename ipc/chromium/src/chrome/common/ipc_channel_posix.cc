@@ -33,8 +33,13 @@
 #include "chrome/common/ipc_message_utils.h"
 #include "GeckoTaskTracer.h"
 #include "mozilla/ipc/ProtocolUtils.h"
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracer.h"
+#endif
 
-using mozilla::tasktracer::GetCurrentThreadTaskIdPtr;
+#ifdef MOZ_TASK_TRACER
+using namespace mozilla::tasktracer;
+#endif
 
 namespace IPC {
 
@@ -548,7 +553,7 @@ bool Channel::ChannelImpl::ProcessIncomingMessages() {
       const char* message_tail = Message::FindNext(p, end);
       if (message_tail) {
 #ifdef MOZ_TASK_TRACER
-        uint64_t saved_task_id = 0;
+        SourceEventBase* saved_source_event = nullptr;
 #endif
         int len = static_cast<int>(message_tail - p);
         Message m(p, len);
@@ -602,11 +607,9 @@ bool Channel::ChannelImpl::ProcessIncomingMessages() {
                       " with type " << m.type();
 #endif
 #ifdef MOZ_TASK_TRACER
-        if (m.header()->orig_task_id) {
-          if (*GetCurrentThreadTaskIdPtr()) {
-            saved_task_id = *GetCurrentThreadTaskIdPtr();
-          }
-          *GetCurrentThreadTaskIdPtr() = m.header()->orig_task_id;
+        if (m.header()->source_event) {
+          saved_source_event = GetCurrentlyTracedSourceEvent();
+          SetCurrentlyTracedSourceEvent(m.header()->source_event);
         }
 #endif
 
@@ -625,8 +628,8 @@ bool Channel::ChannelImpl::ProcessIncomingMessages() {
         }
         p = message_tail;
 #ifdef MOZ_TASK_TRACER
-      if (m.header()->orig_task_id) {
-        *GetCurrentThreadTaskIdPtr() = saved_task_id;
+      if (m.header()->source_event) {
+        SetCurrentlyTracedSourceEvent(saved_source_event);
       }
 #endif
       } else {
@@ -709,8 +712,8 @@ bool Channel::ChannelImpl::ProcessOutgoingMessages() {
 #endif
     }
 #ifdef MOZ_TASK_TRACER
-    if (*GetCurrentThreadTaskIdPtr()) {
-      msg->header()->orig_task_id = *GetCurrentThreadTaskIdPtr();
+    if (GetCurrentlyTracedSourceEvent()) {
+      msg->header()->source_event = GetCurrentlyTracedSourceEvent();
     }
 #endif
 

@@ -15,7 +15,25 @@ class nsIRunnable;
 namespace mozilla {
 namespace tasktracer {
 
-class SourceEventBase;
+class SourceEventBase : public RefCounted<SourceEventBase>
+{
+public:
+  enum SourceEventType {
+    UNKNOWN,
+    TOUCH,
+    MOUSE,
+    POWER_KEY,
+    HOME_KEY,
+  };
+
+  SourceEventBase();
+
+  virtual ~SourceEventBase() {}
+
+  virtual SourceEventType GetType() const = 0;
+
+  uint64_t mOriginTaskId;
+};
 
 /**
  * Create a traced Task to be run by a message loop.
@@ -36,7 +54,7 @@ uint64_t *GetCurrentThreadTaskIdPtr();
 
 void CreateCurrentlyTracedSourceEvent(mozilla::TemporaryRef<SourceEventBase> aSourceEvent);
 
-void SetCurrentlyTracedSourceEvent(mozilla::RefPtr<SourceEventBase> aSourceEvent);
+void SetCurrentlyTracedSourceEvent(SourceEventBase* aSourceEvent);
 SourceEventBase* GetCurrentlyTracedSourceEvent();
 
 /**
