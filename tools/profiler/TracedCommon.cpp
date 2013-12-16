@@ -16,20 +16,23 @@ NS_IMPL_ISUPPORTS1(TracedRunnable, nsIRunnable)
 NS_IMETHODIMP
 TracedRunnable::Run()
 {
-  LogTaskAction(ACTION_START, mTaskId, mSourceEvent);
+  LogTaskAction(ACTION_START, mTaskId, mOriginTaskId, mSEType);
 
   AttachTracedInfo();
   nsresult rv = mFactualObj->Run();
   ClearTracedInfo();
 
-  LogTaskAction(ACTION_FINISHED, mTaskId, mSourceEvent);
+  LogTaskAction(ACTION_FINISHED, mTaskId, mOriginTaskId, mSEType);
   return rv;
 }
 
 TracedRunnable::TracedRunnable(nsIRunnable *aFatualObj)
   : mFactualObj(aFatualObj)
+  , mOriginTaskId(0)
+  , mSEType(UNKNOWN)
 {
   mTaskId = GenNewUniqueTaskId();
+  InitSourceEvent();
 }
 
 TracedRunnable::~TracedRunnable()
@@ -40,32 +43,33 @@ void
 TracedRunnable::InitSourceEvent()
 {
   TracedInfo* info = GetTracedInfo();
-  if(!info->currentlyTracedSourceEvent) {
-    mozilla::TemporaryRef<SourceEventDummy> source = new SourceEventDummy();
-    CreateCurrentlyTracedSourceEvent(source);
-  }
-  mSourceEvent = info->currentlyTracedSourceEvent;
-  //printf("Runnable, InitSourceEvent: mSourceEvent refcnt:%d\n", mSourceEvent->refCount());
+  mOriginTaskId = info->curTracedTaskId;
+  mSEType = info->curTracedTaskType;
 
-  LogTaskAction(ACTION_DISPATCH, mTaskId, mSourceEvent);
+  LogTaskAction(ACTION_DISPATCH, mTaskId, mOriginTaskId, mSEType);
 }
 
 void
 TracedRunnable::AttachTracedInfo()
 {
-  SetCurrentlyTracedSourceEvent(mSourceEvent.get());
+  SetCurTracedId(mOriginTaskId);
+  SetCurTracedType(mSEType);
 }
 
 void
 TracedRunnable::ClearTracedInfo()
 {
-  SetCurrentlyTracedSourceEvent(nullptr);
+  SetCurTracedId(0);
+  SetCurTracedType(UNKNOWN);
 }
 
 TracedTask::TracedTask(Task* aFatualObj)
   : mFactualObj(aFatualObj)
+  , mOriginTaskId(0)
+  , mSEType(UNKNOWN)
 {
-    mTaskId = GenNewUniqueTaskId();
+  mTaskId = GenNewUniqueTaskId();
+  InitSourceEvent();
 }
 
 TracedTask::~TracedTask()
@@ -80,38 +84,36 @@ void
 TracedTask::InitSourceEvent()
 {
   TracedInfo* info = GetTracedInfo();
-  if(!info->currentlyTracedSourceEvent) {
-    mozilla::TemporaryRef<SourceEventDummy> source = new SourceEventDummy();
-    CreateCurrentlyTracedSourceEvent(source);
-  }
-  mSourceEvent = info->currentlyTracedSourceEvent;
-  //printf("Task, InitSourceEvent: mSourceEvent refcnt:%d\n", mSourceEvent->refCount());
+  mOriginTaskId = info->curTracedTaskId;
+  mSEType = info->curTracedTaskType;
 
-  LogTaskAction(ACTION_DISPATCH, mTaskId, mSourceEvent);
+  LogTaskAction(ACTION_DISPATCH, mTaskId, mOriginTaskId, mSEType);
 }
 
 void
 TracedTask::Run()
 {
-  LogTaskAction(ACTION_START, mTaskId, mSourceEvent);
+  LogTaskAction(ACTION_START, mTaskId, mOriginTaskId, mSEType);
 
   AttachTracedInfo();
   mFactualObj->Run();
   ClearTracedInfo();
 
-  LogTaskAction(ACTION_FINISHED, mTaskId, mSourceEvent);
+  LogTaskAction(ACTION_FINISHED, mTaskId, mOriginTaskId, mSEType);
 }
 
 void
 TracedTask::AttachTracedInfo()
 {
-  SetCurrentlyTracedSourceEvent(mSourceEvent.get());
+  SetCurTracedId(mOriginTaskId);
+  SetCurTracedType(mSEType);
 }
 
 void
 TracedTask::ClearTracedInfo()
 {
-  SetCurrentlyTracedSourceEvent(nullptr);
+  SetCurTracedId(0);
+  SetCurTracedType(UNKNOWN);
 }
 
 // Implementing GeckoTaskTracer.h
@@ -120,7 +122,6 @@ nsIRunnable*
 CreateTracedRunnable(nsIRunnable *aRunnable)
 {
   TracedRunnable *runnable = new TracedRunnable(aRunnable);
-  runnable->InitSourceEvent();
   return runnable;
 }
 
@@ -128,7 +129,6 @@ Task*
 CreateTracedTask(Task *aTask)
 {
   TracedTask *task = new TracedTask(aTask);
-  task->InitSourceEvent();
   return task;
 }
 

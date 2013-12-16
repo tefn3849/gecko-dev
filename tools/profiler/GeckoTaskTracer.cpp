@@ -132,20 +132,15 @@ LogAction(ActionType aType, uint64_t aTid, uint64_t aOTid)
 }
 
 void
-LogTaskAction(ActionType aType, uint64_t aTaskId, SourceEventBase* aSourceEvent)
+LogTaskAction(ActionType aType, uint64_t aTaskId, uint64_t aOriginId, SourceEventType aSEType)
 {
-  //NS_ENSURE_TRUE_VOID(sDebugRunnable && aSourceEvent);
-  NS_ENSURE_TRUE_VOID(aSourceEvent);
+  //NS_ENSURE_TRUE_VOID(sDebugRunnable && aOriginId);
 
-  if (aSourceEvent->GetType() == SourceEventBase::TOUCH) {
-    SourceEventTouch* aSource = static_cast<SourceEventTouch*>(aSourceEvent);
-    LOG("[TouchEvent:%d] (x:%d, y:%d), tid:%d (%s), task id:%d, orig id:%d",
-        aType, aSource->mPositionX, aSource->mPositionY, gettid(),
-        GetCurrentThreadName(), aTaskId, aSource->mOriginTaskId);
+  if (aSEType == TOUCH) {
+    LOG("[TouchEvent:%d] tid:%d (%s), task id:%lld, orig id:%lld",
+        aType, gettid(), GetCurrentThreadName(), aTaskId, aOriginId);
   } else {
-//    SourceEventDummy* aSource = static_cast<SourceEventDummy*>(aSourceEvent);
-//    LOG("[UnknownEvent:%d] tid:%d (%s), task id:%d, orig id:%d",
-//        aType, gettid(), GetCurrentThreadName(), aTaskId, aSource->mOriginTaskId);
+
   }
 }
 
@@ -166,16 +161,16 @@ InitRunnableTrace()
 void
 LogSamplerEnter(const char *aInfo)
 {
-    if (uint64_t currTid = *GetCurrentThreadTaskIdPtr() && sDebugRunnable) {
-        LOG("(tid: %d), task: %lld, >> %s", gettid(), *GetCurrentThreadTaskIdPtr(), aInfo);
+    if (uint64_t currTid = GetCurTracedId() && sDebugRunnable) {
+        LOG("(tid: %d), task: %lld, >> %s", gettid(), GetCurTracedId(), aInfo);
     }
 }
 
 void
 LogSamplerExit(const char *aInfo)
 {
-    if (uint64_t currTid = *GetCurrentThreadTaskIdPtr() && sDebugRunnable) {
-        LOG("(tid: %d), task: %lld, << %s", gettid(), *GetCurrentThreadTaskIdPtr(), aInfo);
+    if (uint64_t currTid = GetCurTracedId() && sDebugRunnable) {
+        LOG("(tid: %d), task: %lld, << %s", gettid(), GetCurTracedId(), aInfo);
     }
 }
 
@@ -183,7 +178,7 @@ uint64_t*
 GetCurrentThreadTaskIdPtr()
 {
     TracedInfo* info = GetTracedInfo();
-    return &info->currentTracedTaskId;
+    return &info->curTracedTaskId;
 }
 
 uint64_t
@@ -196,30 +191,48 @@ GenNewUniqueTaskId()
 }
 
 void
-CreateCurrentlyTracedSourceEvent(mozilla::TemporaryRef<SourceEventBase> aSourceEvent)
+CreateSETouch(int aX, int aY)
 {
   TracedInfo* info = GetTracedInfo();
-  info->currentlyTracedSourceEvent = aSourceEvent;
+  info->curTracedTaskId = GenNewUniqueTaskId();
+  info->curTracedTaskType = TOUCH;
+  LOG("[Create SE Touch] (x:%d, y:%d), tid:%d (%s), orig id:%d",
+      aX, aY, info->threadId, GetCurrentThreadName(), info->curTracedTaskId);
 }
 
-void
-SetCurrentlyTracedSourceEvent(SourceEventBase* aSourceEvent)
+void SetCurTracedId(uint64_t aTaskId)
 {
   TracedInfo* info = GetTracedInfo();
-  info->currentlyTracedSourceEvent = aSourceEvent;
+  info->curTracedTaskId = aTaskId;
 }
-
-SourceEventBase*
-GetCurrentlyTracedSourceEvent()
+uint64_t GetCurTracedId()
 {
   TracedInfo* info = GetTracedInfo();
-  return info->currentlyTracedSourceEvent.get();
+  return info->curTracedTaskId;
 }
 
-SourceEventBase::SourceEventBase(){
-  uint64_t newTaskId = GenNewUniqueTaskId();
-  // Install new task Id.
-  mOriginTaskId = newTaskId;
+void SetCurTracedType(SourceEventType aType)
+{
+  TracedInfo* info = GetTracedInfo();
+  info->curTracedTaskType = aType;
+}
+SourceEventType GetCurTracedType()
+{
+  TracedInfo* info = GetTracedInfo();
+  return info->curTracedTaskType;
+}
+
+void SaveCurTracedInfo()
+{
+  TracedInfo* info = GetTracedInfo();
+  info->savedTracedTaskId = info->curTracedTaskId;
+  info->savedTracedTaskType = info->curTracedTaskType;
+}
+void RestorePrevTracedInfo()
+{
+  TracedInfo* info = GetTracedInfo();
+  info->curTracedTaskId = info->savedTracedTaskId;
+  info->curTracedTaskType = info->savedTracedTaskType;
 }
 
 } // namespace tasktracer

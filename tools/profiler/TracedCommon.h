@@ -26,11 +26,6 @@ public:
   TracedRunnable(nsIRunnable *aFactualObj);
   virtual ~TracedRunnable();
 
-  // Allocates a TracedInfo for the current thread on its thread local storage
-  // if not exist, and sets the origin taskId of this runnable to the currently-
-  // traced taskID from the TracedInfo of current thread.
-  void InitSourceEvent();
-
   // Returns the original runnable object wrapped by this TracedRunnable.
   already_AddRefed<nsIRunnable> GetFatualObject() {
     nsCOMPtr<nsIRunnable> factualObj = mFactualObj;
@@ -38,6 +33,11 @@ public:
   }
 
 private:
+  // Allocates a TracedInfo for the current thread on its thread local storage
+  // if not exist, and sets the origin taskId of this runnable to the currently-
+  // traced taskID from the TracedInfo of current thread.
+  void InitSourceEvent();
+
   // Before calling the Run() of its factual object, sets the currently-traced
   // taskID from the TracedInfo of current thread, to its origin's taskId.
   // Setup other information is needed.
@@ -45,16 +45,17 @@ private:
   void AttachTracedInfo();
   void ClearTracedInfo();
 
+  // The factual runnable object wrapped by this TracedRunnable wrapper.
+  nsCOMPtr<nsIRunnable> mFactualObj;
+
   // Its own taskID, an unique number base on the tid of current thread and
   // a last unique taskID from the TracedInfo of current thread.
   uint64_t mTaskId;
 
   // The origin taskId, it's being set to the currently-traced taskID from the
   // TracedInfo of current thread in the call of InitOriginTaskId().
-  RefPtr<SourceEventBase> mSourceEvent;
-
-  // The factual runnable object wrapped by this TracedRunnable wrapper.
-  nsCOMPtr<nsIRunnable> mFactualObj;
+  uint64_t mOriginTaskId;
+  SourceEventType mSEType;
 };
 
 class TracedTask : public Task
@@ -65,15 +66,15 @@ public:
 
   virtual void Run();
 
-  void InitSourceEvent();
-
 private:
+  void InitSourceEvent();
   void AttachTracedInfo();
   void ClearTracedInfo();
 
-  uint64_t mTaskId;
-  RefPtr<SourceEventBase> mSourceEvent;
   Task *mFactualObj;
+  uint64_t mTaskId;
+  uint64_t mOriginTaskId;
+  SourceEventType mSEType;
 };
 
 } // namespace tasktracer

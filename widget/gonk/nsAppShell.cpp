@@ -612,7 +612,8 @@ GeckoInputDispatcher::dispatchOnce()
     }
 
 #ifdef MOZ_TASK_TRACER
-    SourceEventBase* savedSourceEvent = GetCurrentlyTracedSourceEvent();
+    // Save currently traced task info.
+    SaveCurTracedInfo();
 #endif
 
     switch (data.type) {
@@ -622,10 +623,8 @@ GeckoInputDispatcher::dispatchOnce()
             AMOTION_EVENT_ACTION_HOVER_MOVE) {
             bool captured;
 #ifdef MOZ_TASK_TRACER
-            mozilla::TemporaryRef<SourceEventTouch> source =
-                new SourceEventTouch(data.motion.touches[0].coords.getX(),
-                                     data.motion.touches[0].coords.getY());
-            CreateCurrentlyTracedSourceEvent(source);
+            CreateSETouch(data.motion.touches[0].coords.getX(),
+                          data.motion.touches[0].coords.getY());
             // FIXME Encapsulate using TracedTaskSource.
 //            LOG("Task id: %lld: sendTouchEvent(). Touch count: %d, coords[0]: (%d, %d)",
 //                newTaskId,
@@ -661,10 +660,8 @@ GeckoInputDispatcher::dispatchOnce()
             break;
         }
 #ifdef MOZ_TASK_TRACER
-        mozilla::TemporaryRef<SourceEventTouch> source =
-            new SourceEventTouch(data.motion.touches[0].coords.getX(),
-                                 data.motion.touches[0].coords.getY());
-        CreateCurrentlyTracedSourceEvent(source);
+        CreateSETouch(data.motion.touches[0].coords.getX(),
+                      data.motion.touches[0].coords.getY());
         // FIXME Encapsulate using TracedTaskSource.
 //        LOG("Task id: %lld: sendMouseEvent(). type=%s coords[0]: (%d, %d)",
 //            newTaskId,
@@ -687,8 +684,8 @@ GeckoInputDispatcher::dispatchOnce()
       }
     }
 #ifdef MOZ_TASK_TRACER
-    // Restore new task Id.
-    SetCurrentlyTracedSourceEvent(savedSourceEvent);
+    // Restore previously saved task info.
+    RestorePrevTracedInfo();
 #endif
 }
 

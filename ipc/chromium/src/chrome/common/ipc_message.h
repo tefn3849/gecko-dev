@@ -341,7 +341,8 @@ class Message : public Pickle {
     // Sequence number
     int32_t seqno;
 #ifdef MOZ_TASK_TRACER
-    mozilla::RefPtr<mozilla::tasktracer::SourceEventBase> source_event;
+    uint64_t orig_task_id;
+    mozilla::tasktracer::SourceEventType source_event_type;
 #endif
   };
 

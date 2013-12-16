@@ -15,24 +15,12 @@ class nsIRunnable;
 namespace mozilla {
 namespace tasktracer {
 
-class SourceEventBase : public RefCounted<SourceEventBase>
-{
-public:
-  enum SourceEventType {
-    UNKNOWN,
-    TOUCH,
-    MOUSE,
-    POWER_KEY,
-    HOME_KEY,
-  };
-
-  SourceEventBase();
-
-  virtual ~SourceEventBase() {}
-
-  virtual SourceEventType GetType() const = 0;
-
-  uint64_t mOriginTaskId;
+enum SourceEventType {
+  UNKNOWN,
+  TOUCH,
+  MOUSE,
+  POWER_KEY,
+  HOME_KEY,
 };
 
 /**
@@ -52,10 +40,17 @@ nsIRunnable *CreateTracedRunnable(nsIRunnable *aRunnable);
  */
 uint64_t *GetCurrentThreadTaskIdPtr();
 
-void CreateCurrentlyTracedSourceEvent(mozilla::TemporaryRef<SourceEventBase> aSourceEvent);
+void CreateSETouch(int aX, int aY);
 
-void SetCurrentlyTracedSourceEvent(SourceEventBase* aSourceEvent);
-SourceEventBase* GetCurrentlyTracedSourceEvent();
+void SetCurTracedId(uint64_t aTaskId);
+uint64_t GetCurTracedId();
+
+void SetCurTracedType(SourceEventType aType);
+SourceEventType GetCurTracedType();
+
+void SaveCurTracedInfo();
+void RestorePrevTracedInfo();
+
 
 /**
  * Generates an unique task id for a TeacedRunnable base on its owner thread

@@ -552,9 +552,6 @@ bool Channel::ChannelImpl::ProcessIncomingMessages() {
     while (p < end) {
       const char* message_tail = Message::FindNext(p, end);
       if (message_tail) {
-#ifdef MOZ_TASK_TRACER
-        SourceEventBase* saved_source_event = nullptr;
-#endif
         int len = static_cast<int>(message_tail - p);
         Message m(p, len);
         if (m.header()->num_fds) {
@@ -607,9 +604,10 @@ bool Channel::ChannelImpl::ProcessIncomingMessages() {
                       " with type " << m.type();
 #endif
 #ifdef MOZ_TASK_TRACER
-        if (m.header()->source_event) {
-          saved_source_event = GetCurrentlyTracedSourceEvent();
-          SetCurrentlyTracedSourceEvent(m.header()->source_event);
+        if (m.header()->orig_task_id) {
+          SaveCurTracedInfo();
+          SetCurTracedId(m.header()->orig_task_id);
+          SetCurTracedType(m.header()->source_event_type);
         }
 #endif
 
@@ -628,8 +626,8 @@ bool Channel::ChannelImpl::ProcessIncomingMessages() {
         }
         p = message_tail;
 #ifdef MOZ_TASK_TRACER
-      if (m.header()->source_event) {
-        SetCurrentlyTracedSourceEvent(saved_source_event);
+      if (m.header()->orig_task_id) {
+        RestorePrevTracedInfo();
       }
 #endif
       } else {
@@ -712,8 +710,9 @@ bool Channel::ChannelImpl::ProcessOutgoingMessages() {
 #endif
     }
 #ifdef MOZ_TASK_TRACER
-    if (GetCurrentlyTracedSourceEvent()) {
-      msg->header()->source_event = GetCurrentlyTracedSourceEvent();
+    if (GetCurTracedId()) {
+      msg->header()->orig_task_id = GetCurTracedId();
+      msg->header()->source_event_type = GetCurTracedType();
     }
 #endif
 

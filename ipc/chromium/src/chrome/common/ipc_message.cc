@@ -24,6 +24,10 @@ Message::Message()
 #if defined(OS_POSIX)
   header()->num_fds = 0;
 #endif
+#ifdef MOZ_TASK_TRACER
+  header()->orig_task_id = 0;
+  header()->source_event_type = mozilla::tasktracer::SourceEventType::UNKNOWN;
+#endif
   InitLoggingVariables();
 }
 
@@ -45,7 +49,8 @@ Message::Message(int32_t routing_id, msgid_t type, PriorityValue priority,
   header()->cookie = 0;
 #endif
 #ifdef MOZ_TASK_TRACER
-  header()->source_event = nullptr;
+  header()->orig_task_id = 0;
+  header()->source_event_type = mozilla::tasktracer::SourceEventType::UNKNOWN;
 #endif
   InitLoggingVariables(name);
 }
@@ -60,7 +65,8 @@ Message::Message(const Message& other) : Pickle(other) {
   file_descriptor_set_ = other.file_descriptor_set_;
 #endif
 #ifdef MOZ_TASK_TRACER
-  header()->source_event = other.header()->source_event;
+  header()->orig_task_id = other.header()->orig_task_id;
+  header()->source_event_type = other.header()->source_event_type;
 #endif
 }
 
@@ -79,6 +85,10 @@ Message& Message::operator=(const Message& other) {
   InitLoggingVariables(other.name_);
 #if defined(OS_POSIX)
   file_descriptor_set_ = other.file_descriptor_set_;
+#endif
+#ifdef MOZ_TASK_TRACER
+  header()->orig_task_id = other.header()->orig_task_id;
+  header()->source_event_type = other.header()->source_event_type;
 #endif
   return *this;
 }
