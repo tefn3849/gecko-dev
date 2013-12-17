@@ -7,8 +7,6 @@
 #ifndef GECKO_TASK_TRACER_H
 #define GECKO_TASK_TRACER_H
 
-#include "mozilla/RefPtr.h"
-
 class Task;
 class nsIRunnable;
 
@@ -16,7 +14,7 @@ namespace mozilla {
 namespace tasktracer {
 
 enum SourceEventType {
-  UNKNOWN,
+  UNKNOWN = 0,
   TOUCH,
   MOUSE,
   POWER_KEY,
@@ -33,35 +31,57 @@ Task *CreateTracedTask(Task *aTask);
  */
 nsIRunnable *CreateTracedRunnable(nsIRunnable *aRunnable);
 
-// XXX Should we expose these two functions?
-/**
- * Returns the pointer of currently-traced task id, access from the TracedInfo
- * of current thread.
- */
-uint64_t *GetCurrentThreadTaskIdPtr();
-
-void CreateSETouch(int aX, int aY);
-
-void SetCurTracedId(uint64_t aTaskId);
-uint64_t GetCurTracedId();
-
-void SetCurTracedType(SourceEventType aType);
-SourceEventType GetCurTracedType();
-
-void SaveCurTracedInfo();
-void RestorePrevTracedInfo();
-
-
-/**
- * Generates an unique task id for a TeacedRunnable base on its owner thread
- * and the last unique task id.
- */
-uint64_t GenNewUniqueTaskId();
-
 /**
  * Free the TracedInfo allocated on its tread local storage.
  */
 void FreeTracedInfo();
+
+/**
+ * Generate an unique task id for a TeacedRunnable/TracedTask base on its
+ * owner thread id and the last unique task id.
+ */
+uint64_t GenNewUniqueTaskId();
+
+/**
+ * Create a source event of type SourceEventType::TOUCH, where aX and aY the
+ * touched coordinates on screen.
+ */
+void CreateSETouch(int aX, int aY);
+
+/**
+ * Set the id of tracing task on current thread with aTaskId.
+ */
+void SetCurTracedId(uint64_t aTaskId);
+
+/**
+ * Return the task id of tracing task on current thread.
+ */
+uint64_t GetCurTracedId();
+
+/**
+ * Set the source event type of tracing task on current thread with aType.
+ * aType could be TOUCH, MOUSE, POWER_KEY...etc.
+ */
+void SetCurTracedType(SourceEventType aType);
+
+/**
+ * Return the source event type of tracing task on current thread.
+ */
+SourceEventType GetCurTracedType();
+
+/**
+ * Save the currently-traced task. Usually used when current thread is already
+ * tracing a task, but a source event is generated from this point. Create a
+ * source event for tracking overwrites the tracing task on current thread, so
+ * save the currently-traced task before overwriting, and restore them later.
+ */
+void SaveCurTracedInfo();
+
+/**
+ * Restore the previously saved task info, usually pair up with
+ * SaveCurTracedInfo().
+ */
+void RestorePrevTracedInfo();
 
 } // namespace tasktracer
 } // namespace mozilla.

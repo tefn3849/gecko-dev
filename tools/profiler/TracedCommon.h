@@ -36,7 +36,7 @@ private:
   // Allocates a TracedInfo for the current thread on its thread local storage
   // if not exist, and sets the origin taskId of this runnable to the currently-
   // traced taskID from the TracedInfo of current thread.
-  void InitSourceEvent();
+  void SetupSourceEvent();
 
   // Before calling the Run() of its factual object, sets the currently-traced
   // taskID from the TracedInfo of current thread, to its origin's taskId.
@@ -54,8 +54,8 @@ private:
 
   // The origin taskId, it's being set to the currently-traced taskID from the
   // TracedInfo of current thread in the call of InitOriginTaskId().
-  uint64_t mOriginTaskId;
-  SourceEventType mSEType;
+  uint64_t mSourceEventId;
+  SourceEventType mSourceEventType;
 };
 
 class TracedTask : public Task
@@ -67,14 +67,14 @@ public:
   virtual void Run();
 
 private:
-  void InitSourceEvent();
+  void SetupSourceEvent();
   void AttachTracedInfo();
   void ClearTracedInfo();
 
   Task *mFactualObj;
   uint64_t mTaskId;
-  uint64_t mOriginTaskId;
-  SourceEventType mSEType;
+  uint64_t mSourceEventId;
+  SourceEventType mSourceEventType;
 };
 
 } // namespace tasktracer

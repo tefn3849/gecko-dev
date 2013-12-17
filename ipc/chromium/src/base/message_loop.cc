@@ -6,7 +6,6 @@
 
 #include <algorithm>
 
-#include "GeckoTaskTracer.h"
 #include "mozilla/Atomics.h"
 #include "base/compiler_specific.h"
 #include "base/lazy_instance.h"
@@ -31,6 +30,9 @@
 #endif
 #ifdef ANDROID
 #include "base/message_pump_android.h"
+#endif
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracer.h"
 #endif
 
 #include "MessagePump.h"

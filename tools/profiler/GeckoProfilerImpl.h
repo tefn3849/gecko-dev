@@ -16,7 +16,6 @@
 #include "nsAlgorithm.h"
 #include "nscore.h"
 #include "GeckoProfilerFunc.h"
-#include "GeckoTaskTracerImpl.h"
 #include "PseudoStack.h"
 #include "nsISupports.h"
 
@@ -58,7 +57,6 @@ static inline
 void profiler_init(void* stackTop)
 {
   mozilla_sampler_init(stackTop);
-  mozilla::tasktracer::InitRunnableTrace();
 }
 
 static inline
@@ -284,11 +282,9 @@ public:
   SamplerStackFrameRAII(const char *aInfo, uint32_t line) {
     mHandle = mozilla_sampler_call_enter(aInfo, this, false, line);
     mSamplerInfo = aInfo;
-    mozilla::tasktracer::LogSamplerEnter(mSamplerInfo);
   }
   ~SamplerStackFrameRAII() {
     mozilla_sampler_call_exit(mHandle);
-    mozilla::tasktracer::LogSamplerExit(mSamplerInfo);
     mSamplerInfo = nullptr;
   }
 private:
@@ -317,17 +313,14 @@ public:
 #endif
       mHandle = mozilla_sampler_call_enter(mDest, this, true, line);
       va_end(args);
-      mozilla::tasktracer::LogSamplerEnter(const_cast<char*>(mDest));
     } else {
       mHandle = mozilla_sampler_call_enter(aDefault, nullptr, false, line);
       if (aDefault) {
         strcpy(mDest, aDefault);
       }
-      mozilla::tasktracer::LogSamplerEnter(const_cast<char*>(mDest));
     }
   }
   ~SamplerStackFramePrintfRAII() {
-    mozilla::tasktracer::LogSamplerExit(const_cast<char*>(mDest));
     mozilla_sampler_call_exit(mHandle);
   }
 private:

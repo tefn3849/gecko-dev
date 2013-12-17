@@ -31,11 +31,10 @@
 #include "chrome/common/file_descriptor_set_posix.h"
 #include "chrome/common/ipc_logging.h"
 #include "chrome/common/ipc_message_utils.h"
-#include "GeckoTaskTracer.h"
-#include "mozilla/ipc/ProtocolUtils.h"
 #ifdef MOZ_TASK_TRACER
 #include "GeckoTaskTracer.h"
 #endif
+#include "mozilla/ipc/ProtocolUtils.h"
 
 #ifdef MOZ_TASK_TRACER
 using namespace mozilla::tasktracer;
@@ -604,10 +603,10 @@ bool Channel::ChannelImpl::ProcessIncomingMessages() {
                       " with type " << m.type();
 #endif
 #ifdef MOZ_TASK_TRACER
-        if (m.header()->orig_task_id) {
+        if (m.header()->source_event_id) {
           SaveCurTracedInfo();
-          SetCurTracedId(m.header()->orig_task_id);
-          SetCurTracedType(m.header()->source_event_type);
+          SetCurTracedId(m.header()->source_event_id);
+          SetCurTracedType(static_cast<SourceEventType>(m.header()->source_event_type));
         }
 #endif
 
@@ -626,7 +625,7 @@ bool Channel::ChannelImpl::ProcessIncomingMessages() {
         }
         p = message_tail;
 #ifdef MOZ_TASK_TRACER
-      if (m.header()->orig_task_id) {
+      if (m.header()->source_event_id) {
         RestorePrevTracedInfo();
       }
 #endif
@@ -711,7 +710,7 @@ bool Channel::ChannelImpl::ProcessOutgoingMessages() {
     }
 #ifdef MOZ_TASK_TRACER
     if (GetCurTracedId()) {
-      msg->header()->orig_task_id = GetCurTracedId();
+      msg->header()->source_event_id = GetCurTracedId();
       msg->header()->source_event_type = GetCurTracedType();
     }
 #endif

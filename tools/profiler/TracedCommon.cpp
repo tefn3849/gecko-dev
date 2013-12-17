@@ -16,23 +16,23 @@ NS_IMPL_ISUPPORTS1(TracedRunnable, nsIRunnable)
 NS_IMETHODIMP
 TracedRunnable::Run()
 {
-  LogTaskAction(ACTION_START, mTaskId, mOriginTaskId, mSEType);
+  LogTaskAction(ACTION_START, mTaskId, mSourceEventId, mSourceEventType);
 
   AttachTracedInfo();
   nsresult rv = mFactualObj->Run();
   ClearTracedInfo();
 
-  LogTaskAction(ACTION_FINISHED, mTaskId, mOriginTaskId, mSEType);
+  LogTaskAction(ACTION_FINISHED, mTaskId, mSourceEventId, mSourceEventType);
   return rv;
 }
 
 TracedRunnable::TracedRunnable(nsIRunnable *aFatualObj)
   : mFactualObj(aFatualObj)
-  , mOriginTaskId(0)
-  , mSEType(UNKNOWN)
+  , mSourceEventId(0)
+  , mSourceEventType(UNKNOWN)
 {
   mTaskId = GenNewUniqueTaskId();
-  InitSourceEvent();
+  SetupSourceEvent();
 }
 
 TracedRunnable::~TracedRunnable()
@@ -40,20 +40,20 @@ TracedRunnable::~TracedRunnable()
 }
 
 void
-TracedRunnable::InitSourceEvent()
+TracedRunnable::SetupSourceEvent()
 {
   TracedInfo* info = GetTracedInfo();
-  mOriginTaskId = info->curTracedTaskId;
-  mSEType = info->curTracedTaskType;
+  mSourceEventId = info->curTracedTaskId;
+  mSourceEventType = info->curTracedTaskType;
 
-  LogTaskAction(ACTION_DISPATCH, mTaskId, mOriginTaskId, mSEType);
+  LogTaskAction(ACTION_DISPATCH, mTaskId, mSourceEventId, mSourceEventType);
 }
 
 void
 TracedRunnable::AttachTracedInfo()
 {
-  SetCurTracedId(mOriginTaskId);
-  SetCurTracedType(mSEType);
+  SetCurTracedId(mSourceEventId);
+  SetCurTracedType(mSourceEventType);
 }
 
 void
@@ -65,11 +65,11 @@ TracedRunnable::ClearTracedInfo()
 
 TracedTask::TracedTask(Task* aFatualObj)
   : mFactualObj(aFatualObj)
-  , mOriginTaskId(0)
-  , mSEType(UNKNOWN)
+  , mSourceEventId(0)
+  , mSourceEventType(UNKNOWN)
 {
   mTaskId = GenNewUniqueTaskId();
-  InitSourceEvent();
+  SetupSourceEvent();
 }
 
 TracedTask::~TracedTask()
@@ -81,32 +81,32 @@ TracedTask::~TracedTask()
 }
 
 void
-TracedTask::InitSourceEvent()
+TracedTask::SetupSourceEvent()
 {
   TracedInfo* info = GetTracedInfo();
-  mOriginTaskId = info->curTracedTaskId;
-  mSEType = info->curTracedTaskType;
+  mSourceEventId = info->curTracedTaskId;
+  mSourceEventType = info->curTracedTaskType;
 
-  LogTaskAction(ACTION_DISPATCH, mTaskId, mOriginTaskId, mSEType);
+  LogTaskAction(ACTION_DISPATCH, mTaskId, mSourceEventId, mSourceEventType);
 }
 
 void
 TracedTask::Run()
 {
-  LogTaskAction(ACTION_START, mTaskId, mOriginTaskId, mSEType);
+  LogTaskAction(ACTION_START, mTaskId, mSourceEventId, mSourceEventType);
 
   AttachTracedInfo();
   mFactualObj->Run();
   ClearTracedInfo();
 
-  LogTaskAction(ACTION_FINISHED, mTaskId, mOriginTaskId, mSEType);
+  LogTaskAction(ACTION_FINISHED, mTaskId, mSourceEventId, mSourceEventType);
 }
 
 void
 TracedTask::AttachTracedInfo()
 {
-  SetCurTracedId(mOriginTaskId);
-  SetCurTracedType(mSEType);
+  SetCurTracedId(mSourceEventId);
+  SetCurTracedType(mSourceEventType);
 }
 
 void
@@ -121,14 +121,14 @@ TracedTask::ClearTracedInfo()
 nsIRunnable*
 CreateTracedRunnable(nsIRunnable *aRunnable)
 {
-  TracedRunnable *runnable = new TracedRunnable(aRunnable);
-  return runnable;
+  nsCOMPtr<TracedRunnable> runnable = new TracedRunnable(aRunnable);
+  return runnable.get();
 }
 
 Task*
 CreateTracedTask(Task *aTask)
 {
-  TracedTask *task = new TracedTask(aTask);
+  TracedTask* task = new TracedTask(aTask);
   return task;
 }
 

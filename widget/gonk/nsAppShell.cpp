@@ -29,6 +29,9 @@
 #include <unistd.h>
 
 #include "base/basictypes.h"
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracer.h"
+#endif
 #include "GonkPermission.h"
 #include "nscore.h"
 #ifdef MOZ_OMX_DECODER
@@ -46,9 +49,6 @@
 #endif
 #include "nsAppShell.h"
 #include "mozilla/dom/Touch.h"
-#ifdef MOZ_TASK_TRACER
-#include "GeckoTaskTracer.h"
-#endif
 #include "nsGkAtoms.h"
 #include "nsIObserverService.h"
 #include "nsIScreen.h"

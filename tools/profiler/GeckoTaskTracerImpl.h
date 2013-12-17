@@ -22,51 +22,33 @@ enum ActionType {
 };
 
 /**
- * A snapshot of the current tracing activity.
- */
-struct TracedActivity {
-  ActionType actionType;
-  uint64_t tm;                  // Current time in microseconds.
-  uint64_t taskId;              // Task id.
-  uint64_t originTaskId;        // Origin's task id.
-};
-
-/**
- * Each thread owns a TracedInfo on its tread local storage, keeping track of
- * all information of TracedRunnable tasks dispatched from this thread.
+ * Each thread owns a TracedInfo on its tread local storage, keeps track of
+ * currently-traced task and other information.
  */
 struct TracedInfo {
-  uint64_t curTracedTaskId; // Task id of the currently-traced TracedRunnable task.
+  uint64_t curTracedTaskId; // Task id of the currently-traced task.
   uint64_t savedTracedTaskId;
-  SourceEventType curTracedTaskType;
+  SourceEventType curTracedTaskType; // Source event type of the currently-traced task.
   SourceEventType savedTracedTaskType;
   uint32_t threadId;            // Thread id of its owner thread.
   uint32_t lastUniqueTaskId;    // A serial number to generate an unique task id for a new TracedRunnable.
-
-  int actNext;
-  int actFirst;
-  TracedActivity activities[TASK_TRACE_BUF_SIZE];
 };
 
 /**
- * Returns the TracedInfo of this thread, allocate a new one if not exit.
+ * Initialize and setup needed information for TaskTracer.
+ */
+void InitTaskTracer();
+
+/**
+ * Return the TracedInfo of this thread, allocate a new one if not exit.
  */
 TracedInfo* GetTracedInfo();
 
 /**
- * Log the snapshot the current tracing activity.
+ * Log the snapshot of current tracing activity.
  */
-void LogAction(ActionType aType, uint64_t aTid, uint64_t aOTid);
-
-void LogTaskAction(ActionType aType, uint64_t aTaskId, uint64_t aOriginId, SourceEventType aSEType);
-
-void LogSamplerEnter(const char *aInfo);
-
-void LogSamplerExit(const char *aInfo);
-
-void InitRunnableTrace();
-
-
+void LogTaskAction(ActionType aActionType, uint64_t aTaskId,
+                   uint64_t aSourceEventId, SourceEventType aSourceEventType);
 
 } // namespace mozilla
 } // namespace tasktracer
