@@ -29,6 +29,9 @@
 #include <unistd.h>
 
 #include "base/basictypes.h"
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracer.h"
+#endif
 #include "GonkPermission.h"
 #include "nscore.h"
 #ifdef MOZ_OMX_DECODER
@@ -85,6 +88,9 @@ using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::services;
 using namespace mozilla::widget;
+#ifdef MOZ_TASK_TRACER
+using namespace mozilla::tasktracer;
+#endif
 
 bool gDrawRequest = false;
 static nsAppShell *gAppShell = nullptr;
@@ -658,12 +664,21 @@ GeckoInputDispatcher::dispatchOnce()
             gAppShell->NotifyNativeEvent();
     }
 
+#ifdef MOZ_TASK_TRACER
+    // Save currently traced task info.
+    SaveCurTraceInfo();
+#endif
+
     switch (data.type) {
     case UserInputData::MOTION_DATA: {
         nsEventStatus status = nsEventStatus_eIgnore;
         if ((data.action & AMOTION_EVENT_ACTION_MASK) !=
             AMOTION_EVENT_ACTION_HOVER_MOVE) {
             bool captured;
+#ifdef MOZ_TASK_TRACER
+            CreateSETouch(data.motion.touches[0].coords.getX(),
+                          data.motion.touches[0].coords.getY());
+#endif
             status = sendTouchEvent(data, &captured);
             if (captured) {
                 return;
@@ -671,19 +686,23 @@ GeckoInputDispatcher::dispatchOnce()
         }
 
         uint32_t msg;
+        const char *msgText = "";
         switch (data.action & AMOTION_EVENT_ACTION_MASK) {
         case AMOTION_EVENT_ACTION_DOWN:
             msg = NS_MOUSE_BUTTON_DOWN;
+            msgText = "mousedown";
             break;
         case AMOTION_EVENT_ACTION_POINTER_DOWN:
         case AMOTION_EVENT_ACTION_POINTER_UP:
         case AMOTION_EVENT_ACTION_MOVE:
         case AMOTION_EVENT_ACTION_HOVER_MOVE:
+          msgText = "mousemove";
             msg = NS_MOUSE_MOVE;
             break;
         case AMOTION_EVENT_ACTION_OUTSIDE:
         case AMOTION_EVENT_ACTION_CANCEL:
         case AMOTION_EVENT_ACTION_UP:
+          msgText = "mouseup";
             msg = NS_MOUSE_BUTTON_UP;
             break;
         }
@@ -695,8 +714,12 @@ GeckoInputDispatcher::dispatchOnce()
         KeyEventDispatcher dispatcher(data, kcm.get());
         dispatcher.Dispatch();
         break;
+      }
     }
-    }
+#ifdef MOZ_TASK_TRACER
+    // Restore previously saved task info.
+    RestorePrevTraceInfo();
+#endif
 }
 
 void

@@ -4,25 +4,23 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#ifdef MOZ_LOGGING
+#define FORCE_PR_LOG
+#endif
+
 #include "GeckoTaskTracer.h"
 #include "GeckoTaskTracerImpl.h"
 
-#include "jsapi.h"
 #include "mozilla/ThreadLocal.h"
 #include "nsThreadUtils.h"
 #include "prenv.h"
+#include "prlog.h"
 #include "prthread.h"
+#include "prtime.h"
 
 #include <pthread.h>
 #include <sys/types.h>
 #include <unistd.h>
-
-#ifdef MOZ_WIDGET_GONK
-#include <android/log.h>
-#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Task", args)
-#else
-#define LOG(args...) do {} while (0)
-#endif
 
 #ifdef PR_LOGGING
 PRLogModuleInfo* gTaskTracerLog;
@@ -30,8 +28,6 @@ PRLogModuleInfo* gTaskTracerLog;
 #else
 #define TT_LOG(type, msg)
 #endif
-
-static bool sDebugRunnable = false;
 
 #if defined(__GLIBC__)
 // glibc doesn't implement gettid(2).
@@ -47,6 +43,8 @@ static pid_t gettid()
 namespace mozilla {
 namespace tasktracer {
 
+static bool sInitialized = false;
+static bool sStarted = false;
 static TraceInfo sAllTraceInfo[MAX_THREAD_NUM];
 static mozilla::ThreadLocal<TraceInfo*> sTraceInfo;
 static pthread_mutex_t sTraceInfoLock = PTHREAD_MUTEX_INITIALIZER;
@@ -97,13 +95,37 @@ GetCurrentThreadName()
 void
 InitTaskTracer()
 {
+  if (sInitialized) {
+    return;
+  }
+
+  sInitialized = true;
+
   if (!sTraceInfo.initialized()) {
     sTraceInfo.init();
   }
+}
 
-  if (PR_GetEnv("MOZ_DEBUG_RUNNABLE")) {
-    sDebugRunnable = true;
+void
+StartTaskTracer()
+{
+  if (!sInitialized || (sInitialized && sStarted)) {
+    return;
   }
+
+  sStarted = true;
+
+#ifdef PR_LOGGING
+  if (!gTaskTracerLog) {
+    gTaskTracerLog = PR_NewLogModule("TaskTracer");
+  }
+#endif
+}
+
+bool
+IsStarted()
+{
+  return sStarted;
 }
 
 TraceInfo*
@@ -151,31 +173,42 @@ void
 LogTaskAction(ActionType aActionType, uint64_t aTaskId, uint64_t aSourceEventId,
               SourceEventType aSourceEventType)
 {
-  // Avoid spewing warning message in debug build.
-  if (!(sDebugRunnable && aSourceEventId)) {
+  if (!aSourceEventId) {
     return;
   }
 
-  if (aSourceEventType == TOUCH) {
-    LOG("[TouchEvent:%d] thread-id:%d (%s), Task id:%ld, SourceEvent id:%ld",
-        aActionType, gettid(), GetCurrentThreadName(), aTaskId, aSourceEventId);
-  }
+  // taskId | sourceEventId | processId | threadId
+  // actionType | timestamp | sourceEventType
+  TT_LOG(PR_LOG_DEBUG, ("%lld %lld %ld %ld %d %lld %d",
+                        aTaskId, aSourceEventId, getpid(), gettid(),
+                        aActionType, PR_Now(), aSourceEventType));
 }
 
 void
 FreeTraceInfo()
 {
+  if (!sInitialized) {
+    return;
+  }
+
   _FreeTraceInfo(gettid());
 }
 
 void
 CreateSETouch(int aX, int aY)
 {
+  if (!sStarted) {
+    return;
+  }
+
   TraceInfo* info = GetTraceInfo();
   info->mCurTraceTaskId = GenNewUniqueTaskId();
-  info->mCurTraceTaskType = TOUCH;
-  LOG("[Create SE Touch] (x:%d, y:%d), Task id:%d (%s), SourceEvent id:%d",
-      aX, aY, info->mThreadId, GetCurrentThreadName(), info->mCurTraceTaskId);
+  info->mCurTraceTaskType = SourceEventType::TOUCH;
+
+  TT_LOG(PR_LOG_DEBUG, ("%lld %lld %ld %ld %d %lld %d %d %d",
+                        info->mCurTraceTaskId, info->mCurTraceTaskId, getpid(),
+                        gettid(), ActionType::ACTION_DISPATCH, PR_Now(),
+                        SourceEventType::TOUCH, aX, aY));
 }
 
 void SaveCurTraceInfo()

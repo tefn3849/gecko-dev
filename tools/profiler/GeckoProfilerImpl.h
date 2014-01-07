@@ -16,6 +16,9 @@
 #include "nsAlgorithm.h"
 #include "nscore.h"
 #include "GeckoProfilerFunc.h"
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracerImpl.h"
+#endif
 #include "PseudoStack.h"
 #include "nsISupports.h"
 
@@ -56,6 +59,9 @@ extern bool stack_key_initialized;
 static inline
 void profiler_init(void* stackTop)
 {
+#ifdef MOZ_TASK_TRACER
+  mozilla::tasktracer::InitTaskTracer();
+#endif
   mozilla_sampler_init(stackTop);
 }
 
@@ -70,6 +76,9 @@ void profiler_start(int aProfileEntries, int aInterval,
                        const char** aFeatures, uint32_t aFeatureCount,
                        const char** aThreadNameFilters, uint32_t aFilterCount)
 {
+#ifdef MOZ_TASK_TRACER
+  mozilla::tasktracer::StartTaskTracer();
+#endif
   mozilla_sampler_start(aProfileEntries, aInterval, aFeatures, aFeatureCount, aThreadNameFilters, aFilterCount);
 }
 

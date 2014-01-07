@@ -104,15 +104,22 @@ TracedTask::Run()
 nsIRunnable*
 CreateTracedRunnable(nsIRunnable *aRunnable)
 {
-  TracedRunnable* runnable = new TracedRunnable(aRunnable);
-  return runnable;
+  if (IsStarted()) {
+    TracedRunnable* runnable = new TracedRunnable(aRunnable);
+    return runnable;
+  }
+
+  return aRunnable;
 }
 
 Task*
 CreateTracedTask(Task *aTask)
 {
-  TracedTask* task = new TracedTask(aTask);
-  return task;
+  if (IsStarted()) {
+    TracedTask* task = new TracedTask(aTask);
+    return task;
+  }
+  return aTask;
 }
 
 } // namespace tasktracer

@@ -13,6 +13,9 @@
 #undef LOG
 #endif
 
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracer.h"
+#endif
 #include "mozilla/ReentrantMonitor.h"
 #include "nsMemoryPressure.h"
 #include "nsThreadManager.h"
@@ -48,6 +51,9 @@
 #endif
 
 using namespace mozilla;
+#ifdef MOZ_TASK_TRACER
+using namespace mozilla::tasktracer;
+#endif
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo *
@@ -288,6 +294,10 @@ nsThread::ThreadFunc(void *arg)
   // Release any observer of the thread here.
   self->SetObserver(nullptr);
 
+#ifdef MOZ_TASK_TRACER
+  FreeTraceInfo();
+#endif
+
   NS_RELEASE(self);
 }
 
@@ -389,6 +399,10 @@ nsThread::DispatchInternal(nsIRunnable *event, uint32_t flags,
   if (gXPCOMThreadsShutDown && MAIN_THREAD != mIsMainThread && !target) {
     return NS_ERROR_ILLEGAL_DURING_SHUTDOWN;
   }
+
+#ifdef MOZ_TASK_TRACER
+  event = CreateTracedRunnable(event);
+#endif
 
   if (flags & DISPATCH_SYNC) {
     nsThread *thread = nsThreadManager::get()->GetCurrentThread();
