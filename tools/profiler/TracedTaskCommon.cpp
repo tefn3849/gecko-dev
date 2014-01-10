@@ -24,10 +24,10 @@ TracedTaskCommon::SetupSourceEvent()
   TraceInfo* info = GetTraceInfo();
   // TODO: This is a temporary solution to eliminate orphan tasks, once we have
   // enough source events setup, this should go away eventually, or hopefully.
-  if (!info->mCurTraceTaskId) {
-    info->mCurTraceTaskId = GenNewUniqueTaskId();
-    info->mCurTraceTaskType = SourceEventType::UNKNOWN;
-  }
+//  if (!info->mCurTraceTaskId) {
+//    info->mCurTraceTaskId = GenNewUniqueTaskId();
+//    info->mCurTraceTaskType = SourceEventType::UNKNOWN;
+//  }
   mSourceEventId = info->mCurTraceTaskId;
   mSourceEventType = info->mCurTraceTaskType;
 
@@ -104,7 +104,7 @@ TracedTask::Run()
 nsIRunnable*
 CreateTracedRunnable(nsIRunnable *aRunnable)
 {
-  if (IsStarted()) {
+  if (IsInitialized()) {
     TracedRunnable* runnable = new TracedRunnable(aRunnable);
     return runnable;
   }
@@ -115,10 +115,11 @@ CreateTracedRunnable(nsIRunnable *aRunnable)
 Task*
 CreateTracedTask(Task *aTask)
 {
-  if (IsStarted()) {
+  if (IsInitialized()) {
     TracedTask* task = new TracedTask(aTask);
     return task;
   }
+
   return aTask;
 }
 

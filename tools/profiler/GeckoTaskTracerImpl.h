@@ -45,7 +45,7 @@ struct TraceInfo
 // Initialize and setup needed information for TaskTracer.
 void InitTaskTracer();
 void StartTaskTracer();
-bool IsStarted();
+bool IsInitialized();
 
 // Return the TraceInfo of this thread, allocate a new one if not exit.
 TraceInfo* GetTraceInfo();

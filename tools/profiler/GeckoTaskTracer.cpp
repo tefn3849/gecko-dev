@@ -13,6 +13,7 @@
 
 #include "mozilla/ThreadLocal.h"
 #include "nsThreadUtils.h"
+#include "nsString.h"
 #include "prenv.h"
 #include "prlog.h"
 #include "prthread.h"
@@ -22,8 +23,15 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#ifdef MOZ_WIDGET_GONK
+#include <android/log.h>
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "TaskTracer", args)
+#else
+#define LOG(args...)
+#endif
+
 #ifdef PR_LOGGING
-PRLogModuleInfo* gTaskTracerLog;
+static PRLogModuleInfo* gTaskTracerLog = nullptr;
 #define TT_LOG(type, msg) PR_LOG(gTaskTracerLog, type, msg)
 #else
 #define TT_LOG(type, msg)
@@ -43,8 +51,6 @@ static pid_t gettid()
 namespace mozilla {
 namespace tasktracer {
 
-static bool sInitialized = false;
-static bool sStarted = false;
 static TraceInfo sAllTraceInfo[MAX_THREAD_NUM];
 static mozilla::ThreadLocal<TraceInfo*> sTraceInfo;
 static pthread_mutex_t sTraceInfoLock = PTHREAD_MUTEX_INITIALIZER;
@@ -95,42 +101,50 @@ GetCurrentThreadName()
 void
 InitTaskTracer()
 {
-  if (sInitialized) {
-    return;
-  }
-
-  sInitialized = true;
-
   if (!sTraceInfo.initialized()) {
     sTraceInfo.init();
   }
-}
-
-void
-StartTaskTracer()
-{
-  if (!sInitialized || (sInitialized && sStarted)) {
-    return;
-  }
-
-  sStarted = true;
 
 #ifdef PR_LOGGING
   if (!gTaskTracerLog) {
+    //PR_SetEnv("NSPR_LOG_MODULES=TaskTracer:5");
     gTaskTracerLog = PR_NewLogModule("TaskTracer");
   }
 #endif
 }
 
-bool
-IsStarted()
+static bool sStarted = false;
+void
+StartTaskTracer()
 {
-  return sStarted;
+  if (sStarted) {
+    return;
+  }
+  sStarted = true;
+
+/*
+#ifdef PR_LOGGING
+  if (gTaskTracerLog) {
+    char fileName[256];
+    snprintf(fileName, 256, "/sdcard/tt-%d.log", getpid());
+    PR_SetLogFile(fileName);
+  }
+#endif
+*/
+}
+bool
+IsInitialized()
+{
+  return sTraceInfo.initialized();
 }
 
 TraceInfo*
 GetTraceInfo()
 {
+  if (!IsInitialized()) {
+    return nullptr;
+  }
+
   if (!sTraceInfo.get()) {
     sTraceInfo.set(AllocTraceInfo(gettid()));
   }
@@ -141,53 +155,65 @@ uint64_t
 GenNewUniqueTaskId()
 {
   pid_t tid = gettid();
-  uint64_t taskid = ((uint64_t)tid << 32) | ++GetTraceInfo()->mLastUniqueTaskId;
-  return taskid;
+  if (IsInitialized()) {
+    uint64_t taskid = ((uint64_t)tid << 32) | ++GetTraceInfo()->mLastUniqueTaskId;
+    return taskid;
+  } else {
+    return 0;
+  }
 }
 
 void SetCurTraceId(uint64_t aTaskId)
 {
-  TraceInfo* info = GetTraceInfo();
-  info->mCurTraceTaskId = aTaskId;
+  if (IsInitialized()) {
+    TraceInfo* info = GetTraceInfo();
+    info->mCurTraceTaskId = aTaskId;
+  }
 }
 
 uint64_t GetCurTraceId()
 {
   TraceInfo* info = GetTraceInfo();
-  return info->mCurTraceTaskId;
+  return (info) ? info->mCurTraceTaskId : 0;
 }
 
 void SetCurTraceType(SourceEventType aType)
 {
-  TraceInfo* info = GetTraceInfo();
-  info->mCurTraceTaskType = aType;
+  if (IsInitialized()) {
+    TraceInfo* info = GetTraceInfo();
+    info->mCurTraceTaskType = aType;
+  }
 }
 
 SourceEventType GetCurTraceType()
 {
   TraceInfo* info = GetTraceInfo();
-  return info->mCurTraceTaskType;
+  return (info) ? info->mCurTraceTaskType : SourceEventType::UNKNOWN;
 }
 
 void
 LogTaskAction(ActionType aActionType, uint64_t aTaskId, uint64_t aSourceEventId,
               SourceEventType aSourceEventType)
 {
-  if (!aSourceEventId) {
+  if (!IsInitialized() || !aSourceEventId) {
     return;
   }
 
-  // taskId | sourceEventId | processId | threadId
-  // actionType | timestamp | sourceEventType
-  TT_LOG(PR_LOG_DEBUG, ("%lld %lld %ld %ld %d %lld %d",
-                        aTaskId, aSourceEventId, getpid(), gettid(),
-                        aActionType, PR_Now(), aSourceEventType));
+  // taskId | sourceEventId | sourceEventType | processId | threadId
+  // actionType | timestamp
+  TT_LOG(PR_LOG_DEBUG, ("%lld %lld %d %ld %ld %d %lld",
+                        aTaskId, aSourceEventId, aSourceEventType, getpid(), gettid(),
+                        aActionType, PR_Now()));
+
+  LOG("%lld %lld %d %d %d %d %lld",
+      aTaskId, aSourceEventId, aSourceEventType, getpid(), gettid(),
+      aActionType, PR_Now());
 }
 
 void
 FreeTraceInfo()
 {
-  if (!sInitialized) {
+  if (!IsInitialized()) {
     return;
   }
 
@@ -197,7 +223,7 @@ FreeTraceInfo()
 void
 CreateSETouch(int aX, int aY)
 {
-  if (!sStarted) {
+  if (!IsInitialized()) {
     return;
   }
 
@@ -205,24 +231,33 @@ CreateSETouch(int aX, int aY)
   info->mCurTraceTaskId = GenNewUniqueTaskId();
   info->mCurTraceTaskType = SourceEventType::TOUCH;
 
-  TT_LOG(PR_LOG_DEBUG, ("%lld %lld %ld %ld %d %lld %d %d %d",
-                        info->mCurTraceTaskId, info->mCurTraceTaskId, getpid(),
-                        gettid(), ActionType::ACTION_DISPATCH, PR_Now(),
-                        SourceEventType::TOUCH, aX, aY));
+  TT_LOG(PR_LOG_DEBUG, ("%lld %lld  %d %d %d %d %lld %d %d",
+                        info->mCurTraceTaskId, info->mCurTraceTaskId,
+                        SourceEventType::TOUCH, getpid(),
+                        gettid(), ActionType::ACTION_DISPATCH, PR_Now(), aX, aY));
+
+  LOG("%lld %lld  %d %d %d %d %lld %d %d",
+      info->mCurTraceTaskId, info->mCurTraceTaskId,
+      SourceEventType::TOUCH, getpid(),
+      gettid(), ActionType::ACTION_DISPATCH, PR_Now(), aX, aY);
 }
 
 void SaveCurTraceInfo()
 {
-  TraceInfo* info = GetTraceInfo();
-  info->mSavedTraceTaskId = info->mCurTraceTaskId;
-  info->mSavedTraceTaskType = info->mCurTraceTaskType;
+  if (IsInitialized()) {
+    TraceInfo* info = GetTraceInfo();
+    info->mSavedTraceTaskId = info->mCurTraceTaskId;
+    info->mSavedTraceTaskType = info->mCurTraceTaskType;
+  }
 }
 
 void RestorePrevTraceInfo()
 {
-  TraceInfo* info = GetTraceInfo();
-  info->mCurTraceTaskId = info->mSavedTraceTaskId;
-  info->mCurTraceTaskType = info->mSavedTraceTaskType;
+  if (IsInitialized()) {
+    TraceInfo* info = GetTraceInfo();
+    info->mCurTraceTaskId = info->mSavedTraceTaskId;
+    info->mCurTraceTaskType = info->mSavedTraceTaskType;
+  }
 }
 
 } // namespace tasktracer
