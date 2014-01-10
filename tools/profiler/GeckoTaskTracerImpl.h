@@ -25,9 +25,11 @@ struct TraceInfo
 {
   // Task Id of the currently-traced task.
   uint64_t mCurTraceTaskId;
+  uint64_t mParentTaskId;
 
   // Holds the value of curTracedTaskId when SaveCurTraceInfo() is called.
   uint64_t mSavedTraceTaskId;
+  uint64_t mSavedParentTaskId;
 
   // Source event type of the currently-traced task.
   SourceEventType mCurTraceTaskType;
@@ -55,6 +57,13 @@ TraceInfo* GetTraceInfo();
 // owner thread id and the last unique task id.
 uint64_t GenNewUniqueTaskId();
 
+void SetCurTraceInfo(uint64_t aTaskId, uint64_t aParentTaskId, uint32_t aType);
+
+void GetCurTraceInfo(uint64_t* aOutputTaskId, uint64_t* aOutputParentTaskId,
+                     uint32_t* aOutputType);
+
+bool IsCurTracTaskValid();
+
 // Set the id of tracing task on current thread with aTaskId.
 void SetCurTraceId(uint64_t aTaskId);
 
@@ -69,8 +78,8 @@ void SetCurTraceType(SourceEventType aType);
 SourceEventType GetCurTraceType();
 
 // Log the snapshot of current tracing activity.
-void LogDispatch(uint64_t aTaskId, uint64_t aSourceEventId,
-                 SourceEventType aSourceEventType);
+void LogDispatch(uint64_t aTaskId, uint64_t aParentTaskId,
+                 uint64_t aSourceEventId, SourceEventType aSourceEventType);
 void LogStart(uint64_t aTaskId, uint64_t aSourceEventId);
 void LogEnd(uint64_t aTaskId, uint64_t aSourceEventId);
 

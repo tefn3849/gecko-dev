@@ -33,6 +33,7 @@ Message::Message()
 #endif
 #ifdef MOZ_TASK_TRACER
   header()->source_event_id = 0;
+  header()->parent_task_id = 0;
   header()->source_event_type = SourceEventType::UNKNOWN;
 #endif
   InitLoggingVariables();
@@ -57,6 +58,7 @@ Message::Message(int32_t routing_id, msgid_t type, PriorityValue priority,
 #endif
 #ifdef MOZ_TASK_TRACER
   header()->source_event_id = 0;
+  header()->parent_task_id = 0;
   header()->source_event_type = SourceEventType::UNKNOWN;
 #endif
   InitLoggingVariables(name);
@@ -73,6 +75,7 @@ Message::Message(const Message& other) : Pickle(other) {
 #endif
 #ifdef MOZ_TASK_TRACER
   header()->source_event_id = other.header()->source_event_id;
+  header()->parent_task_id = other.header()->parent_task_id;
   header()->source_event_type = other.header()->source_event_type;
 #endif
 }
@@ -94,6 +97,7 @@ Message& Message::operator=(const Message& other) {
 #endif
 #ifdef MOZ_TASK_TRACER
   header()->source_event_id = other.header()->source_event_id;
+  header()->parent_task_id = other.header()->parent_task_id;
   header()->source_event_type = other.header()->source_event_type;
 #endif
   return *this;

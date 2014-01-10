@@ -42,6 +42,7 @@ protected:
   // The source event Id, and is set to the currently-traced task Id from its
   // TraceInfo in the call of SetupSourceEvent().
   uint64_t mSourceEventId;
+  uint64_t mParentTaskId;
 
   // The source event type, and is set to the currently-traced task type from
   // its TraceInfo in the call of SetupSourceEvent().

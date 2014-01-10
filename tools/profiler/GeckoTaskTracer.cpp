@@ -192,7 +192,7 @@ SourceEventType GetCurTraceType()
 }
 
 void
-LogDispatch(uint64_t aTaskId, uint64_t aSourceEventId,
+LogDispatch(uint64_t aTaskId, uint64_t aParentTaskId, uint64_t aSourceEventId,
             SourceEventType aSourceEventType)
 {
   if (!IsInitialized() || !aSourceEventId) {
@@ -203,8 +203,9 @@ LogDispatch(uint64_t aTaskId, uint64_t aSourceEventId,
   // -------
   // actionType taskId dispatchTime sourceEventId sourceEventType parentTaskId
   // -------
-  LOG("%d %lld %lld %lld %d",
-      ACTION_DISPATCH, aTaskId, PR_Now(), aSourceEventId, aSourceEventType);
+  LOG("%d %lld %lld %lld %d %lld",
+      ACTION_DISPATCH, aTaskId, PR_Now(), aSourceEventId, aSourceEventType,
+      aParentTaskId);
 }
 
 void
@@ -256,15 +257,11 @@ CreateSETouch(int aX, int aY)
   TraceInfo* info = GetTraceInfo();
   info->mCurTraceTaskId = GenNewUniqueTaskId();
   info->mCurTraceTaskType = SourceEventType::TOUCH;
-
-  TT_LOG(PR_LOG_DEBUG, ("%lld %lld  %d %d %d %d %lld %d %d",
-                        info->mCurTraceTaskId, info->mCurTraceTaskId,
-                        SourceEventType::TOUCH, getpid(),
-                        gettid(), ActionType::ACTION_DISPATCH, PR_Now(), aX, aY));
+  info->mParentTaskId = info->mCurTraceTaskId;
 
   // Log format for creating source event with custom info
   // -------
-  // [Create Touch Event] sourceEventId createTime x y
+  // actionType sourceEventId createTime x y
   // -------
   LOG("%d %lld %lld %d %d",
       ACTION_CREATE, info->mCurTraceTaskId, PR_Now(), aX, aY);
@@ -275,6 +272,7 @@ void SaveCurTraceInfo()
   if (IsInitialized()) {
     TraceInfo* info = GetTraceInfo();
     info->mSavedTraceTaskId = info->mCurTraceTaskId;
+    info->mSavedParentTaskId = info->mParentTaskId;
     info->mSavedTraceTaskType = info->mCurTraceTaskType;
   }
 }
@@ -284,8 +282,39 @@ void RestorePrevTraceInfo()
   if (IsInitialized()) {
     TraceInfo* info = GetTraceInfo();
     info->mCurTraceTaskId = info->mSavedTraceTaskId;
+    info->mParentTaskId = info->mSavedParentTaskId;
     info->mCurTraceTaskType = info->mSavedTraceTaskType;
   }
+}
+
+void
+SetCurTraceInfo(uint64_t aTaskId, uint64_t aParentTaskId, uint32_t aType)
+{
+  if (IsInitialized()) {
+    TraceInfo* info = GetTraceInfo();
+    info->mCurTraceTaskId = aTaskId;
+    info->mParentTaskId = aParentTaskId;
+    info->mCurTraceTaskType = static_cast<SourceEventType>(aType);
+  }
+}
+
+void
+GetCurTraceInfo(uint64_t* aOutputTaskId, uint64_t* aOutputParentTaskId,
+                uint32_t* aOutputType)
+{
+  if (IsInitialized()) {
+    TraceInfo* info = GetTraceInfo();
+    *aOutputTaskId = info->mCurTraceTaskId;
+    *aOutputParentTaskId = info->mParentTaskId;
+    *aOutputType = static_cast<uint32_t>(info->mCurTraceTaskType);
+  }
+}
+
+bool
+IsCurTracTaskValid()
+{
+  TraceInfo* info = GetTraceInfo();
+  return (info && info->mCurTraceTaskId);
 }
 
 } // namespace tasktracer

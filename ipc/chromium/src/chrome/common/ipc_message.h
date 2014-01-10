@@ -339,6 +339,7 @@ class Message : public Pickle {
     int32_t seqno;
 #ifdef MOZ_TASK_TRACER
     uint64_t source_event_id;
+    uint64_t parent_task_id;
     uint32_t source_event_type;
 #endif
   };

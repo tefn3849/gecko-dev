@@ -30,8 +30,9 @@ TracedTaskCommon::SetupSourceEvent()
 //  }
   mSourceEventId = info->mCurTraceTaskId;
   mSourceEventType = info->mCurTraceTaskType;
+  mParentTaskId = info->mParentTaskId;
 
-  LogDispatch(mTaskId, mSourceEventId, mSourceEventType);
+  LogDispatch(mTaskId, mParentTaskId, mSourceEventId, mSourceEventType);
 }
 
 void
@@ -40,6 +41,7 @@ TracedTaskCommon::AttachTraceInfo()
   TraceInfo* info = GetTraceInfo();
   info->mCurTraceTaskId = mSourceEventId;
   info->mCurTraceTaskType = mSourceEventType;
+  info->mParentTaskId = mTaskId;
 }
 
 void
@@ -48,6 +50,7 @@ TracedTaskCommon::ClearTraceInfo()
   TraceInfo* info = GetTraceInfo();
   info->mCurTraceTaskId = 0;
   info->mCurTraceTaskType = SourceEventType::UNKNOWN;
+  info->mParentTaskId = 0;
 }
 
 /**

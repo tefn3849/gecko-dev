@@ -604,8 +604,9 @@ bool Channel::ChannelImpl::ProcessIncomingMessages() {
 #ifdef MOZ_TASK_TRACER
         if (m.header()->source_event_id) {
           SaveCurTraceInfo();
-          SetCurTraceId(m.header()->source_event_id);
-          SetCurTraceType(static_cast<SourceEventType>(m.header()->source_event_type));
+          SetCurTraceInfo(m.header()->source_event_id,
+                          m.header()->parent_task_id,
+                          m.header()->source_event_type);
         }
 #endif
 
@@ -708,9 +709,10 @@ bool Channel::ChannelImpl::ProcessOutgoingMessages() {
 #endif
     }
 #ifdef MOZ_TASK_TRACER
-    if (GetCurTraceId()) {
-      msg->header()->source_event_id = GetCurTraceId();
-      msg->header()->source_event_type = GetCurTraceType();
+    if (IsCurTracTaskValid()) {
+      GetCurTraceInfo(&msg->header()->source_event_id,
+                      &msg->header()->parent_task_id,
+                      &msg->header()->source_event_type);
     }
 #endif
 
