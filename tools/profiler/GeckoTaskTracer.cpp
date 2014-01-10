@@ -192,22 +192,48 @@ SourceEventType GetCurTraceType()
 }
 
 void
-LogTaskAction(ActionType aActionType, uint64_t aTaskId, uint64_t aSourceEventId,
-              SourceEventType aSourceEventType)
+LogDispatch(uint64_t aTaskId, uint64_t aSourceEventId,
+            SourceEventType aSourceEventType)
 {
   if (!IsInitialized() || !aSourceEventId) {
     return;
   }
 
-  // taskId | sourceEventId | sourceEventType | processId | threadId
-  // actionType | timestamp
-  TT_LOG(PR_LOG_DEBUG, ("%lld %lld %d %ld %ld %d %lld",
-                        aTaskId, aSourceEventId, aSourceEventType, getpid(), gettid(),
-                        aActionType, PR_Now()));
+  // Log format for Dispatch action:
+  // -------
+  // actionType taskId dispatchTime sourceEventId sourceEventType parentTaskId
+  // -------
+  LOG("%d %lld %lld %lld %d",
+      ACTION_DISPATCH, aTaskId, PR_Now(), aSourceEventId, aSourceEventType);
+}
 
-  LOG("%lld %lld %d %d %d %d %lld",
-      aTaskId, aSourceEventId, aSourceEventType, getpid(), gettid(),
-      aActionType, PR_Now());
+void
+LogStart(uint64_t aTaskId, uint64_t aSourceEventId)
+{
+  if (!IsInitialized() || !aSourceEventId) {
+    return;
+  }
+
+  // Log format for Start action:
+  // -------
+  // actionType taskId startTime processId threadId
+  // -------
+  LOG("%d %lld %lld %d %d",
+      ACTION_START, aTaskId, PR_Now(), getpid(), gettid());
+}
+
+void
+LogEnd(uint64_t aTaskId, uint64_t aSourceEventId)
+{
+  if (!IsInitialized() || !aSourceEventId) {
+    return;
+  }
+
+  // Log format for End action:
+  // -------
+  // actionType taskId endTime
+  // -------
+  LOG("%d %lld %lld", ACTION_END, aTaskId, PR_Now());
 }
 
 void
@@ -236,10 +262,12 @@ CreateSETouch(int aX, int aY)
                         SourceEventType::TOUCH, getpid(),
                         gettid(), ActionType::ACTION_DISPATCH, PR_Now(), aX, aY));
 
-  LOG("%lld %lld  %d %d %d %d %lld %d %d",
-      info->mCurTraceTaskId, info->mCurTraceTaskId,
-      SourceEventType::TOUCH, getpid(),
-      gettid(), ActionType::ACTION_DISPATCH, PR_Now(), aX, aY);
+  // Log format for creating source event with custom info
+  // -------
+  // [Create Touch Event] sourceEventId createTime x y
+  // -------
+  LOG("%d %lld %lld %d %d",
+      ACTION_CREATE, info->mCurTraceTaskId, PR_Now(), aX, aY);
 }
 
 void SaveCurTraceInfo()

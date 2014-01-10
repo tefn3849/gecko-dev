@@ -25,13 +25,13 @@ TracedTaskCommon::SetupSourceEvent()
   // TODO: This is a temporary solution to eliminate orphan tasks, once we have
   // enough source events setup, this should go away eventually, or hopefully.
 //  if (!info->mCurTraceTaskId) {
-//    info->mCurTraceTaskId = GenNewUniqueTaskId();
-//    info->mCurTraceTaskType = SourceEventType::UNKNOWN;
+//    info->mCurTraceTaskId = mTaskId;
+//    info->mCurTraceTaskType = mSourceEventType;
 //  }
   mSourceEventId = info->mCurTraceTaskId;
   mSourceEventType = info->mCurTraceTaskType;
 
-  LogTaskAction(ACTION_DISPATCH, mTaskId, mSourceEventId, mSourceEventType);
+  LogDispatch(mTaskId, mSourceEventId, mSourceEventType);
 }
 
 void
@@ -58,13 +58,13 @@ NS_IMPL_ISUPPORTS1(TracedRunnable, nsIRunnable)
 NS_IMETHODIMP
 TracedRunnable::Run()
 {
-  LogTaskAction(ACTION_START, mTaskId, mSourceEventId, mSourceEventType);
+  LogStart(mTaskId, mSourceEventId);
 
   AttachTraceInfo();
   nsresult rv = mFactualObj->Run();
   ClearTraceInfo();
 
-  LogTaskAction(ACTION_FINISHED, mTaskId, mSourceEventId, mSourceEventType);
+  LogEnd(mTaskId, mSourceEventId);
   return rv;
 }
 
@@ -82,13 +82,13 @@ TracedTask::~TracedTask()
 void
 TracedTask::Run()
 {
-  LogTaskAction(ACTION_START, mTaskId, mSourceEventId, mSourceEventType);
+  LogStart(mTaskId, mSourceEventId);
 
   AttachTraceInfo();
   mFactualObj->Run();
   ClearTraceInfo();
 
-  LogTaskAction(ACTION_FINISHED, mTaskId, mSourceEventId, mSourceEventType);
+  LogEnd(mTaskId, mSourceEventId);
 }
 
 /**

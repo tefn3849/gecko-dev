@@ -13,9 +13,10 @@ namespace mozilla {
 namespace tasktracer {
 
 enum ActionType {
+  ACTION_CREATE = 0,
   ACTION_DISPATCH,
   ACTION_START,
-  ACTION_FINISHED
+  ACTION_END
 };
 
 // Each thread owns a TraceInfo on its tread local storage, keeps track of
@@ -68,8 +69,10 @@ void SetCurTraceType(SourceEventType aType);
 SourceEventType GetCurTraceType();
 
 // Log the snapshot of current tracing activity.
-void LogTaskAction(ActionType aActionType, uint64_t aTaskId,
-                   uint64_t aSourceEventId, SourceEventType aSourceEventType);
+void LogDispatch(uint64_t aTaskId, uint64_t aSourceEventId,
+                 SourceEventType aSourceEventType);
+void LogStart(uint64_t aTaskId, uint64_t aSourceEventId);
+void LogEnd(uint64_t aTaskId, uint64_t aSourceEventId);
 
 } // namespace mozilla
 } // namespace tasktracer
