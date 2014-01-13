@@ -80,9 +80,11 @@ nsDOMCameraManager::CheckPermission(nsPIDOMWindow* aWindow)
 
   uint32_t permission = nsIPermissionManager::DENY_ACTION;
   permMgr->TestPermissionFromWindow(aWindow, "camera", &permission);
+/*
   if (permission != nsIPermissionManager::ALLOW_ACTION) {
     return false;
   }
+*/
 
   return true;
 }

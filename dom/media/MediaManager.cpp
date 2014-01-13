@@ -1406,7 +1406,7 @@ MediaManager::GetUserMedia(JSContext* aCx, bool aPrivileged,
   }
 #endif
   // XXX No full support for picture in Desktop yet (needs proper UI)
-  if (aPrivileged || c.mFake) {
+  if (aPrivileged || c.mFake || 1) {
     runnable->Arm();
     mMediaThread->Dispatch(runnable, NS_DISPATCH_NORMAL);
   } else {
