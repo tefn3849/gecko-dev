@@ -706,10 +706,23 @@ GeckoInputDispatcher::dispatchOnce()
             msg = NS_MOUSE_BUTTON_UP;
             break;
         }
+#ifdef MOZ_TASK_TRACER
+        CreateSEMouse(data.motion.touches[0].coords.getX(),
+                      data.motion.touches[0].coords.getY());
+#endif
         sendMouseEvent(msg, data, status != nsEventStatus_eConsumeNoDefault);
         break;
     }
     case UserInputData::KEY_DATA: {
+#ifdef MOZ_TASK_TRACER
+        uint32_t keyCode = (data.key.keyCode < ArrayLength(kKeyMapping)) ?
+                           kKeyMapping[data.key.keyCode] : 0;
+        if (keyCode == NS_VK_SLEEP) {
+          CreateSEKey(SourceEventType::POWER_KEY);
+        } else if (keyCode == NS_VK_HOME) {
+          CreateSEKey(SourceEventType::HOME_KEY);
+        }
+#endif
         sp<KeyCharacterMap> kcm = mEventHub->getKeyCharacterMap(data.deviceId);
         KeyEventDispatcher dispatcher(data, kcm.get());
         dispatcher.Dispatch();

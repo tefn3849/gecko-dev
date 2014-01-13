@@ -30,7 +30,7 @@ enum SourceEventType {
   TOUCH,
   MOUSE,
   POWER_KEY,
-  HOME_KEY,
+  HOME_KEY
 };
 
 // Create a traced Task to be run by a message loop.
@@ -45,6 +45,8 @@ void FreeTraceInfo();
 // Create a source event of type SourceEventType::TOUCH, where aX and aY the
 // touched coordinates on screen.
 void CreateSETouch(int aX, int aY);
+void CreateSEMouse(int aX, int aY);
+void CreateSEKey(SourceEventType aKeyType);
 
 // Save the currently-traced task. Usually used when current thread is already
 // tracing a task, but a source event is generated from this point. Create a

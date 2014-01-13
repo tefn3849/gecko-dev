@@ -247,24 +247,55 @@ FreeTraceInfo()
   _FreeTraceInfo(gettid());
 }
 
-void
-CreateSETouch(int aX, int aY)
+static uint64_t
+SetupSourceEvent(SourceEventType aType)
 {
   if (!IsInitialized()) {
-    return;
+    return 0;
   }
 
   TraceInfo* info = GetTraceInfo();
   info->mCurTraceTaskId = GenNewUniqueTaskId();
-  info->mCurTraceTaskType = SourceEventType::TOUCH;
+  info->mCurTraceTaskType = aType;
   info->mParentTaskId = info->mCurTraceTaskId;
+  return info->mCurTraceTaskId;
+}
+
+void
+CreateSETouch(int aX, int aY)
+{
+  uint64_t soueceEventId = SetupSourceEvent(SourceEventType::TOUCH);
 
   // Log format for creating source event with custom info
   // -------
   // actionType sourceEventId createTime x y
   // -------
   LOG("%d %lld %lld %d %d",
-      ACTION_CREATE, info->mCurTraceTaskId, PR_Now(), aX, aY);
+      ACTION_CREATE, soueceEventId, PR_Now(), aX, aY);
+}
+
+void
+CreateSEMouse(int aX, int aY)
+{
+  uint64_t soueceEventId = SetupSourceEvent(SourceEventType::MOUSE);
+
+  // -------
+  // actionType sourceEventId createTime x y
+  // -------
+  LOG("%d %lld %lld %d %d",
+      ACTION_CREATE, soueceEventId, PR_Now(), aX, aY);
+}
+
+void
+CreateSEKey(SourceEventType aKeyType)
+{
+  uint64_t soueceEventId = SetupSourceEvent(aKeyType);
+
+  // -------
+  // actionType sourceEventId createTime
+  // -------
+  LOG("%d %lld %lld",
+      ACTION_CREATE, soueceEventId, PR_Now());
 }
 
 void SaveCurTraceInfo()
