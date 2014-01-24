@@ -31,6 +31,7 @@ TracedTaskCommon::SetupSourceEvent()
   mSourceEventId = info->mCurTraceTaskId;
   mSourceEventType = info->mCurTraceTaskType;
   mParentTaskId = info->mParentTaskId;
+  info->mCurTaskId = mTaskId;
 
   LogDispatch(mTaskId, mParentTaskId, mSourceEventId, mSourceEventType);
 }
@@ -51,6 +52,7 @@ TracedTaskCommon::ClearTraceInfo()
   info->mCurTraceTaskId = 0;
   info->mCurTraceTaskType = SourceEventType::UNKNOWN;
   info->mParentTaskId = 0;
+  info->mCurTaskId = 0;
 }
 
 /**

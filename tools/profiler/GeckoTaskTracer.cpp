@@ -178,34 +178,6 @@ GenNewUniqueTaskId()
   }
 }
 
-void SetCurTraceId(uint64_t aTaskId)
-{
-  if (IsInitialized()) {
-    TraceInfo* info = GetTraceInfo();
-    info->mCurTraceTaskId = aTaskId;
-  }
-}
-
-uint64_t GetCurTraceId()
-{
-  TraceInfo* info = GetTraceInfo();
-  return (info) ? info->mCurTraceTaskId : 0;
-}
-
-void SetCurTraceType(SourceEventType aType)
-{
-  if (IsInitialized()) {
-    TraceInfo* info = GetTraceInfo();
-    info->mCurTraceTaskType = aType;
-  }
-}
-
-SourceEventType GetCurTraceType()
-{
-  TraceInfo* info = GetTraceInfo();
-  return (info) ? info->mCurTraceTaskType : SourceEventType::UNKNOWN;
-}
-
 void
 LogDispatch(uint64_t aTaskId, uint64_t aParentTaskId, uint64_t aSourceEventId,
             SourceEventType aSourceEventType)
@@ -273,6 +245,7 @@ SetupSourceEvent(SourceEventType aType)
   info->mCurTraceTaskId = GenNewUniqueTaskId();
   info->mCurTraceTaskType = aType;
   info->mParentTaskId = info->mCurTraceTaskId;
+  info->mCurTaskId = info->mCurTraceTaskId;
   return info->mCurTraceTaskId;
 }
 
@@ -313,23 +286,39 @@ CreateSEKey(SourceEventType aKeyType)
         ACTION_CREATE, soueceEventId, PR_Now());
 }
 
-void SaveCurTraceInfo()
+void AddLabel(char* aMessage)
+{
+  if (!IsInitialized()) {
+    return;
+  }
+
+  // -------
+  // actionType curTaskId curTime message
+  // -------
+  TraceInfo* info = GetTraceInfo();
+  TTLOG("%d %lld %lld %s",
+        ACTION_USER_LABEL, info->mCurTaskId, PR_Now(), aMessage);
+}
+
+void
+SaveCurTraceInfo()
 {
   if (IsInitialized()) {
     TraceInfo* info = GetTraceInfo();
-    info->mSavedTraceTaskId = info->mCurTraceTaskId;
+    info->mSavedCurTraceTaskId = info->mCurTraceTaskId;
     info->mSavedParentTaskId = info->mParentTaskId;
-    info->mSavedTraceTaskType = info->mCurTraceTaskType;
+    info->mSavedCurTraceTaskType = info->mCurTraceTaskType;
   }
 }
 
-void RestorePrevTraceInfo()
+void
+RestorePrevTraceInfo()
 {
   if (IsInitialized()) {
     TraceInfo* info = GetTraceInfo();
-    info->mCurTraceTaskId = info->mSavedTraceTaskId;
+    info->mCurTraceTaskId = info->mSavedCurTraceTaskId;
     info->mParentTaskId = info->mSavedParentTaskId;
-    info->mCurTraceTaskType = info->mSavedTraceTaskType;
+    info->mCurTraceTaskType = info->mSavedCurTraceTaskType;
   }
 }
 

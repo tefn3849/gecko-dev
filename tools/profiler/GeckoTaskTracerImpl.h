@@ -16,7 +16,8 @@ enum ActionType {
   ACTION_CREATE = 0,
   ACTION_DISPATCH,
   ACTION_START,
-  ACTION_END
+  ACTION_END,
+  ACTION_USER_LABEL
 };
 
 // Each thread owns a TraceInfo on its tread local storage, keeps track of
@@ -26,16 +27,17 @@ struct TraceInfo
   // Task Id of the currently-traced task.
   uint64_t mCurTraceTaskId;
   uint64_t mParentTaskId;
+  uint64_t mCurTaskId;
 
   // Holds the value of curTracedTaskId when SaveCurTraceInfo() is called.
-  uint64_t mSavedTraceTaskId;
+  uint64_t mSavedCurTraceTaskId;
   uint64_t mSavedParentTaskId;
 
   // Source event type of the currently-traced task.
   SourceEventType mCurTraceTaskType;
 
   // Holds the value of curTracedTaskType when SaveCurTraceInfo() is called.
-  SourceEventType mSavedTraceTaskType;
+  SourceEventType mSavedCurTraceTaskType;
 
   // Thread Id of its owner thread.
   uint32_t mThreadId;
@@ -63,19 +65,6 @@ void GetCurTraceInfo(uint64_t* aOutputTaskId, uint64_t* aOutputParentTaskId,
                      uint32_t* aOutputType);
 
 bool IsCurTracTaskValid();
-
-// Set the id of tracing task on current thread with aTaskId.
-void SetCurTraceId(uint64_t aTaskId);
-
-// Return the task id of tracing task on current thread.
-uint64_t GetCurTraceId();
-
-// Set the source event type of tracing task on current thread with aType.
-// aType could be TOUCH, MOUSE, POWER_KEY...etc.
-void SetCurTraceType(SourceEventType aType);
-
-// Return the source event type of tracing task on current thread.
-SourceEventType GetCurTraceType();
 
 // Log the snapshot of current tracing activity.
 void LogDispatch(uint64_t aTaskId, uint64_t aParentTaskId,

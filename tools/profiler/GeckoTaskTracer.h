@@ -48,6 +48,8 @@ void CreateSETouch(int aX, int aY);
 void CreateSEMouse(int aX, int aY);
 void CreateSEKey(SourceEventType aKeyType);
 
+void AddLabel(char* aMessage);
+
 // Save the currently-traced task. Usually used when current thread is already
 // tracing a task, but a source event is generated from this point. Create a
 // source event for tracking overwrites the tracing task on current thread, so
