@@ -25,17 +25,32 @@
 
 #ifdef MOZ_WIDGET_GONK
 #include <android/log.h>
-#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "TaskTracer", args)
+#define TTLOG(args...) __android_log_print(ANDROID_LOG_INFO, "TaskTracer", args)
 #else
-#define LOG(args...)
+#define TTLOG(args...)
 #endif
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gTaskTracerLog = nullptr;
-#define TT_LOG(type, msg) PR_LOG(gTaskTracerLog, type, msg)
+//#define TTLOG(msg) PR_LOG(gTaskTracerLog, PR_LOG_DEBUG, msg)
 #else
-#define TT_LOG(type, msg)
+//#define TTLOG(msg)
 #endif
+
+//#include <stdio.h>
+//#include <stdarg.h>
+//static void
+//TTLOG(const char * aFormat, ...)
+//{
+//  nsCString fmt;
+//  fmt.Append(NS_LITERAL_CSTRING("TaskTracer: "));
+//  fmt.AppendASCII(aFormat);
+//  fmt.Append(NS_LITERAL_CSTRING("\n"));
+//  va_list args;
+//  va_start(args, fmt.get());
+//  vfprintf(stderr, fmt.get(), args);
+//  va_end(args);
+//}
 
 #if defined(__GLIBC__)
 // glibc doesn't implement gettid(2).
@@ -203,9 +218,9 @@ LogDispatch(uint64_t aTaskId, uint64_t aParentTaskId, uint64_t aSourceEventId,
   // -------
   // actionType taskId dispatchTime sourceEventId sourceEventType parentTaskId
   // -------
-  LOG("%d %lld %lld %lld %d %lld",
-      ACTION_DISPATCH, aTaskId, PR_Now(), aSourceEventId, aSourceEventType,
-      aParentTaskId);
+  TTLOG("%d %lld %lld %lld %d %lld",
+        ACTION_DISPATCH, aTaskId, PR_Now(), aSourceEventId, aSourceEventType,
+        aParentTaskId);
 }
 
 void
@@ -219,8 +234,8 @@ LogStart(uint64_t aTaskId, uint64_t aSourceEventId)
   // -------
   // actionType taskId startTime processId threadId
   // -------
-  LOG("%d %lld %lld %d %d",
-      ACTION_START, aTaskId, PR_Now(), getpid(), gettid());
+  TTLOG("%d %lld %lld %d %d",
+        ACTION_START, aTaskId, PR_Now(), getpid(), gettid());
 }
 
 void
@@ -234,7 +249,7 @@ LogEnd(uint64_t aTaskId, uint64_t aSourceEventId)
   // -------
   // actionType taskId endTime
   // -------
-  LOG("%d %lld %lld", ACTION_END, aTaskId, PR_Now());
+  TTLOG("%d %lld %lld", ACTION_END, aTaskId, PR_Now());
 }
 
 void
@@ -270,8 +285,8 @@ CreateSETouch(int aX, int aY)
   // -------
   // actionType sourceEventId createTime x y
   // -------
-  LOG("%d %lld %lld %d %d",
-      ACTION_CREATE, soueceEventId, PR_Now(), aX, aY);
+  TTLOG("%d %lld %lld %d %d",
+        ACTION_CREATE, soueceEventId, PR_Now(), aX, aY);
 }
 
 void
@@ -282,8 +297,8 @@ CreateSEMouse(int aX, int aY)
   // -------
   // actionType sourceEventId createTime x y
   // -------
-  LOG("%d %lld %lld %d %d",
-      ACTION_CREATE, soueceEventId, PR_Now(), aX, aY);
+  TTLOG("%d %lld %lld %d %d",
+        ACTION_CREATE, soueceEventId, PR_Now(), aX, aY);
 }
 
 void
@@ -294,8 +309,8 @@ CreateSEKey(SourceEventType aKeyType)
   // -------
   // actionType sourceEventId createTime
   // -------
-  LOG("%d %lld %lld",
-      ACTION_CREATE, soueceEventId, PR_Now());
+  TTLOG("%d %lld %lld",
+        ACTION_CREATE, soueceEventId, PR_Now());
 }
 
 void SaveCurTraceInfo()
