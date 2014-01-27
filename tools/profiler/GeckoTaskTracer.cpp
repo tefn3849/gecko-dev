@@ -303,7 +303,7 @@ void AddLabel(const char * aFormat, ...)
   // actionType curTaskId curTime message
   // -------
   TraceInfo* info = GetTraceInfo();
-  TTLOG("%d %lld %lld %s",
+  TTLOG("%d %lld %lld \"%s\"",
         ACTION_USER_LABEL, info->mCurTaskId, PR_Now(), buffer);
 }
 
