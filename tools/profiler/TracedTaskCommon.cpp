@@ -31,7 +31,6 @@ TracedTaskCommon::SetupSourceEvent()
   mSourceEventId = info->mCurTraceTaskId;
   mSourceEventType = info->mCurTraceTaskType;
   mParentTaskId = info->mParentTaskId;
-  info->mCurTaskId = mTaskId;
 
   LogDispatch(mTaskId, mParentTaskId, mSourceEventId, mSourceEventType);
 }
@@ -43,6 +42,7 @@ TracedTaskCommon::AttachTraceInfo()
   info->mCurTraceTaskId = mSourceEventId;
   info->mCurTraceTaskType = mSourceEventType;
   info->mParentTaskId = mTaskId;
+  info->mCurTaskId = mTaskId;
 }
 
 void

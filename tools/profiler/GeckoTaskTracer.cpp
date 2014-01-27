@@ -20,6 +20,8 @@
 #include "prtime.h"
 
 #include <pthread.h>
+#include <stdarg.h>
+#include <stdio.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -37,8 +39,6 @@ static PRLogModuleInfo* gTaskTracerLog = nullptr;
 //#define TTLOG(msg)
 #endif
 
-//#include <stdio.h>
-//#include <stdarg.h>
 //static void
 //TTLOG(const char * aFormat, ...)
 //{
@@ -62,6 +62,7 @@ static pid_t gettid()
 #endif
 
 #define MAX_THREAD_NUM 64
+#define MAX_USER_LABEL_LEN 512
 
 namespace mozilla {
 namespace tasktracer {
@@ -286,18 +287,24 @@ CreateSEKey(SourceEventType aKeyType)
         ACTION_CREATE, soueceEventId, PR_Now());
 }
 
-void AddLabel(char* aMessage)
+void AddLabel(const char * aFormat, ...)
 {
   if (!IsInitialized()) {
     return;
   }
+
+  va_list args;
+  va_start(args, aFormat);
+  char buffer[MAX_USER_LABEL_LEN];
+  vsnprintf(buffer, MAX_USER_LABEL_LEN, aFormat, args);
+  va_end(args);
 
   // -------
   // actionType curTaskId curTime message
   // -------
   TraceInfo* info = GetTraceInfo();
   TTLOG("%d %lld %lld %s",
-        ACTION_USER_LABEL, info->mCurTaskId, PR_Now(), aMessage);
+        ACTION_USER_LABEL, info->mCurTaskId, PR_Now(), buffer);
 }
 
 void
