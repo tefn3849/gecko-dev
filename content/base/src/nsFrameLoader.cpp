@@ -94,6 +94,10 @@
 #include "nsXULPopupManager.h"
 #endif
 
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracer.h"
+#endif
+
 using namespace mozilla;
 using namespace mozilla::hal;
 using namespace mozilla::dom;
@@ -2163,6 +2167,11 @@ nsFrameLoader::SendCrossProcessKeyEvent(const nsAString& aType,
                                         bool aPreventDefault)
 {
   if (mRemoteBrowser) {
+#ifdef MOZ_TASK_TRACER
+    mozilla::tasktracer::AddLabel("[nsFrameLoader::SendCrossProcessKeyEvent] "
+      "type:%s, keyCode:%d, charCode:%d, modifiers:%d, preventDefault:%d",
+      NS_ConvertUTF16toUTF8(aType).get(), aKeyCode, aCharCode, aModifiers, aPreventDefault);
+#endif
     mRemoteBrowser->SendKeyEvent(aType, aKeyCode, aCharCode, aModifiers,
                                  aPreventDefault);
     return NS_OK;
@@ -2302,11 +2311,19 @@ nsFrameLoader::DoSendAsyncMessage(JSContext* aCx,
     if (aCpows && !cp->GetCPOWManager()->Wrap(aCx, aCpows, &cpows)) {
       return false;
     }
+#ifdef MOZ_TASK_TRACER
+    mozilla::tasktracer::AddLabel("[nsFrameLoader::DoSendAsyncMessage] msg: %s send to tabParent",
+                                  NS_ConvertUTF16toUTF8(aMessage).get());
+#endif
     return tabParent->SendAsyncMessage(nsString(aMessage), data, cpows,
                                        aPrincipal);
   }
 
   if (mChildMessageManager) {
+#ifdef MOZ_TASK_TRACER
+    mozilla::tasktracer::AddLabel("[nsFrameLoader::DoSendAsyncMessage] msg: %s send to tabChild",
+                                  NS_ConvertUTF16toUTF8(aMessage).get());
+#endif
     nsRefPtr<nsIRunnable> ev = new nsAsyncMessageToChild(aCx, this, aMessage,
                                                          aData, aCpows,
                                                          aPrincipal);
