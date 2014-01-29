@@ -190,7 +190,6 @@ LogDispatch(uint64_t aTaskId, uint64_t aParentTaskId, uint64_t aSourceEventId,
   // Log format for Dispatch action:
   // -------
   // actionType taskId dispatchTime sourceEventId sourceEventType parentTaskId
-  // -------
   TTLOG("%d %lld %lld %lld %d %lld",
         ACTION_DISPATCH, aTaskId, PR_Now(), aSourceEventId, aSourceEventType,
         aParentTaskId);
@@ -206,7 +205,6 @@ LogStart(uint64_t aTaskId, uint64_t aSourceEventId)
   // Log format for Start action:
   // -------
   // actionType taskId startTime processId threadId
-  // -------
   TTLOG("%d %lld %lld %d %d",
         ACTION_START, aTaskId, PR_Now(), getpid(), gettid());
 }
@@ -221,22 +219,20 @@ LogEnd(uint64_t aTaskId, uint64_t aSourceEventId)
   // Log format for End action:
   // -------
   // actionType taskId endTime
-  // -------
   TTLOG("%d %lld %lld", ACTION_END, aTaskId, PR_Now());
 }
 
 void
 LogVirtualTablePtr(uint64_t aTaskId, uint64_t aSourceEventId, int* aVptr)
 {
-  if (!IsInitialized()) {
+  if (!IsInitialized()|| !aSourceEventId) {
     return;
   }
 
-  // Log format for End action:
+  // Log format for address of virtual table of its factual object:
   // -------
-  // actionType taskId endTime
-  // -------
-  TTLOG("%d %lld %lld %p", ACTION_GET_VTABLE, aSourceEventId, aVptr);
+  // actionType taskId vPtr_of_factual_obj
+  TTLOG("%d %lld %p", ACTION_GET_VTABLE, aTaskId, aVptr);
 }
 
 void
@@ -269,7 +265,7 @@ CreateSourceEvent(SourceEventType aType, int aX, int aY)
 {
   uint64_t soueceEventId = InitSourceEvent(aType);
 
-  // Log format for creating source event with custom info
+  // Log format for creating source event with custom info:
   // -------
   // actionType sourceEventId createTime x y
   // -------

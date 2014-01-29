@@ -31,9 +31,7 @@ enum SourceEventType {
   MOUSE,
   POWER_KEY,
   HOME_KEY,
-  REFRESH_DRIVER_TICK_FLUSH_SCRIPT,
-  REFRESH_DRIVER_TICK_FLUSH_LAYOUT,
-  REFRESH_DRIVER_TICK_FLUSH_VIEW
+  REFRESH_DRIVER_TICK
 };
 
 // Create a traced Task to be run by a message loop.

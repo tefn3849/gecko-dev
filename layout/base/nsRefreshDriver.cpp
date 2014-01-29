@@ -1010,11 +1010,20 @@ nsRefreshDriver::DoTick()
   NS_PRECONDITION(!nsContentUtils::GetCurrentJSContext(),
                   "Shouldn't have a JSContext on the stack");
 
+#ifdef MOZ_TASK_TRACER
+  SaveCurTraceInfo();
+  CreateSourceEvent(SourceEventType::REFRESH_DRIVER_TICK);
+#endif
+
   if (mTestControllingRefreshes) {
     Tick(mMostRecentRefreshEpochTime, mMostRecentRefresh);
   } else {
     Tick(JS_Now(), TimeStamp::Now());
   }
+
+#ifdef MOZ_TASK_TRACER
+  RestorePrevTraceInfo();
+#endif
 }
 
 struct DocumentFrameCallbacks {
@@ -1067,9 +1076,6 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
 
   profiler_tracing("Paint", "RD", TRACING_INTERVAL_START);
 
-#ifdef MOZ_TASK_TRACER
-  SaveCurTraceInfo();
-#endif
 
   AutoRestore<bool> restoreInRefresh(mInRefresh);
   mInRefresh = true;
@@ -1149,9 +1155,6 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
           NS_ADDREF(shell);
           mStyleFlushObservers.RemoveElement(shell);
           shell->GetPresContext()->RestyleManager()->mObservingRefreshDriver = false;
-#ifdef MOZ_TASK_TRACER
-          CreateSourceEvent(SourceEventType::REFRESH_DRIVER_TICK_FLUSH_SCRIPT);
-#endif
           shell->FlushPendingNotifications(ChangesToFlush(Flush_Style, false));
           NS_RELEASE(shell);
         }
@@ -1172,9 +1175,6 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
           mLayoutFlushObservers.RemoveElement(shell);
           shell->mReflowScheduled = false;
           shell->mSuppressInterruptibleReflows = false;
-#ifdef MOZ_TASK_TRACER
-          CreateSourceEvent(SourceEventType::REFRESH_DRIVER_TICK_FLUSH_LAYOUT);
-#endif
           shell->FlushPendingNotifications(ChangesToFlush(Flush_InterruptibleLayout,
                                                           false));
           NS_RELEASE(shell);
@@ -1217,9 +1217,6 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
       printf_stderr("Starting ProcessPendingUpdates\n");
     }
 #endif
-#ifdef MOZ_TASK_TRACER
-    CreateSourceEvent(SourceEventType::REFRESH_DRIVER_TICK_FLUSH_VIEW);
-#endif
     mViewManagerFlushIsPending = false;
     nsRefPtr<nsViewManager> vm = mPresContext->GetPresShell()->GetViewManager();
     vm->ProcessPendingUpdates(nsViewManager::eTrySyncUpdate);
@@ -1235,9 +1232,6 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
   }
   profiler_tracing("Paint", "RD", TRACING_INTERVAL_END);
 
-#ifdef MOZ_TASK_TRACER
-  RestorePrevTraceInfo();
-#endif
 
   NS_ASSERTION(mInRefresh, "Still in refresh");
 }
