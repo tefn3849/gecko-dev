@@ -30,7 +30,10 @@ enum SourceEventType {
   TOUCH,
   MOUSE,
   POWER_KEY,
-  HOME_KEY
+  HOME_KEY,
+  REFRESH_DRIVER_TICK_FLUSH_SCRIPT,
+  REFRESH_DRIVER_TICK_FLUSH_LAYOUT,
+  REFRESH_DRIVER_TICK_FLUSH_VIEW
 };
 
 // Create a traced Task to be run by a message loop.
@@ -42,11 +45,10 @@ nsIRunnable *CreateTracedRunnable(nsIRunnable *aRunnable);
 // Free the TraceInfo allocated on its tread local storage.
 void FreeTraceInfo();
 
-// Create a source event of type SourceEventType::TOUCH, where aX and aY the
-// touched coordinates on screen.
-void CreateSETouch(int aX, int aY);
-void CreateSEMouse(int aX, int aY);
-void CreateSEKey(SourceEventType aKeyType);
+// Create a source event of aTtype, where aX and aY the touched coordinates
+// on screen.
+void CreateSourceEvent(SourceEventType aType, int aX, int aY);
+void CreateSourceEvent(SourceEventType aType);
 
 void AddLabel(const char * aFormat, ...);
 

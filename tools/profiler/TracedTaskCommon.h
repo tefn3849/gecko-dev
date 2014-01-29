@@ -26,13 +26,13 @@ protected:
   // if not exist; Sets the source event Id and source event type of this
   // runnable to the currently-traced task Id and task type from the TraceInfo
   // of current thread.
-  void SetupSourceEvent();
+  void Setup();
 
   // Before calling the Run() of its factual object, sets the currently-traced
   // task Id from the TraceInfo of current thread, to its source event Id.
   // Setup other information if needed. Should call ClearTraceInfo() to reset
   // them when done.
-  void AttachTraceInfo();
+  void SetTraceInfo();
   void ClearTraceInfo();
 
   // Its own task Id, an unique number base on its thread Id and a last unique

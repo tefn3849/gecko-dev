@@ -236,7 +236,7 @@ FreeTraceInfo()
 }
 
 static uint64_t
-SetupSourceEvent(SourceEventType aType)
+InitSourceEvent(SourceEventType aType)
 {
   if (!IsInitialized()) {
     return 0;
@@ -251,9 +251,9 @@ SetupSourceEvent(SourceEventType aType)
 }
 
 void
-CreateSETouch(int aX, int aY)
+CreateSourceEvent(SourceEventType aType, int aX, int aY)
 {
-  uint64_t soueceEventId = SetupSourceEvent(SourceEventType::TOUCH);
+  uint64_t soueceEventId = InitSourceEvent(aType);
 
   // Log format for creating source event with custom info
   // -------
@@ -264,21 +264,9 @@ CreateSETouch(int aX, int aY)
 }
 
 void
-CreateSEMouse(int aX, int aY)
+CreateSourceEvent(SourceEventType aType)
 {
-  uint64_t soueceEventId = SetupSourceEvent(SourceEventType::MOUSE);
-
-  // -------
-  // actionType sourceEventId createTime x y
-  // -------
-  TTLOG("%d %lld %lld %d %d",
-        ACTION_CREATE, soueceEventId, PR_Now(), aX, aY);
-}
-
-void
-CreateSEKey(SourceEventType aKeyType)
-{
-  uint64_t soueceEventId = SetupSourceEvent(aKeyType);
+  uint64_t soueceEventId = InitSourceEvent(aType);
 
   // -------
   // actionType sourceEventId createTime

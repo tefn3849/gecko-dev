@@ -676,8 +676,9 @@ GeckoInputDispatcher::dispatchOnce()
             AMOTION_EVENT_ACTION_HOVER_MOVE) {
             bool captured;
 #ifdef MOZ_TASK_TRACER
-            CreateSETouch(data.motion.touches[0].coords.getX(),
-                          data.motion.touches[0].coords.getY());
+            CreateSourceEvent(SourceEventType::TOUCH,
+                              data.motion.touches[0].coords.getX(),
+                              data.motion.touches[0].coords.getY());
 #endif
             status = sendTouchEvent(data, &captured);
             if (captured) {
@@ -707,8 +708,9 @@ GeckoInputDispatcher::dispatchOnce()
             break;
         }
 #ifdef MOZ_TASK_TRACER
-        CreateSEMouse(data.motion.touches[0].coords.getX(),
-                      data.motion.touches[0].coords.getY());
+        CreateSourceEvent(SourceEventType::MOUSE,
+                          data.motion.touches[0].coords.getX(),
+                          data.motion.touches[0].coords.getY());
 #endif
         sendMouseEvent(msg, data, status != nsEventStatus_eConsumeNoDefault);
         break;
@@ -718,9 +720,9 @@ GeckoInputDispatcher::dispatchOnce()
         uint32_t keyCode = (data.key.keyCode < ArrayLength(kKeyMapping)) ?
                            kKeyMapping[data.key.keyCode] : 0;
         if (keyCode == NS_VK_SLEEP) {
-          CreateSEKey(SourceEventType::POWER_KEY);
+          CreateSourceEvent(SourceEventType::POWER_KEY);
         } else if (keyCode == NS_VK_HOME) {
-          CreateSEKey(SourceEventType::HOME_KEY);
+          CreateSourceEvent(SourceEventType::HOME_KEY);
         }
 #endif
         sp<KeyCharacterMap> kcm = mEventHub->getKeyCharacterMap(data.deviceId);

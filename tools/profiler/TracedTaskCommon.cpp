@@ -15,11 +15,11 @@ TracedTaskCommon::TracedTaskCommon()
   , mSourceEventType(SourceEventType::UNKNOWN)
 {
   mTaskId = GenNewUniqueTaskId();
-  SetupSourceEvent();
+  Setup();
 }
 
 void
-TracedTaskCommon::SetupSourceEvent()
+TracedTaskCommon::Setup()
 {
   TraceInfo* info = GetTraceInfo();
   // TODO: This is a temporary solution to eliminate orphan tasks, once we have
@@ -36,7 +36,7 @@ TracedTaskCommon::SetupSourceEvent()
 }
 
 void
-TracedTaskCommon::AttachTraceInfo()
+TracedTaskCommon::SetTraceInfo()
 {
   TraceInfo* info = GetTraceInfo();
   info->mCurTraceTaskId = mSourceEventId;
@@ -65,7 +65,7 @@ TracedRunnable::Run()
 {
   LogStart(mTaskId, mSourceEventId);
 
-  AttachTraceInfo();
+  SetTraceInfo();
   nsresult rv = mFactualObj->Run();
   ClearTraceInfo();
 
@@ -89,7 +89,7 @@ TracedTask::Run()
 {
   LogStart(mTaskId, mSourceEventId);
 
-  AttachTraceInfo();
+  SetTraceInfo();
   mFactualObj->Run();
   ClearTraceInfo();
 
