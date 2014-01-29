@@ -56,10 +56,7 @@ public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIRUNNABLE
 
-  TracedRunnable(nsIRunnable *aFactualObj)
-    : TracedTaskCommon()
-    , mFactualObj(aFactualObj)
-  {}
+  TracedRunnable(nsIRunnable *aFactualObj);
 
   virtual ~TracedRunnable() {}
 
@@ -72,10 +69,7 @@ class TracedTask : public TracedTaskCommon
                  , public Task
 {
 public:
-  TracedTask(Task *aFactualObj)
-    : TracedTaskCommon()
-    , mFactualObj(aFactualObj)
-  {}
+  TracedTask(Task *aFactualObj);
 
   ~TracedTask();
 

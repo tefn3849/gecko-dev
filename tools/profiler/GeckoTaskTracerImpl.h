@@ -17,7 +17,8 @@ enum ActionType {
   ACTION_DISPATCH,
   ACTION_START,
   ACTION_END,
-  ACTION_USER_LABEL
+  ACTION_ADD_LABEL,
+  ACTION_GET_VTABLE
 };
 
 // Each thread owns a TraceInfo on its tread local storage, keeps track of
@@ -71,7 +72,7 @@ void LogDispatch(uint64_t aTaskId, uint64_t aParentTaskId,
                  uint64_t aSourceEventId, SourceEventType aSourceEventType);
 void LogStart(uint64_t aTaskId, uint64_t aSourceEventId);
 void LogEnd(uint64_t aTaskId, uint64_t aSourceEventId);
-
+void LogVirtualTablePtr(uint64_t aTaskId, uint64_t aSourceEventId, int* aVptr);
 } // namespace mozilla
 } // namespace tasktracer
 

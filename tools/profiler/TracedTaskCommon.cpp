@@ -60,6 +60,13 @@ TracedTaskCommon::ClearTraceInfo()
  */
 NS_IMPL_ISUPPORTS1(TracedRunnable, nsIRunnable)
 
+TracedRunnable::TracedRunnable(nsIRunnable *aFactualObj)
+  : TracedTaskCommon()
+  , mFactualObj(aFactualObj)
+{
+  LogVirtualTablePtr(mTaskId, mSourceEventId, *(int**)(aFactualObj));
+}
+
 NS_IMETHODIMP
 TracedRunnable::Run()
 {
@@ -76,6 +83,13 @@ TracedRunnable::Run()
 /**
  * Implementation of class TracedTask.
  */
+TracedTask::TracedTask(Task *aFactualObj)
+  : TracedTaskCommon()
+  , mFactualObj(aFactualObj)
+{
+  LogVirtualTablePtr(mTaskId, mSourceEventId, *(int**)(aFactualObj));
+}
+
 TracedTask::~TracedTask()
 {
   if (mFactualObj) {

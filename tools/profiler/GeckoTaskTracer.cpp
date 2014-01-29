@@ -226,6 +226,20 @@ LogEnd(uint64_t aTaskId, uint64_t aSourceEventId)
 }
 
 void
+LogVirtualTablePtr(uint64_t aTaskId, uint64_t aSourceEventId, int* aVptr)
+{
+  if (!IsInitialized()) {
+    return;
+  }
+
+  // Log format for End action:
+  // -------
+  // actionType taskId endTime
+  // -------
+  TTLOG("%d %lld %lld %p", ACTION_GET_VTABLE, aSourceEventId, aVptr);
+}
+
+void
 FreeTraceInfo()
 {
   if (!IsInitialized()) {
@@ -292,7 +306,7 @@ void AddLabel(const char * aFormat, ...)
   // -------
   TraceInfo* info = GetTraceInfo();
   TTLOG("%d %lld %lld \"%s\"",
-        ACTION_USER_LABEL, info->mCurTaskId, PR_Now(), buffer);
+        ACTION_ADD_LABEL, info->mCurTaskId, PR_Now(), buffer);
 }
 
 void
