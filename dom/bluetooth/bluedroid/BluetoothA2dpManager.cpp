@@ -225,6 +225,10 @@ A2dpConnectionStateCallback(btav_connection_state_t aState,
 {
   MOZ_ASSERT(!NS_IsMainThread());
 
+#ifdef MOZ_TASK_TRACER
+  CreateBTSourceEvent(__FUNCTION__);
+#endif
+
   nsString remoteDeviceBdAddress;
   BdAddressTypeToString(aBdAddress, remoteDeviceBdAddress);
 
@@ -238,6 +242,10 @@ A2dpConnectionStateCallback(btav_connection_state_t aState,
   BluetoothSignal signal(NS_LITERAL_STRING("AudioSink"),
                          remoteDeviceBdAddress, props);
   NS_DispatchToMainThread(new SinkPropertyChangedHandler(signal));
+
+#ifdef MOZ_TASK_TRACER
+  DestroyBTSourceEvent();
+#endif
 }
 
 static void
@@ -245,6 +253,10 @@ A2dpAudioStateCallback(btav_audio_state_t aState,
                        bt_bdaddr_t* aBdAddress)
 {
   MOZ_ASSERT(!NS_IsMainThread());
+
+#ifdef MOZ_TASK_TRACER
+  CreateBTSourceEvent(__FUNCTION__);
+#endif
 
   nsString remoteDeviceBdAddress;
   BdAddressTypeToString(aBdAddress, remoteDeviceBdAddress);
@@ -268,6 +280,10 @@ A2dpAudioStateCallback(btav_audio_state_t aState,
   BluetoothSignal signal(NS_LITERAL_STRING("AudioSink"),
                          remoteDeviceBdAddress, props);
   NS_DispatchToMainThread(new SinkPropertyChangedHandler(signal));
+
+#ifdef MOZ_TASK_TRACER
+  DestroyBTSourceEvent();
+#endif
 }
 
 #if ANDROID_VERSION > 17
@@ -285,7 +301,15 @@ AvrcpGetPlayStatusCallback()
 {
   MOZ_ASSERT(!NS_IsMainThread());
 
+#ifdef MOZ_TASK_TRACER
+  CreateBTSourceEvent(__FUNCTION__);
+#endif
+
   NS_DispatchToMainThread(new RequestPlayStatusTask());
+
+#ifdef MOZ_TASK_TRACER
+  DestroyBTSourceEvent();
+#endif
 }
 
 /*
@@ -303,7 +327,15 @@ AvrcpGetElementAttrCallback(uint8_t aNumAttr, btrc_media_attr_t* aPlayerAttrs)
 {
   MOZ_ASSERT(!NS_IsMainThread());
 
+#ifdef MOZ_TASK_TRACER
+  CreateBTSourceEvent(__FUNCTION__);
+#endif
+
   NS_DispatchToMainThread(new UpdateElementAttrsTask(aNumAttr, aPlayerAttrs));
+
+#ifdef MOZ_TASK_TRACER
+  DestroyBTSourceEvent();
+#endif
 }
 
 /*
@@ -318,7 +350,15 @@ AvrcpRegisterNotificationCallback(btrc_event_id_t aEventId, uint32_t aParam)
 {
   MOZ_ASSERT(!NS_IsMainThread());
 
+#ifdef MOZ_TASK_TRACER
+  CreateBTSourceEvent(__FUNCTION__);
+#endif
+
   NS_DispatchToMainThread(new UpdateRegisterNotificationTask(aEventId, aParam));
+
+#ifdef MOZ_TASK_TRACER
+  DestroyBTSourceEvent();
+#endif
 }
 
 /*
@@ -330,7 +370,6 @@ static void
 AvrcpListPlayerAppAttributeCallback()
 {
   MOZ_ASSERT(!NS_IsMainThread());
-
 // TODO: Support avrcp application setting related functions
 }
 
@@ -338,7 +377,6 @@ static void
 AvrcpListPlayerAppValuesCallback(btrc_player_attr_t aAttrId)
 {
   MOZ_ASSERT(!NS_IsMainThread());
-
 // TODO: Support avrcp application setting related functions
 }
 
@@ -347,7 +385,6 @@ AvrcpGetPlayerAppValueCallback(uint8_t aNumAttr,
                                btrc_player_attr_t* aPlayerAttrs)
 {
   MOZ_ASSERT(!NS_IsMainThread());
-
 // TODO: Support avrcp application setting related functions
 }
 
@@ -356,7 +393,6 @@ AvrcpGetPlayerAppAttrsTextCallback(uint8_t aNumAttr,
                                    btrc_player_attr_t* PlayerAttrs)
 {
   MOZ_ASSERT(!NS_IsMainThread());
-
 // TODO: Support avrcp application setting related functions
 }
 
@@ -365,7 +401,6 @@ AvrcpGetPlayerAppValuesTextCallback(uint8_t aAttrId, uint8_t aNumVal,
                                     uint8_t* PlayerVals)
 {
   MOZ_ASSERT(!NS_IsMainThread());
-
 // TODO: Support avrcp application setting related functions
 }
 
@@ -373,7 +408,6 @@ static void
 AvrcpSetPlayerAppValueCallback(btrc_player_settings_t* aPlayerVals)
 {
   MOZ_ASSERT(!NS_IsMainThread());
-
 // TODO: Support avrcp application setting related functions
 }
 #endif
@@ -389,6 +423,7 @@ static void
 AvrcpRemoteFeaturesCallback(bt_bdaddr_t* aBdAddress,
                             btrc_remote_features_t aFeatures)
 {
+  MOZ_ASSERT(!NS_IsMainThread());
 // TODO: Support avrcp 1.4 absolute volume/browse
 }
 
@@ -399,6 +434,7 @@ AvrcpRemoteFeaturesCallback(bt_bdaddr_t* aBdAddress,
 static void
 AvrcpRemoteVolumeChangedCallback(uint8_t aVolume, uint8_t aCType)
 {
+  MOZ_ASSERT(!NS_IsMainThread());
 // TODO: Support avrcp 1.4 absolute volume/browse
 }
 
@@ -409,6 +445,7 @@ AvrcpRemoteVolumeChangedCallback(uint8_t aVolume, uint8_t aCType)
 static void
 AvrcpPassThroughCallback(int id, int key_state)
 {
+  MOZ_ASSERT(!NS_IsMainThread());
 // TODO: Support avrcp 1.4 absolute volume/browse
 }
 #endif
