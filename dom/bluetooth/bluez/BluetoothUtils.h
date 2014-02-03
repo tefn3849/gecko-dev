@@ -10,6 +10,12 @@
 #include "BluetoothCommon.h"
 #include "js/TypeDecls.h"
 
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracer.h"
+#include "GeckoTaskTracerImpl.h"
+using namespace mozilla::tasktracer;
+#endif
+
 BEGIN_BLUETOOTH_NAMESPACE
 
 class BluetoothNamedValue;
@@ -45,6 +51,39 @@ void
 DispatchStatusChangedEvent(const nsAString& aType,
                            const nsAString& aDeviceAddress,
                            bool aStatus);
+
+#ifdef MOZ_TASK_TRACER
+inline void
+CreateBTSourceEvent(nsString& aIface, nsAString& aName)
+{
+  SaveCurTraceInfo();
+
+  int32_t offset = aIface.RFindChar('.');
+  nsAutoString iface;
+  if (offset != kNotFound) {
+    iface = Substring(aIface, offset + 1);
+  }
+
+  CreateSourceEvent(SourceEventType::BLUETOOTH,
+                    NS_ConvertUTF16toUTF8(iface).get(),
+                    NS_ConvertUTF16toUTF8(aName).get());
+
+  TraceInfo* info = GetTraceInfo();
+  LogDispatch(info->mCurTraceTaskId, 0,
+              info->mCurTraceTaskId, SourceEventType::BLUETOOTH);
+  LogStart(info->mCurTraceTaskId, info->mCurTraceTaskId);
+}
+
+inline void
+DestroyBTSourceEvent()
+{
+  TraceInfo* info = GetTraceInfo();
+  LogEnd(info->mCurTraceTaskId, info->mCurTraceTaskId);
+
+  RestorePrevTraceInfo();
+}
+
+#endif
 
 END_BLUETOOTH_NAMESPACE
 
