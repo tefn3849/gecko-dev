@@ -13,8 +13,7 @@ namespace mozilla {
 namespace tasktracer {
 
 enum ActionType {
-  ACTION_CREATE = 0,
-  ACTION_DISPATCH,
+  ACTION_DISPATCH = 1,
   ACTION_START,
   ACTION_END,
   ACTION_ADD_LABEL,

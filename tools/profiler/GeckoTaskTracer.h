@@ -44,15 +44,12 @@ nsIRunnable *CreateTracedRunnable(nsIRunnable *aRunnable);
 // Free the TraceInfo allocated on its tread local storage.
 void FreeTraceInfo();
 
-// Create a source event of aTtype, where aX and aY the touched coordinates
-// on screen.
-void CreateSourceEvent(SourceEventType aType, int aX, int aY);
-uint64_t CreateSourceEvent(SourceEventType aType,
-                           const char* aIface, const char* aName);
-uint64_t CreateSourceEvent(SourceEventType aType, const char* aFuncName);
+// Create a source event of aType.
 void CreateSourceEvent(SourceEventType aType);
 
-void AddLabel(const char * aFormat, ...);
+void DestroySourceEvent();
+
+void AddLabel(const char* aFormat, ...);
 
 // Save the currently-traced task. Usually used when current thread is already
 // tracing a task, but a source event is generated from this point. Create a

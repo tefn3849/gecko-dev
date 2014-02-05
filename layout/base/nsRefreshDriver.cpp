@@ -1011,7 +1011,6 @@ nsRefreshDriver::DoTick()
                   "Shouldn't have a JSContext on the stack");
 
 #ifdef MOZ_TASK_TRACER
-  SaveCurTraceInfo();
   CreateSourceEvent(SourceEventType::REFRESH_DRIVER_TICK);
 #endif
 
@@ -1022,7 +1021,7 @@ nsRefreshDriver::DoTick()
   }
 
 #ifdef MOZ_TASK_TRACER
-  RestorePrevTraceInfo();
+  DestroySourceEvent();
 #endif
 }
 

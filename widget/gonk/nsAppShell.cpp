@@ -664,11 +664,6 @@ GeckoInputDispatcher::dispatchOnce()
             gAppShell->NotifyNativeEvent();
     }
 
-#ifdef MOZ_TASK_TRACER
-    // Save currently traced task info.
-    SaveCurTraceInfo();
-#endif
-
     switch (data.type) {
     case UserInputData::MOTION_DATA: {
         nsEventStatus status = nsEventStatus_eIgnore;
@@ -676,9 +671,9 @@ GeckoInputDispatcher::dispatchOnce()
             AMOTION_EVENT_ACTION_HOVER_MOVE) {
             bool captured;
 #ifdef MOZ_TASK_TRACER
-            CreateSourceEvent(SourceEventType::TOUCH,
-                              data.motion.touches[0].coords.getX(),
-                              data.motion.touches[0].coords.getY());
+            CreateSourceEvent(SourceEventType::TOUCH);
+            AddLabel("Touch at (%.f, %.f)", data.motion.touches[0].coords.getX(),
+                                            data.motion.touches[0].coords.getY());
 #endif
             status = sendTouchEvent(data, &captured);
             if (captured) {
@@ -708,9 +703,9 @@ GeckoInputDispatcher::dispatchOnce()
             break;
         }
 #ifdef MOZ_TASK_TRACER
-        CreateSourceEvent(SourceEventType::MOUSE,
-                          data.motion.touches[0].coords.getX(),
-                          data.motion.touches[0].coords.getY());
+        CreateSourceEvent(SourceEventType::MOUSE);
+        AddLabel("Mouse at (%.f, %.f)", data.motion.touches[0].coords.getX(),
+                                        data.motion.touches[0].coords.getY());
 #endif
         sendMouseEvent(msg, data, status != nsEventStatus_eConsumeNoDefault);
         break;
@@ -721,8 +716,10 @@ GeckoInputDispatcher::dispatchOnce()
                            kKeyMapping[data.key.keyCode] : 0;
         if (keyCode == NS_VK_SLEEP) {
           CreateSourceEvent(SourceEventType::POWER_KEY);
+          AddLabel("Power key pressed.");
         } else if (keyCode == NS_VK_HOME) {
           CreateSourceEvent(SourceEventType::HOME_KEY);
+          AddLabel("Home key pressed.");
         }
 #endif
         sp<KeyCharacterMap> kcm = mEventHub->getKeyCharacterMap(data.deviceId);
@@ -732,8 +729,7 @@ GeckoInputDispatcher::dispatchOnce()
       }
     }
 #ifdef MOZ_TASK_TRACER
-    // Restore previously saved task info.
-    RestorePrevTraceInfo();
+    DestroySourceEvent();
 #endif
 }
 

@@ -58,23 +58,14 @@ DispatchStatusChangedEvent(const nsAString& aType,
 inline void
 CreateBTSourceEvent(const char* aFuncName)
 {
-  SaveCurTraceInfo();
-
-  CreateSourceEvent(SourceEventType::BLUETOOTH, aFuncName);
-
-  TraceInfo* info = GetTraceInfo();
-  LogDispatch(info->mCurTraceTaskId, 0,
-              info->mCurTraceTaskId, SourceEventType::BLUETOOTH);
-  LogStart(info->mCurTraceTaskId, info->mCurTraceTaskId);
+  CreateSourceEvent(SourceEventType::BLUETOOTH);
+  AddLabel("%s", aFuncName);
 }
 
 inline void
 DestroyBTSourceEvent()
 {
-  TraceInfo* info = GetTraceInfo();
-  LogEnd(info->mCurTraceTaskId, info->mCurTraceTaskId);
-
-  RestorePrevTraceInfo();
+  DestroySourceEvent();
 }
 
 #endif

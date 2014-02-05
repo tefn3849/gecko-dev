@@ -245,75 +245,45 @@ FreeTraceInfo()
   _FreeTraceInfo(gettid());
 }
 
-static uint64_t
-InitSourceEvent(SourceEventType aType)
-{
-  if (!IsInitialized()) {
-    return 0;
-  }
-
-  TraceInfo* info = GetTraceInfo();
-  info->mCurTraceTaskId = GenNewUniqueTaskId();
-  info->mCurTraceTaskType = aType;
-  info->mParentTaskId = info->mCurTraceTaskId;
-  info->mCurTaskId = info->mCurTraceTaskId;
-  return info->mCurTraceTaskId;
-}
-
-void
-CreateSourceEvent(SourceEventType aType, int aX, int aY)
-{
-  uint64_t soueceEventId = InitSourceEvent(aType);
-
-  // Log format for creating source event with custom info:
-  // -------
-  // actionType sourceEventId createTime x y
-  // -------
-  TTLOG("%d %lld %lld %d %d",
-        ACTION_CREATE, soueceEventId, PR_Now(), aX, aY);
-}
-
-uint64_t
-CreateSourceEvent(SourceEventType aType, const char* aIface, const char* aName)
-{
-  uint64_t sourceEventId = InitSourceEvent(aType);
-
-  // -------
-  // actionType sourceEventId createTime
-  // -------
-  TTLOG("%d %lld %lld %s %s",
-        ACTION_CREATE, sourceEventId, PR_Now(), aIface, aName);
-
-  return sourceEventId;
-}
-
-uint64_t
-CreateSourceEvent(SourceEventType aType, const char* aFuncName)
-{
-  uint64_t sourceEventId = InitSourceEvent(aType);
-
-  // -------
-  // actionType sourceEventId createTime
-  // -------
-  TTLOG("%d %lld %lld %s %s",
-        ACTION_CREATE, sourceEventId, PR_Now(), aFuncName);
-
-  return sourceEventId;
-}
-
 void
 CreateSourceEvent(SourceEventType aType)
 {
-  uint64_t soueceEventId = InitSourceEvent(aType);
+  if (!IsInitialized()) {
+    return;
+  }
 
-  // -------
-  // actionType sourceEventId createTime
-  // -------
-  TTLOG("%d %lld %lld",
-        ACTION_CREATE, soueceEventId, PR_Now());
+  // Save the currently traced source event info.
+  SaveCurTraceInfo();
+
+  // Create a new unique task id.
+  uint64_t newId = GenNewUniqueTaskId();
+  TraceInfo* info = GetTraceInfo();
+  info->mCurTraceTaskId = newId;
+  info->mCurTraceTaskType = aType;
+  info->mParentTaskId = newId;
+  info->mCurTaskId = newId;
+
+  // Log a fake dispatch and start for this source event.
+  LogDispatch(newId, newId,newId, aType);
+  LogStart(newId, newId);
 }
 
-void AddLabel(const char * aFormat, ...)
+void
+DestroySourceEvent()
+{
+  if (!IsInitialized()) {
+    return;
+  }
+
+  // Log a fake end for this source event.
+  TraceInfo* info = GetTraceInfo();
+  LogEnd(info->mCurTraceTaskId, info->mCurTraceTaskType);
+
+  // Restore the previously saved source event info.
+  RestorePrevTraceInfo();
+}
+
+void AddLabel(const char* aFormat, ...)
 {
   if (!IsInitialized()) {
     return;
@@ -321,7 +291,7 @@ void AddLabel(const char * aFormat, ...)
 
   va_list args;
   va_start(args, aFormat);
-  char buffer[MAX_USER_LABEL_LEN];
+  char buffer[MAX_USER_LABEL_LEN] = {0};
   vsnprintf(buffer, MAX_USER_LABEL_LEN, aFormat, args);
   va_end(args);
 
