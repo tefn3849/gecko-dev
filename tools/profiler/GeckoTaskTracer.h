@@ -32,7 +32,8 @@ enum SourceEventType {
   POWER_KEY,
   HOME_KEY,
   REFRESH_DRIVER_TICK,
-  BLUETOOTH
+  BLUETOOTH,
+  UNIXSOCKET
 };
 
 // Create a traced Task to be run by a message loop.

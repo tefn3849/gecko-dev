@@ -22,6 +22,11 @@
 #include "nsTArray.h"
 #include "nsXULAppAPI.h"
 
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracer.h"
+using namespace mozilla::tasktracer;
+#endif
+
 static const size_t MAX_READ_SIZE = 1 << 16;
 
 #undef CHROMIUM_LOG
@@ -763,10 +768,18 @@ UnixSocketImpl::OnFileCanReadWithoutBlocking(int aFd)
         return;
       }
 
+#ifdef MOZ_TASK_TRACER
+      CreateSourceEvent(SourceEventType::UNIXSOCKET);
+#endif
+
       incoming->mSize = ret;
       nsRefPtr<SocketReceiveTask> t =
         new SocketReceiveTask(this, incoming.forget());
       NS_DispatchToMainThread(t);
+
+#ifdef MOZ_TASK_TRACER
+      DestroySourceEvent();
+#endif
 
       // If ret is less than MAX_READ_SIZE, there's no
       // more data in the socket for us to read now.
