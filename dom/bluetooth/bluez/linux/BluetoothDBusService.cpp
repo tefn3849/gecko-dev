@@ -51,6 +51,8 @@
 #include "cutils/properties.h"
 #endif
 
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GonkDBus", args);
+
 /**
  * Some rules for dealing with memory in DBus:
  * - A DBusError only needs to be deleted if it's been set, not just
@@ -990,9 +992,16 @@ AppendDeviceName(BluetoothSignal& aSignal)
 }
 
 static DBusHandlerResult
-AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
+AgentEventFilter(DBusConnection *conn, DBusMessage *aMsg, void *data)
 {
-  if (dbus_message_get_type(msg) != DBUS_MESSAGE_TYPE_METHOD_CALL) {
+  MOZ_ASSERT(!NS_IsMainThread());
+
+  const char* cstrSignalName = dbus_message_get_member(aMsg);
+  const char* cstrSignalPath = dbus_message_get_path(aMsg);
+  const char* cstrSignalIface = dbus_message_get_interface(aMsg);
+  int signalType = dbus_message_get_type(aMsg);
+
+  if (signalType != DBUS_MESSAGE_TYPE_METHOD_CALL) {
     BT_WARNING("%s: agent handler not interested (not a method call).\n",
                __FUNCTION__);
     return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
@@ -1001,12 +1010,11 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
   DBusError err;
   dbus_error_init(&err);
 
-  BT_LOGD("%s: %s, %s", __FUNCTION__,
-                       dbus_message_get_path(msg),
-                       dbus_message_get_member(msg));
+  BT_LOGD("%s: %s, %s", __FUNCTION__, cstrSignalPath, cstrSignalName);
+  nsString signalPath = NS_ConvertUTF8toUTF16(cstrSignalPath);
+  nsString signalName = NS_ConvertUTF8toUTF16(cstrSignalName);
+  nsString signalIface = NS_ConvertUTF8toUTF16(cstrSignalIface);
 
-  nsString signalPath = NS_ConvertUTF8toUTF16(dbus_message_get_path(msg));
-  nsString signalName = NS_ConvertUTF8toUTF16(dbus_message_get_member(msg));
   nsString errorStr;
   BluetoothValue v;
   InfallibleTArray<BluetoothNamedValue> parameters;
@@ -1014,16 +1022,26 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
   BluetoothSignal signal(signalName, signalPath, v);
   char *objectPath;
 
+#ifdef MOZ_TASK_TRACER
+  int32_t offset = signalIface.RFindChar('.');
+  nsAutoString iface;
+  if (offset != kNotFound) {
+    iface = Substring(signalIface, offset + 1);
+  }
+
+  CreateBTSourceEvent(signalIface, signalName); 
+#endif
+
   // The following descriptions of each signal are retrieved from:
   //
   // http://maemo.org/api_refs/5.0/beta/bluez/agent.html
   //
-  if (dbus_message_is_method_call(msg, DBUS_AGENT_IFACE, "Cancel")) {
+  if (dbus_message_is_method_call(aMsg, DBUS_AGENT_IFACE, "Cancel")) {
     // This method gets called to indicate that the agent request failed before
     // a reply was returned.
 
     // Return directly
-    DBusMessage *reply = dbus_message_new_method_return(msg);
+    DBusMessage *reply = dbus_message_new_method_return(aMsg);
 
     if (!reply) {
       errorStr.AssignLiteral("Memory can't be allocated for the message.");
@@ -1033,11 +1051,11 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
     dbus_connection_send(conn, reply, nullptr);
     dbus_message_unref(reply);
     v = parameters;
-  } else if (dbus_message_is_method_call(msg, DBUS_AGENT_IFACE, "Authorize")) {
+  } else if (dbus_message_is_method_call(aMsg, DBUS_AGENT_IFACE, "Authorize")) {
     // This method gets called when the service daemon needs to authorize a
     // connection/service request.
     const char *uuid;
-    if (!dbus_message_get_args(msg, nullptr,
+    if (!dbus_message_get_args(aMsg, nullptr,
                                DBUS_TYPE_OBJECT_PATH, &objectPath,
                                DBUS_TYPE_STRING, &uuid,
                                DBUS_TYPE_INVALID)) {
@@ -1058,7 +1076,7 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
     uint32_t i;
     for (i = 0; i < length; i++) {
       if (serviceClass == sAuthorizedServiceClass[i]) {
-        reply = dbus_message_new_method_return(msg);
+        reply = dbus_message_new_method_return(aMsg);
         break;
       }
     }
@@ -1066,7 +1084,7 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
     // The uuid isn't authorized
     if (i == length) {
       BT_WARNING("Uuid is not authorized.");
-      reply = dbus_message_new_error(msg, "org.bluez.Error.Rejected",
+      reply = dbus_message_new_error(aMsg, "org.bluez.Error.Rejected",
                                      "The uuid is not authorized");
     }
 
@@ -1078,12 +1096,12 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
     dbus_connection_send(conn, reply, nullptr);
     dbus_message_unref(reply);
     return DBUS_HANDLER_RESULT_HANDLED;
-  } else if (dbus_message_is_method_call(msg, DBUS_AGENT_IFACE,
+  } else if (dbus_message_is_method_call(aMsg, DBUS_AGENT_IFACE,
                                          "RequestConfirmation")) {
     // This method gets called when the service daemon needs to confirm a
     // passkey for an authentication.
     uint32_t passkey;
-    if (!dbus_message_get_args(msg, nullptr,
+    if (!dbus_message_get_args(aMsg, nullptr,
                                DBUS_TYPE_OBJECT_PATH, &objectPath,
                                DBUS_TYPE_UINT32, &passkey,
                                DBUS_TYPE_INVALID)) {
@@ -1102,12 +1120,12 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
 
     v = parameters;
     isPairingReq = true;
-  } else if (dbus_message_is_method_call(msg, DBUS_AGENT_IFACE,
+  } else if (dbus_message_is_method_call(aMsg, DBUS_AGENT_IFACE,
                                          "RequestPinCode")) {
     // This method gets called when the service daemon needs to get the passkey
     // for an authentication. The return value should be a string of 1-16
     // characters length. The string can be alphanumeric.
-    if (!dbus_message_get_args(msg, nullptr,
+    if (!dbus_message_get_args(aMsg, nullptr,
                                DBUS_TYPE_OBJECT_PATH, &objectPath,
                                DBUS_TYPE_INVALID)) {
       errorStr.AssignLiteral("Invalid arguments for RequestPinCode() method");
@@ -1123,12 +1141,12 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
 
     v = parameters;
     isPairingReq = true;
-  } else if (dbus_message_is_method_call(msg, DBUS_AGENT_IFACE,
+  } else if (dbus_message_is_method_call(aMsg, DBUS_AGENT_IFACE,
                                          "RequestPasskey")) {
     // This method gets called when the service daemon needs to get the passkey
     // for an authentication. The return value should be a numeric value
     // between 0-999999.
-    if (!dbus_message_get_args(msg, nullptr,
+    if (!dbus_message_get_args(aMsg, nullptr,
                                DBUS_TYPE_OBJECT_PATH, &objectPath,
                                DBUS_TYPE_INVALID)) {
       errorStr.AssignLiteral("Invalid arguments for RequestPasskey() method");
@@ -1144,12 +1162,12 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
 
     v = parameters;
     isPairingReq = true;
-  } else if (dbus_message_is_method_call(msg, DBUS_AGENT_IFACE, "Release")) {
+  } else if (dbus_message_is_method_call(aMsg, DBUS_AGENT_IFACE, "Release")) {
     // This method gets called when the service daemon unregisters the agent.
     // An agent can use it to do cleanup tasks. There is no need to unregister
     // the agent, because when this method gets called it has already been
     // unregistered.
-    DBusMessage *reply = dbus_message_new_method_return(msg);
+    DBusMessage *reply = dbus_message_new_method_return(aMsg);
 
     if (!reply) {
       errorStr.AssignLiteral("Memory can't be allocated for the message.");
@@ -1178,20 +1196,26 @@ AgentEventFilter(DBusConnection *conn, DBusMessage *msg, void *data)
 
   if (isPairingReq) {
     sPairingReqTable->Put(
-      GetAddressFromObjectPath(NS_ConvertUTF8toUTF16(objectPath)), msg);
+      GetAddressFromObjectPath(NS_ConvertUTF8toUTF16(objectPath)), aMsg);
 
     // Increase ref count here because we need this message later.
     // It'll be unrefed when set*Internal() is called.
-    dbus_message_ref(msg);
+    dbus_message_ref(aMsg);
 
     AppendDeviceName(signal);
   } else {
     NS_DispatchToMainThread(new DistributeBluetoothSignalTask(signal));
   }
 
+#ifdef MOZ_TASK_TRACER
+  DestroyBTSourceEvent();
+#endif
   return DBUS_HANDLER_RESULT_HANDLED;
 
 handle_error:
+#ifdef MOZ_TASK_TRACER
+  DestroyBTSourceEvent();
+#endif
   BT_WARNING(NS_ConvertUTF16toUTF8(errorStr).get());
   return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 }
@@ -1426,46 +1450,50 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
 {
   MOZ_ASSERT(!NS_IsMainThread(), "Shouldn't be called from Main Thread!");
 
-  if (dbus_message_get_type(aMsg) != DBUS_MESSAGE_TYPE_SIGNAL) {
+  const char* cstrSignalName = dbus_message_get_member(aMsg);
+  const char* cstrSignalPath = dbus_message_get_path(aMsg);
+  const char* cstrSignalIface = dbus_message_get_interface(aMsg);
+  int signalType = dbus_message_get_type(aMsg);
+
+  if (signalType != DBUS_MESSAGE_TYPE_SIGNAL) {
     BT_WARNING("%s: event handler not interested in %s (not a signal).\n",
-        __FUNCTION__, dbus_message_get_member(aMsg));
+               __FUNCTION__, cstrSignalName);
     return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
   }
 
-  if (dbus_message_get_path(aMsg) == nullptr) {
+  if (!cstrSignalPath) {
     BT_WARNING("DBusMessage %s has no bluetooth destination, ignoring\n",
-               dbus_message_get_member(aMsg));
+               cstrSignalName);
     return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
   }
 
-  DBusError err;
-  dbus_error_init(&err);
+  nsString signalPath, signalName, signalIface;
+  signalPath = NS_ConvertUTF8toUTF16(cstrSignalPath);
+  signalName = NS_ConvertUTF8toUTF16(cstrSignalName);
+  signalIface = NS_ConvertUTF8toUTF16(cstrSignalIface);
 
-  nsAutoString signalPath;
-  nsAutoString signalName;
-  nsAutoString signalInterface;
+  BT_LOGD("%s: %s, %s, %s",
+          __FUNCTION__, cstrSignalIface, cstrSignalPath, cstrSignalName);
 
-  BT_LOGD("%s: %s, %s, %s", __FUNCTION__,
-                          dbus_message_get_interface(aMsg),
-                          dbus_message_get_path(aMsg),
-                          dbus_message_get_member(aMsg));
-
-  signalInterface = NS_ConvertUTF8toUTF16(dbus_message_get_interface(aMsg));
-  signalPath = NS_ConvertUTF8toUTF16(dbus_message_get_path(aMsg));
-  signalName = NS_ConvertUTF8toUTF16(dbus_message_get_member(aMsg));
   nsString errorStr;
   BluetoothValue v;
+  DBusError err;
+  dbus_error_init(&err);
 
   // Since the signalPath extracted from dbus message is a object path,
   // we'd like to re-assign them to corresponding key entry in
   // BluetoothSignalObserverTable
-  if (signalInterface.EqualsLiteral(DBUS_MANAGER_IFACE)) {
+  if (signalIface.EqualsLiteral(DBUS_MANAGER_IFACE)) {
     signalPath.AssignLiteral(KEY_MANAGER);
-  } else if (signalInterface.EqualsLiteral(DBUS_ADAPTER_IFACE)) {
+  } else if (signalIface.EqualsLiteral(DBUS_ADAPTER_IFACE)) {
     signalPath.AssignLiteral(KEY_ADAPTER);
-  } else if (signalInterface.EqualsLiteral(DBUS_DEVICE_IFACE)){
+  } else if (signalIface.EqualsLiteral(DBUS_DEVICE_IFACE)){
     signalPath = GetAddressFromObjectPath(signalPath);
   }
+
+#ifdef MOZ_TASK_TRACER
+  CreateBTSourceEvent(signalIface, signalName);
+#endif
 
   if (dbus_message_is_signal(aMsg, DBUS_ADAPTER_IFACE, "DeviceFound")) {
     DBusMessageIter iter;
@@ -1618,6 +1646,9 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
        * signal PropertyChanged of adapter name, and then propagate signal
        * AdapterAdded to BluetoothManager.
        */
+#ifdef MOZ_TASK_TRACER
+      DestroyBTSourceEvent();
+#endif
       return DBUS_HANDLER_RESULT_HANDLED;
     }
   } else if (dbus_message_is_signal(aMsg, DBUS_MANAGER_IFACE,
@@ -1636,6 +1667,9 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
                         ArrayLength(sSinkProperties));
   } else if (dbus_message_is_signal(aMsg, DBUS_CTL_IFACE, "GetPlayStatus")) {
     NS_DispatchToMainThread(new RequestPlayStatusTask());
+#ifdef MOZ_TASK_TRACER
+    DestroyBTSourceEvent();
+#endif
     return DBUS_HANDLER_RESULT_HANDLED;
   } else if (dbus_message_is_signal(aMsg, DBUS_CTL_IFACE, "PropertyChanged")) {
     ParsePropertyChange(aMsg,
@@ -1662,11 +1696,11 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
 
   BluetoothSignal signal(signalName, signalPath, v);
   nsRefPtr<nsRunnable> task;
-  if (signalInterface.EqualsLiteral(DBUS_SINK_IFACE)) {
+  if (signalIface.EqualsLiteral(DBUS_SINK_IFACE)) {
     task = new SinkPropertyChangedHandler(signal);
-  } else if (signalInterface.EqualsLiteral(DBUS_CTL_IFACE)) {
+  } else if (signalIface.EqualsLiteral(DBUS_CTL_IFACE)) {
     task = new ControlPropertyChangedHandler(signal);
-  } else if (signalInterface.EqualsLiteral(DBUS_INPUT_IFACE)) {
+  } else if (signalIface.EqualsLiteral(DBUS_INPUT_IFACE)) {
     task = new InputPropertyChangedHandler(signal);
   } else {
     task = new DistributeBluetoothSignalTask(signal);
@@ -1674,6 +1708,9 @@ EventFilter(DBusConnection* aConn, DBusMessage* aMsg, void* aData)
 
   NS_DispatchToMainThread(task);
 
+#ifdef MOZ_TASK_TRACER
+  DestroyBTSourceEvent();
+#endif
   return DBUS_HANDLER_RESULT_HANDLED;
 }
 

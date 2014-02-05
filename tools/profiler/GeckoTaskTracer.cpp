@@ -273,6 +273,34 @@ CreateSourceEvent(SourceEventType aType, int aX, int aY)
         ACTION_CREATE, soueceEventId, PR_Now(), aX, aY);
 }
 
+uint64_t
+CreateSourceEvent(SourceEventType aType, const char* aIface, const char* aName)
+{
+  uint64_t sourceEventId = InitSourceEvent(aType);
+
+  // -------
+  // actionType sourceEventId createTime
+  // -------
+  TTLOG("%d %lld %lld %s %s",
+        ACTION_CREATE, sourceEventId, PR_Now(), aIface, aName);
+
+  return sourceEventId;
+}
+
+uint64_t
+CreateSourceEvent(SourceEventType aType, const char* aFuncName)
+{
+  uint64_t sourceEventId = InitSourceEvent(aType);
+
+  // -------
+  // actionType sourceEventId createTime
+  // -------
+  TTLOG("%d %lld %lld %s %s",
+        ACTION_CREATE, sourceEventId, PR_Now(), aFuncName);
+
+  return sourceEventId;
+}
+
 void
 CreateSourceEvent(SourceEventType aType)
 {

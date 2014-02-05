@@ -31,7 +31,8 @@ enum SourceEventType {
   MOUSE,
   POWER_KEY,
   HOME_KEY,
-  REFRESH_DRIVER_TICK
+  REFRESH_DRIVER_TICK,
+  BLUETOOTH
 };
 
 // Create a traced Task to be run by a message loop.
@@ -46,6 +47,9 @@ void FreeTraceInfo();
 // Create a source event of aTtype, where aX and aY the touched coordinates
 // on screen.
 void CreateSourceEvent(SourceEventType aType, int aX, int aY);
+uint64_t CreateSourceEvent(SourceEventType aType,
+                           const char* aIface, const char* aName);
+uint64_t CreateSourceEvent(SourceEventType aType, const char* aFuncName);
 void CreateSourceEvent(SourceEventType aType);
 
 void AddLabel(const char * aFormat, ...);
