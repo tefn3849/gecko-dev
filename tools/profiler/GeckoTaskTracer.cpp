@@ -319,9 +319,15 @@ RestorePrevTraceInfo()
 {
   if (IsInitialized()) {
     TraceInfo* info = GetTraceInfo();
-    info->mCurTraceTaskId = info->mSavedCurTraceTaskId;
-    info->mParentTaskId = info->mSavedParentTaskId;
-    info->mCurTraceTaskType = info->mSavedCurTraceTaskType;
+    // If RestorePrevTraceInfo() is called w/o calling SaveCurTraceInfo() first,
+    // it is possible that mCurTraceTaskId and others being override wrongly
+    // by the saved values.
+    if (info->mSavedCurTraceTaskId) {
+      info->mCurTraceTaskId = info->mSavedCurTraceTaskId;
+      info->mParentTaskId = info->mSavedParentTaskId;
+      info->mCurTraceTaskType = info->mSavedCurTraceTaskType;
+      info->mSavedCurTraceTaskId = 0;
+    }
   }
 }
 

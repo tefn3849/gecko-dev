@@ -676,6 +676,9 @@ GeckoInputDispatcher::dispatchOnce()
                                             data.motion.touches[0].coords.getY());
 #endif
             status = sendTouchEvent(data, &captured);
+#ifdef MOZ_TASK_TRACER
+            DestroySourceEvent();
+#endif
             if (captured) {
                 return;
             }
@@ -708,6 +711,9 @@ GeckoInputDispatcher::dispatchOnce()
                                         data.motion.touches[0].coords.getY());
 #endif
         sendMouseEvent(msg, data, status != nsEventStatus_eConsumeNoDefault);
+#ifdef MOZ_TASK_TRACER
+        DestroySourceEvent();
+#endif
         break;
     }
     case UserInputData::KEY_DATA: {
@@ -725,12 +731,12 @@ GeckoInputDispatcher::dispatchOnce()
         sp<KeyCharacterMap> kcm = mEventHub->getKeyCharacterMap(data.deviceId);
         KeyEventDispatcher dispatcher(data, kcm.get());
         dispatcher.Dispatch();
+#ifdef MOZ_TASK_TRACER
+        DestroySourceEvent();
+#endif
         break;
       }
     }
-#ifdef MOZ_TASK_TRACER
-    DestroySourceEvent();
-#endif
 }
 
 void
