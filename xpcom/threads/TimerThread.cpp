@@ -9,6 +9,9 @@
 #include "nsThreadUtils.h"
 #include "pratom.h"
 
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracer.h"
+#endif
 #include "nsIObserverService.h"
 #include "nsIServiceManager.h"
 #include "mozilla/Services.h"
@@ -16,6 +19,9 @@
 #include <math.h>
 
 using namespace mozilla;
+#ifdef MOZ_TASK_TRACER
+using namespace mozilla::tasktracer;
+#endif
 
 NS_IMPL_ISUPPORTS2(TimerThread, nsIRunnable, nsIObserver)
 
@@ -239,6 +245,9 @@ NS_IMETHODIMP TimerThread::Run()
             }
 #endif
 
+#ifdef MOZ_TASK_TRACER
+            CreateSourceEvent(SourceEventType::TIMER);
+#endif
             // We are going to let the call to PostTimerEvent here handle the
             // release of the timer so that we don't end up releasing the timer
             // on the TimerThread instead of on the thread it targets.
@@ -260,6 +269,9 @@ NS_IMETHODIMP TimerThread::Run()
               MOZ_ASSERT(rc != 0, "destroyed timer off its target thread!");
             }
             timer = nullptr;
+#ifdef MOZ_TASK_TRACER
+            DestroySourceEvent();
+#endif
           }
 
           if (mShutdown)

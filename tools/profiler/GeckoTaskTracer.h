@@ -31,7 +31,7 @@ enum SourceEventType {
   MOUSE,
   POWER_KEY,
   HOME_KEY,
-  REFRESH_DRIVER_TICK,
+  TIMER,
   BLUETOOTH,
   UNIXSOCKET,
   WIFI

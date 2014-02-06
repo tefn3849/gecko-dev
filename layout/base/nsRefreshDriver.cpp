@@ -40,9 +40,6 @@
 #include "mozilla/Preferences.h"
 #include "nsViewManager.h"
 #include "GeckoProfiler.h"
-#ifdef MOZ_TASK_TRACER
-#include "GeckoTaskTracer.h"
-#endif
 #include "nsNPAPIPluginInstance.h"
 #include "nsPerformance.h"
 #include "mozilla/dom/WindowBinding.h"
@@ -54,9 +51,6 @@
 
 using namespace mozilla;
 using namespace mozilla::widget;
-#ifdef MOZ_TASK_TRACER
-using namespace mozilla::tasktracer;
-#endif
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo *gLog = nullptr;
@@ -1010,19 +1004,11 @@ nsRefreshDriver::DoTick()
   NS_PRECONDITION(!nsContentUtils::GetCurrentJSContext(),
                   "Shouldn't have a JSContext on the stack");
 
-#ifdef MOZ_TASK_TRACER
-  CreateSourceEvent(SourceEventType::REFRESH_DRIVER_TICK);
-#endif
-
   if (mTestControllingRefreshes) {
     Tick(mMostRecentRefreshEpochTime, mMostRecentRefresh);
   } else {
     Tick(JS_Now(), TimeStamp::Now());
   }
-
-#ifdef MOZ_TASK_TRACER
-  DestroySourceEvent();
-#endif
 }
 
 struct DocumentFrameCallbacks {
