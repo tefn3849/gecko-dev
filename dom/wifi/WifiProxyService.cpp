@@ -10,6 +10,11 @@
 #include "WifiUtils.h"
 #include "nsCxPusher.h"
 
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracer.h"
+using namespace mozilla::tasktracer;
+#endif
+
 #define NS_WIFIPROXYSERVICE_CID \
   { 0xc6c9be7e, 0x744f, 0x4222, {0xb2, 0x03, 0xcd, 0x55, 0xdf, 0xc8, 0xbc, 0x12} }
 
@@ -63,8 +68,15 @@ public:
     nsAutoString event;
     gWpaSupplicant->WaitForEvent(event, mInterface);
     if (!event.IsEmpty()) {
+#ifdef MOZ_TASK_TRACER
+      CreateSourceEvent(SourceEventType::WIFI);
+      AddLabel("%s %s", mInterface.get(), NS_ConvertUTF16toUTF8(event).get());
+#endif
       nsCOMPtr<nsIRunnable> runnable = new WifiEventDispatcher(event, mInterface);
       NS_DispatchToMainThread(runnable);
+#ifdef MOZ_TASK_TRACER
+      DestroySourceEvent();
+#endif
     }
     return NS_OK;
   }
@@ -204,8 +216,8 @@ WifiProxyService::Start(nsIWifiEventListener* aListener,
       Shutdown();
       return NS_ERROR_FAILURE;
     }
+    NS_SetThreadName(mEventThreadList[i].mThread, mEventThreadList[i].mInterface);
   }
-//  NS_SetThreadName(mEventThread, "wifi event");
 
   rv = NS_NewThread(getter_AddRefs(mControlThread));
   if (NS_FAILED(rv)) {
