@@ -23,6 +23,10 @@
 #include "nsTArray.h"
 #include "nsThreadUtils.h" // For NS_IsMainThread.
 
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracer.h"
+#endif
+
 USING_WORKERS_NAMESPACE
 using namespace mozilla::ipc;
 
@@ -352,6 +356,10 @@ void
 RilConsumer::ReceiveSocketData(nsAutoPtr<UnixSocketRawData>& aMessage)
 {
     MOZ_ASSERT(NS_IsMainThread());
+
+#ifdef MOZ_TASK_TRACER
+    mozilla::tasktracer::AddLabel("RIL");
+#endif
 
     nsRefPtr<DispatchRILEvent> dre(new DispatchRILEvent(aMessage.forget()));
     mDispatcher->PostTask(dre);
