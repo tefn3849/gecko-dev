@@ -677,6 +677,7 @@ GeckoInputDispatcher::dispatchOnce()
 #endif
             status = sendTouchEvent(data, &captured);
 #ifdef MOZ_TASK_TRACER
+            AddLabel("Capture? %d", captured);
             DestroySourceEvent();
 #endif
             if (captured) {

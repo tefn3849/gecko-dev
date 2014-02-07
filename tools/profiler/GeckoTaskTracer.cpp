@@ -308,6 +308,10 @@ SaveCurTraceInfo()
 {
   if (IsInitialized()) {
     TraceInfo* info = GetTraceInfo();
+    if (info->mCurTraceTaskId > 0) {
+      TTLOG("Something wrong with SaveCurTraceInfo()!! info->mCurTraceTaskId "
+            "(%lld), parent(%lld)", info->mCurTraceTaskId, info->mParentTaskId);
+    }
     info->mSavedCurTraceTaskId = info->mCurTraceTaskId;
     info->mSavedParentTaskId = info->mParentTaskId;
     info->mSavedCurTraceTaskType = info->mCurTraceTaskType;
@@ -319,15 +323,9 @@ RestorePrevTraceInfo()
 {
   if (IsInitialized()) {
     TraceInfo* info = GetTraceInfo();
-    // If RestorePrevTraceInfo() is called w/o calling SaveCurTraceInfo() first,
-    // it is possible that mCurTraceTaskId and others being override wrongly
-    // by the saved values.
-    if (info->mSavedCurTraceTaskId) {
-      info->mCurTraceTaskId = info->mSavedCurTraceTaskId;
-      info->mParentTaskId = info->mSavedParentTaskId;
-      info->mCurTraceTaskType = info->mSavedCurTraceTaskType;
-      info->mSavedCurTraceTaskId = 0;
-    }
+    info->mCurTraceTaskId = info->mSavedCurTraceTaskId;
+    info->mParentTaskId = info->mSavedParentTaskId;
+    info->mCurTraceTaskType = info->mSavedCurTraceTaskType;
   }
 }
 

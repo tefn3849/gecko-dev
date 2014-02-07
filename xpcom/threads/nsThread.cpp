@@ -870,6 +870,9 @@ NS_IMETHODIMP
 nsThreadSyncDispatch::Run()
 {
   if (mSyncTask) {
+#ifdef MOZ_TASK_TRACER
+    AddLabel("Ready to run mSyncTask from nsThreadSyncDispatch::Run().");
+#endif
     mResult = mSyncTask->Run();
     mSyncTask = nullptr;
     // unblock the origin thread

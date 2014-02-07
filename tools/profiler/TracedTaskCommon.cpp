@@ -14,7 +14,6 @@ TracedTaskCommon::TracedTaskCommon()
   : mSourceEventId(0)
   , mSourceEventType(SourceEventType::UNKNOWN)
 {
-  mTaskId = GenNewUniqueTaskId();
   Setup();
 }
 
@@ -28,6 +27,7 @@ TracedTaskCommon::Setup()
 //    info->mCurTraceTaskId = mTaskId;
 //    info->mCurTraceTaskType = mSourceEventType;
 //  }
+  mTaskId = GenNewUniqueTaskId();
   mSourceEventId = info->mCurTraceTaskId;
   mSourceEventType = info->mCurTraceTaskType;
   mParentTaskId = info->mParentTaskId;
