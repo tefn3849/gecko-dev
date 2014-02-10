@@ -308,10 +308,6 @@ SaveCurTraceInfo()
 {
   if (IsInitialized()) {
     TraceInfo* info = GetTraceInfo();
-    if (info->mCurTraceTaskId > 0) {
-      TTLOG("Something wrong with SaveCurTraceInfo()!! info->mCurTraceTaskId "
-            "(%lld), parent(%lld)", info->mCurTraceTaskId, info->mParentTaskId);
-    }
     info->mSavedCurTraceTaskId = info->mCurTraceTaskId;
     info->mSavedParentTaskId = info->mParentTaskId;
     info->mSavedCurTraceTaskType = info->mCurTraceTaskType;
