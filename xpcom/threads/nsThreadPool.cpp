@@ -95,6 +95,8 @@ nsThreadPool::PutEvent(nsIRunnable *event)
   if (NS_WARN_IF(!thread))
     return NS_ERROR_UNEXPECTED;
 
+  NS_SetThreadName(thread, mName);
+
   bool killThread = false;
   {
     ReentrantMonitorAutoEnter mon(mEvents.GetReentrantMonitor());
