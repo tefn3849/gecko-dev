@@ -85,6 +85,10 @@
 #include "GeckoProfiler.h"
 #include "mozilla/Preferences.h"
 
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracer.h"
+#endif
+
 #ifdef XP_WIN
 #undef GetClassName
 #endif
@@ -1077,7 +1081,11 @@ nsDOMWindowUtils::SendKeyEvent(const nsAString& aType,
   if (aAdditionalFlags & KEY_FLAG_PREVENT_DEFAULT) {
     event.mFlags.mDefaultPrevented = true;
   }
-
+#ifdef MOZ_TASK_TRACER
+    mozilla::tasktracer::AddLabel("[nsDOMWindowUtils::SendKeyEvent] "
+      "type:%s, keyCode:%d, charCode:%d",
+      NS_ConvertUTF16toUTF8(aType).get(), event.keyCode, event.charCode);
+#endif
   nsEventStatus status;
   nsresult rv = widget->DispatchEvent(&event, status);
   NS_ENSURE_SUCCESS(rv, rv);

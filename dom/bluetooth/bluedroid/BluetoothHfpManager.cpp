@@ -39,10 +39,18 @@
 /**
  * Process bluedroid callbacks with corresponding handlers.
  */
-#define BT_HF_PROCESS_CB(func, args...)          \
-  do {                                           \
-    NS_ENSURE_TRUE_VOID(sBluetoothHfpManager);   \
-    sBluetoothHfpManager->func(args);            \
+#define BT_HF_PROCESS_CB(func, args...)                           \
+  do {                                                            \
+    NS_ENSURE_TRUE_VOID(sBluetoothHfpManager);                    \
+    sBluetoothHfpManager->func(args);                             \
+  } while(0)
+
+#define BT_HF_PROCESS_CB_TT(func, args...)                        \
+  do {                                                            \
+    CreateBTSourceEvent(__FUNCTION__);                            \
+    NS_ENSURE_TRUE_VOID(sBluetoothHfpManager);                    \
+    sBluetoothHfpManager->func(args);                             \
+    DestroyBTSourceEvent();                                       \
   } while(0)
 
 using namespace mozilla;
@@ -78,13 +86,21 @@ enum MainThreadTaskCmd {
 static void
 ConnectionStateCallback(bthf_connection_state_t state, bt_bdaddr_t* bd_addr)
 {
+#ifdef MOZ_TASK_TRACER
+  BT_HF_PROCESS_CB_TT(ProcessConnectionState, state, bd_addr);
+#else
   BT_HF_PROCESS_CB(ProcessConnectionState, state, bd_addr);
+#endif
 }
 
 static void
 AudioStateCallback(bthf_audio_state_t state, bt_bdaddr_t* bd_addr)
 {
+#ifdef MOZ_TASK_TRACER
+  BT_HF_PROCESS_CB_TT(ProcessAudioState, state, bd_addr);
+#else
   BT_HF_PROCESS_CB(ProcessAudioState, state, bd_addr);
+#endif
 }
 
 static void
@@ -96,31 +112,51 @@ VoiceRecognitionCallback(bthf_vr_state_t state)
 static void
 AnswerCallCallback()
 {
+#ifdef MOZ_TASK_TRACER
+  BT_HF_PROCESS_CB_TT(ProcessAnswerCall);
+#else
   BT_HF_PROCESS_CB(ProcessAnswerCall);
+#endif
 }
 
 static void
 HangupCallCallback()
 {
+#ifdef MOZ_TASK_TRACER
+  BT_HF_PROCESS_CB_TT(ProcessHangupCall);
+#else
   BT_HF_PROCESS_CB(ProcessHangupCall);
+#endif
 }
 
 static void
 VolumeControlCallback(bthf_volume_type_t type, int volume)
 {
+#ifdef MOZ_TASK_TRACER
+  BT_HF_PROCESS_CB_TT(ProcessVolumeControl, type, volume);
+#else
   BT_HF_PROCESS_CB(ProcessVolumeControl, type, volume);
+#endif
 }
 
 static void
 DialCallCallback(char *number)
 {
+#ifdef MOZ_TASK_TRACER
+  BT_HF_PROCESS_CB_TT(ProcessDialCall, number);
+#else
   BT_HF_PROCESS_CB(ProcessDialCall, number);
+#endif
 }
 
 static void
 DtmfCmdCallback(char dtmf)
 {
+#ifdef MOZ_TASK_TRACER
+  BT_HF_PROCESS_CB_TT(ProcessDtmfCmd, dtmf);
+#else
   BT_HF_PROCESS_CB(ProcessDtmfCmd, dtmf);
+#endif
 }
 
 static void
@@ -132,37 +168,61 @@ NoiceReductionCallback(bthf_nrec_t nrec)
 static void
 AtChldCallback(bthf_chld_type_t chld)
 {
+#ifdef MOZ_TASK_TRACER
+  BT_HF_PROCESS_CB_TT(ProcessAtChld, chld);
+#else
   BT_HF_PROCESS_CB(ProcessAtChld, chld);
+#endif
 }
 
 static void
 AtCnumCallback()
 {
+#ifdef MOZ_TASK_TRACER
+  BT_HF_PROCESS_CB_TT(ProcessAtCnum);
+#else
   BT_HF_PROCESS_CB(ProcessAtCnum);
+#endif
 }
 
 static void
 AtCindCallback()
 {
+#ifdef MOZ_TASK_TRACER
+  BT_HF_PROCESS_CB_TT(ProcessAtCind);
+#else
   BT_HF_PROCESS_CB(ProcessAtCind);
+#endif
 }
 
 static void
 AtCopsCallback()
 {
+#ifdef MOZ_TASK_TRACER
+  BT_HF_PROCESS_CB_TT(ProcessAtCops);
+#else
   BT_HF_PROCESS_CB(ProcessAtCops);
+#endif
 }
 
 static void
 AtClccCallback()
 {
+#ifdef MOZ_TASK_TRACER
+  BT_HF_PROCESS_CB_TT(ProcessAtClcc);
+#else
   BT_HF_PROCESS_CB(ProcessAtClcc);
+#endif
 }
 
 static void
 UnknownAtCallback(char *at_string)
 {
+#ifdef MOZ_TASK_TRACER
+  BT_HF_PROCESS_CB_TT(ProcessUnknownAt, at_string);
+#else
   BT_HF_PROCESS_CB(ProcessUnknownAt, at_string);
+#endif
 }
 
 static void

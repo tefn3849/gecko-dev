@@ -37,6 +37,10 @@
 #include "nsPrintfCString.h"
 #include <algorithm>
 
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracer.h"
+#endif
+
 #ifdef ANDROID
 #include <android/log.h>
 #endif
@@ -681,6 +685,10 @@ nsFrameMessageManager::SendAsyncMessage(const nsAString& aMessageName,
                                         JSContext* aCx,
                                         uint8_t aArgc)
 {
+#ifdef MOZ_TASK_TRACER
+    mozilla::tasktracer::AddLabel("[nsFrameMessageManager::SendAsyncMessage] type:%s",
+      NS_ConvertUTF16toUTF8(aMessageName).get());
+#endif
   return DispatchAsyncMessage(aMessageName, aJSON, aObjects, aPrincipal, aCx,
                               aArgc);
 }
@@ -695,6 +703,10 @@ nsFrameMessageManager::BroadcastAsyncMessage(const nsAString& aMessageName,
                                              JSContext* aCx,
                                              uint8_t aArgc)
 {
+#ifdef MOZ_TASK_TRACER
+    mozilla::tasktracer::AddLabel("[nsFrameMessageManager::BroadcastAsyncMessage] type:%s",
+      NS_ConvertUTF16toUTF8(aMessageName).get());
+#endif
   return DispatchAsyncMessage(aMessageName, aJSON, aObjects, nullptr, aCx,
                               aArgc);
 }
