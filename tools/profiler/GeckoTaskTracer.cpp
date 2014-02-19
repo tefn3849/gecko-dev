@@ -11,9 +11,11 @@
 #include "GeckoTaskTracer.h"
 #include "GeckoTaskTracerImpl.h"
 
+#include "mozilla/dom/ContentChild.h"
 #include "mozilla/ThreadLocal.h"
 #include "nsThreadUtils.h"
 #include "nsString.h"
+#include "nsXULAppAPI.h"
 #include "prenv.h"
 #include "prlog.h"
 #include "prthread.h"
@@ -59,6 +61,8 @@ AllocTraceInfo(int aTid)
     if (sAllTraceInfo[i].mThreadId == 0) {
       TraceInfo *info = sAllTraceInfo + i;
       info->mThreadId = aTid;
+      info->mThreadName = nullptr;
+      info->mProcessName = nullptr;
       pthread_mutex_unlock(&sTraceInfoLock);
       return info;
     }
@@ -75,6 +79,8 @@ _FreeTraceInfo(uint64_t aTid)
   for (int i = 0; i < MAX_THREAD_NUM; i++) {
     if (sAllTraceInfo[i].mThreadId == aTid) {
       TraceInfo *info = sAllTraceInfo + i;
+      delete info->mThreadName;
+      delete info->mProcessName;
       memset(info, 0, sizeof(TraceInfo));
       break;
     }
@@ -167,27 +173,85 @@ GetCurTraceInfo(uint64_t* aOutSourceEventId, uint64_t* aOutParentTaskId,
 }
 
 void
+SetThreadName(const char* aName)
+{
+  NS_ENSURE_TRUE_VOID(aName);
+
+  TraceInfo* info = GetTraceInfo();
+  NS_ENSURE_TRUE_VOID(info);
+
+  if (info->mThreadName) {
+    delete info->mThreadName;
+    info->mThreadName = nullptr;
+  }
+
+  info->mThreadName = strdup(aName);
+}
+
+void
+SetProcessName(const char* aName)
+{
+  NS_ENSURE_TRUE_VOID(aName);
+
+  TraceInfo* info = GetTraceInfo();
+  NS_ENSURE_TRUE_VOID(info);
+
+  if (info->mProcessName) {
+    delete info->mProcessName;
+    info->mProcessName = nullptr;
+  }
+
+  info->mProcessName = strdup(aName);
+}
+
+void
 LogDispatch(uint64_t aTaskId, uint64_t aParentTaskId, uint64_t aSourceEventId,
             SourceEventType aSourceEventType)
 {
   NS_ENSURE_TRUE_VOID(IsInitialized() && aSourceEventId);
 
   // Log format:
-  // actionType taskId dispatchTime sourceEventId sourceEventType parentTaskId
+  // [0 taskId dispatchTime sourceEventId sourceEventType parentTaskId]
   TTLOG("%d %lld %lld %lld %d %lld",
         ACTION_DISPATCH, aTaskId, PR_Now(), aSourceEventId, aSourceEventType,
         aParentTaskId);
 }
 
 void
-LogStart(uint64_t aTaskId, uint64_t aSourceEventId)
+LogBegin(uint64_t aTaskId, uint64_t aSourceEventId)
 {
   NS_ENSURE_TRUE_VOID(IsInitialized() && aSourceEventId);
 
+  TraceInfo* info = GetTraceInfo();
+
+  if (!info->mProcessName) {
+    if (XRE_GetProcessType() == GeckoProcessType_Default) {
+      info->mProcessName = strdup("b2g");
+    } else if (mozilla::dom::ContentChild *cc =
+               mozilla::dom::ContentChild::GetSingleton()) {
+      nsAutoCString process;
+      cc->GetProcessName(process);
+      info->mProcessName = strdup(process.get());
+    } else {
+      info->mProcessName = strdup("");
+    }
+  }
+
+  if (!info->mThreadName) {
+    if (getpid() == gettid()) {
+      info->mThreadName = strdup("main");
+    } else if (const char* name = PR_GetThreadName(PR_GetCurrentThread())) {
+      info->mThreadName = strdup(name);
+    } else {
+      info->mThreadName = strdup("");
+    }
+  }
+
   // Log format:
-  // actionType taskId startTime processId threadId
-  TTLOG("%d %lld %lld %d %d",
-        ACTION_START, aTaskId, PR_Now(), getpid(), gettid());
+  // [1 taskId beginTime processId threadId "threadName"]
+  TTLOG("%d %lld %lld %d \"%s\" %d \"%s\"",
+        ACTION_BEGIN, aTaskId, PR_Now(), getpid(), info->mProcessName,
+        gettid(), info->mThreadName);
 }
 
 void
@@ -196,7 +260,7 @@ LogEnd(uint64_t aTaskId, uint64_t aSourceEventId)
   NS_ENSURE_TRUE_VOID(IsInitialized() && aSourceEventId);
 
   // Log format:
-  // actionType taskId endTime
+  // [2 taskId endTime]
   TTLOG("%d %lld %lld", ACTION_END, aTaskId, PR_Now());
 }
 
@@ -206,7 +270,7 @@ LogVirtualTablePtr(uint64_t aTaskId, uint64_t aSourceEventId, int* aVptr)
   NS_ENSURE_TRUE_VOID(IsInitialized() && aSourceEventId);
 
   // Log format:
-  // actionType taskId vPtr_of_factual_obj
+  // [4 taskId address]
   TTLOG("%d %lld %p", ACTION_GET_VTABLE, aTaskId, aVptr);
 }
 
@@ -235,7 +299,7 @@ CreateSourceEvent(SourceEventType aType)
 
   // Log a fake dispatch and start for this source event.
   LogDispatch(newId, newId,newId, aType);
-  LogStart(newId, newId);
+  LogBegin(newId, newId);
 }
 
 void
@@ -262,7 +326,7 @@ void AddLabel(const char* aFormat, ...)
   va_end(args);
 
   // Log format:
-  // actionType curTaskId curTime message
+  // [3 taskId "label"]
   TraceInfo* info = GetTraceInfo();
   TTLOG("%d %lld %lld \"%s\"",
         ACTION_ADD_LABEL, info->mCurTaskId, PR_Now(), buffer);

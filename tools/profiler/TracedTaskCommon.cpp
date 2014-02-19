@@ -74,7 +74,7 @@ TracedRunnable::TracedRunnable(nsIRunnable *aFactualObj)
 NS_IMETHODIMP
 TracedRunnable::Run()
 {
-  LogStart(mTaskId, mSourceEventId);
+  LogBegin(mTaskId, mSourceEventId);
 
   SetTraceInfo();
   nsresult rv = mFactualObj->Run();
@@ -105,7 +105,7 @@ TracedTask::~TracedTask()
 void
 TracedTask::Run()
 {
-  LogStart(mTaskId, mSourceEventId);
+  LogBegin(mTaskId, mSourceEventId);
 
   SetTraceInfo();
   mFactualObj->Run();

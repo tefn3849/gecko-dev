@@ -15,18 +15,19 @@ namespace tasktracer {
 // Each thread owns a TraceInfo on its tread local storage.
 struct TraceInfo
 {
-  uint64_t mCurTraceSourceId; // SourceEvent Id of currently running task.
-  uint64_t mCurTaskId; // Task Id of currently running task.
+  uint64_t mCurTraceSourceId;
+  uint64_t mCurTaskId;
   uint64_t mSavedCurTraceSourceId;
   uint64_t mSavedCurTaskId;
 
-  SourceEventType mCurTraceSourceType; // Source event type of currently running task.
+  SourceEventType mCurTraceSourceType;
   SourceEventType mSavedCurTraceSourceType;
 
   uint32_t mThreadId;
-
-  // A serial number to generate an unique task Id for a new TracedRunnable/TracedTask.
   uint32_t mLastUniqueTaskId;
+
+  char* mThreadName;
+  char* mProcessName;
 };
 
 // Initialize the TaskTracer.
@@ -50,12 +51,16 @@ void SetCurTraceInfo(uint64_t aSourceEventId, uint64_t aParentTaskId,
 void GetCurTraceInfo(uint64_t* aOutSourceEventId, uint64_t* aOutParentTaskId,
                      uint32_t* aOutSourceEventType);
 
+void SetThreadName(const char* aName);
+
+void SetProcessName(const char* aName);
+
 /**
  * Logging functions of different trace actions.
  */
 enum ActionType {
-  ACTION_DISPATCH = 1,
-  ACTION_START,
+  ACTION_DISPATCH = 0,
+  ACTION_BEGIN,
   ACTION_END,
   ACTION_ADD_LABEL,
   ACTION_GET_VTABLE
@@ -64,7 +69,7 @@ enum ActionType {
 void LogDispatch(uint64_t aTaskId, uint64_t aParentTaskId,
                  uint64_t aSourceEventId, SourceEventType aSourceEventType);
 
-void LogStart(uint64_t aTaskId, uint64_t aSourceEventId);
+void LogBegin(uint64_t aTaskId, uint64_t aSourceEventId);
 
 void LogEnd(uint64_t aTaskId, uint64_t aSourceEventId);
 
