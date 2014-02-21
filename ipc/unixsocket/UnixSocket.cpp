@@ -22,6 +22,11 @@
 #include "nsTArray.h"
 #include "nsXULAppAPI.h"
 
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracer.h"
+using namespace mozilla::tasktracer;
+#endif
+
 static const size_t MAX_READ_SIZE = 1 << 16;
 
 #undef CHROMIUM_LOG
@@ -772,6 +777,10 @@ UnixSocketImpl::OnFileCanReadWithoutBlocking(int aFd)
         NS_DispatchToMainThread(t);
         return;
       }
+
+#ifdef MOZ_TASK_TRACER
+      CreateSourceEventRAII taskTracerEvent(SourceEventType::UNIXSOCKET);
+#endif
 
       incoming->mSize = ret;
       nsRefPtr<SocketReceiveTask> t =

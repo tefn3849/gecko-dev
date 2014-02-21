@@ -244,6 +244,10 @@ AdapterStateChangeCallback(bt_state_t aStatus)
 
   BT_LOGR("BT_STATE %d", aStatus);
 
+#ifdef MOZ_TASK_TRACER
+  CreateBTSourceEvent(__FUNCTION__);
+#endif
+
   sIsBtEnabled = (aStatus == BT_STATE_ON);
 
   {
@@ -255,6 +259,10 @@ AdapterStateChangeCallback(bt_state_t aStatus)
       NS_FAILED(NS_DispatchToMainThread(new SetupAfterEnabledTask()))) {
     BT_WARNING("Failed to dispatch to main thread!");
   }
+
+#ifdef MOZ_TASK_TRACER
+  DestroyBTSourceEvent();
+#endif
 }
 
 /**
@@ -267,6 +275,10 @@ AdapterPropertiesCallback(bt_status_t aStatus, int aNumProperties,
                           bt_property_t *aProperties)
 {
   MOZ_ASSERT(!NS_IsMainThread());
+
+#ifdef MOZ_TASK_TRACER
+  CreateBTSourceEvent(__FUNCTION__);
+#endif
 
   BluetoothValue propertyValue;
   InfallibleTArray<BluetoothNamedValue> props;
@@ -348,6 +360,10 @@ AdapterPropertiesCallback(bt_status_t aStatus, int aNumProperties,
                            EmptyString());
     sSetPropertyRunnableArray.RemoveElementAt(0);
   }
+
+#ifdef MOZ_TASK_TRACER
+  DestroyBTSourceEvent();
+#endif
 }
 
 /**
@@ -361,8 +377,15 @@ RemoteDevicePropertiesCallback(bt_status_t aStatus, bt_bdaddr_t *aBdAddress,
 {
   MOZ_ASSERT(!NS_IsMainThread());
 
+#ifdef MOZ_TASK_TRACER
+  CreateBTSourceEvent(__FUNCTION__);
+#endif
+
   if (sRequestedDeviceCountArray.IsEmpty()) {
-    MOZ_ASSERT(sGetDeviceRunnableArray.IsEmpty());
+    MOZ_ASSERT(false);
+#ifdef MOZ_TASK_TRACER
+    DestroyBTSourceEvent();
+#endif
     return;
   }
 
@@ -414,6 +437,9 @@ RemoteDevicePropertiesCallback(bt_status_t aStatus, bt_bdaddr_t *aBdAddress,
 
     if (sGetDeviceRunnableArray.IsEmpty()) {
       BT_LOGR("No runnable to return");
+#ifdef MOZ_TASK_TRACER
+      DestroyBTSourceEvent();
+#endif
       return;
     }
 
@@ -426,12 +452,20 @@ RemoteDevicePropertiesCallback(bt_status_t aStatus, bt_bdaddr_t *aBdAddress,
     sRequestedDeviceCountArray.RemoveElementAt(0);
     sGetDeviceRunnableArray.RemoveElementAt(0);
   }
+
+#ifdef MOZ_TASK_TRACER
+  DestroyBTSourceEvent();
+#endif
 }
 
 static void
 DeviceFoundCallback(int aNumProperties, bt_property_t *aProperties)
 {
   MOZ_ASSERT(!NS_IsMainThread());
+
+#ifdef MOZ_TASK_TRACER
+  CreateBTSourceEvent(__FUNCTION__);
+#endif
 
   BluetoothValue propertyValue;
   InfallibleTArray<BluetoothNamedValue> propertiesArray;
@@ -472,12 +506,20 @@ DeviceFoundCallback(int aNumProperties, bt_property_t *aProperties)
   if (NS_FAILED(NS_DispatchToMainThread(t))) {
     BT_WARNING("Failed to dispatch to main thread!");
   }
+
+#ifdef MOZ_TASK_TRACER
+  DestroyBTSourceEvent();
+#endif
 }
 
 static void
 DiscoveryStateChangedCallback(bt_discovery_state_t aState)
 {
   MOZ_ASSERT(!NS_IsMainThread());
+
+#ifdef MOZ_TASK_TRACER
+  CreateBTSourceEvent(__FUNCTION__);
+#endif
 
   if (!sChangeDiscoveryRunnableArray.IsEmpty()) {
     BluetoothValue values(true);
@@ -486,6 +528,10 @@ DiscoveryStateChangedCallback(bt_discovery_state_t aState)
 
     sChangeDiscoveryRunnableArray.RemoveElementAt(0);
   }
+
+#ifdef MOZ_TASK_TRACER
+  DestroyBTSourceEvent();
+#endif
 }
 
 static void
@@ -493,6 +539,10 @@ PinRequestCallback(bt_bdaddr_t* aRemoteBdAddress,
                    bt_bdname_t* aRemoteBdName, uint32_t aRemoteClass)
 {
   MOZ_ASSERT(!NS_IsMainThread());
+
+#ifdef MOZ_TASK_TRACER
+  CreateBTSourceEvent(__FUNCTION__);
+#endif
 
   InfallibleTArray<BluetoothNamedValue> propertiesArray;
   nsAutoString remoteAddress;
@@ -516,6 +566,10 @@ PinRequestCallback(bt_bdaddr_t* aRemoteBdAddress,
   if (NS_FAILED(NS_DispatchToMainThread(t))) {
     BT_WARNING("Failed to dispatch to main thread!");
   }
+
+#ifdef MOZ_TASK_TRACER
+  DestroyBTSourceEvent();
+#endif
 }
 
 static void
@@ -524,6 +578,10 @@ SspRequestCallback(bt_bdaddr_t* aRemoteBdAddress, bt_bdname_t* aRemoteBdName,
                    uint32_t aPasskey)
 {
   MOZ_ASSERT(!NS_IsMainThread());
+
+#ifdef MOZ_TASK_TRACER
+  CreateBTSourceEvent(__FUNCTION__);
+#endif
 
   InfallibleTArray<BluetoothNamedValue> propertiesArray;
   nsAutoString remoteAddress;
@@ -549,6 +607,10 @@ SspRequestCallback(bt_bdaddr_t* aRemoteBdAddress, bt_bdname_t* aRemoteBdName,
   if (NS_FAILED(NS_DispatchToMainThread(t))) {
     BT_WARNING("Failed to dispatch to main thread!");
   }
+
+#ifdef MOZ_TASK_TRACER
+  DestroyBTSourceEvent();
+#endif
 }
 
 static void
@@ -556,6 +618,10 @@ BondStateChangedCallback(bt_status_t aStatus, bt_bdaddr_t* aRemoteBdAddress,
                          bt_bond_state_t aState)
 {
   MOZ_ASSERT(!NS_IsMainThread());
+
+#ifdef MOZ_TASK_TRACER
+  CreateBTSourceEvent(__FUNCTION__);
+#endif
 
   nsAutoString remoteAddress;
   BdAddressTypeToString(aRemoteBdAddress, remoteAddress);
@@ -606,18 +672,24 @@ BondStateChangedCallback(bt_status_t aStatus, bt_bdaddr_t* aRemoteBdAddress,
 
     sUnbondingRunnableArray.RemoveElementAt(0);
   }
+
+#ifdef MOZ_TASK_TRACER
+  DestroyBTSourceEvent();
+#endif
 }
 
 static void
 AclStateChangedCallback(bt_status_t aStatus, bt_bdaddr_t* aRemoteBdAddress,
                         bt_acl_state_t aState)
 {
+  MOZ_ASSERT(!NS_IsMainThread());
   //FIXME: This will be implemented in the later patchset
 }
 
 static void
 CallbackThreadEvent(bt_cb_thread_evt evt)
 {
+  MOZ_ASSERT(!NS_IsMainThread());
   //FIXME: This will be implemented in the later patchset
 }
 
