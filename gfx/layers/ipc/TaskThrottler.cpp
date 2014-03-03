@@ -6,6 +6,10 @@
 
 #include "TaskThrottler.h"
 
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracer.h"
+#endif
+
 namespace mozilla {
 namespace layers {
 
@@ -20,6 +24,11 @@ void
 TaskThrottler::PostTask(const tracked_objects::Location& aLocation,
                         CancelableTask* aTask, const TimeStamp& aTimeStamp)
 {
+#ifdef MOZ_TASK_TRACER
+  aTask = static_cast<CancelableTask*>(
+            mozilla::tasktracer::CreateTracedTask(aTask));
+#endif
+
   aTask->SetBirthPlace(aLocation);
 
   if (mOutstanding) {
