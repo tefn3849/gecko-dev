@@ -309,7 +309,7 @@ DestroySourceEvent()
 
   // Log a fake end for this source event.
   TraceInfo* info = GetTraceInfo();
-  LogEnd(info->mCurTraceSourceId, info->mCurTraceSourceType);
+  LogEnd(info->mCurTraceSourceId, info->mCurTraceSourceId);
 
   // Restore the previously saved source event info.
   RestorePrevTraceInfo();

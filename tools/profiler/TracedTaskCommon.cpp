@@ -23,14 +23,15 @@ TracedTaskCommon::Setup()
   TraceInfo* info = GetTraceInfo();
   NS_ENSURE_TRUE_VOID(info);
 
+  mTaskId = GenNewUniqueTaskId();
+
   // TODO: This is a temporary solution to eliminate orphan tasks, once we have
   // enough source events setup, this should go away eventually, or hopefully.
-//  if (!info->mCurTraceTaskId) {
-//    info->mCurTraceTaskId = mTaskId;
-//    info->mCurTraceTaskType = mSourceEventType;
+//  if (!info->mCurTraceSourceId) {
+//    info->mCurTraceSourceId = mTaskId;
+//    info->mCurTraceSourceType = mSourceEventType;
 //  }
 
-  mTaskId = GenNewUniqueTaskId();
   mSourceEventId = info->mCurTraceSourceId;
   mSourceEventType = info->mCurTraceSourceType;
 
