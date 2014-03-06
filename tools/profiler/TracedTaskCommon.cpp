@@ -27,10 +27,10 @@ TracedTaskCommon::Setup()
 
   // TODO: This is a temporary solution to eliminate orphan tasks, once we have
   // enough source events setup, this should go away eventually, or hopefully.
-//  if (!info->mCurTraceSourceId) {
-//    info->mCurTraceSourceId = mTaskId;
-//    info->mCurTraceSourceType = mSourceEventType;
-//  }
+  if (!info->mCurTraceSourceId) {
+    info->mCurTraceSourceId = mTaskId;
+    info->mCurTraceSourceType = mSourceEventType;
+  }
 
   mSourceEventId = info->mCurTraceSourceId;
   mSourceEventType = info->mCurTraceSourceType;
