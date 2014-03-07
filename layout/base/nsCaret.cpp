@@ -32,6 +32,10 @@
 #include "mozilla/Selection.h"
 #include <algorithm>
 
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracer.h"
+#endif
+
 // The bidi indicator hangs off the caret to one side, to show which
 // direction the typing is in. It needs to be at least 2x2 to avoid looking like 
 // an insignificant dot
@@ -673,8 +677,12 @@ nsCaret::DrawAtPositionWithHint(nsIDOMNode*             aNode,
       return false;
   }
 
-  if (aInvalidate)
+  if (aInvalidate) {
+#ifdef MOZ_TASK_TRACER
+  mozilla::tasktracer::AddLabel("[nsCaret::DrawAtPositionWithHint] SchedulePaint to caret frame.");
+#endif
     theFrame->SchedulePaint();
+  }
 
   return true;
 }

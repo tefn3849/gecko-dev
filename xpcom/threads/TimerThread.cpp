@@ -13,9 +13,16 @@
 #include "nsIServiceManager.h"
 #include "mozilla/Services.h"
 
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracer.h"
+#endif
+
 #include <math.h>
 
 using namespace mozilla;
+#ifdef MOZ_TASK_TRACER
+using namespace mozilla::tasktracer;
+#endif
 
 NS_IMPL_ISUPPORTS2(TimerThread, nsIRunnable, nsIObserver)
 
@@ -91,6 +98,7 @@ nsresult TimerThread::Init()
       mThread = nullptr;
     }
     else {
+      NS_SetThreadName(mThread, "TimerThread");
       nsRefPtr<TimerObserverRunnable> r = new TimerObserverRunnable(this);
       if (NS_IsMainThread()) {
         r->Run();
