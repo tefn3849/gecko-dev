@@ -13,9 +13,16 @@
 #include "nsIServiceManager.h"
 #include "mozilla/Services.h"
 
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracer.h"
+#endif
+
 #include <math.h>
 
 using namespace mozilla;
+#ifdef MOZ_TASK_TRACER
+using namespace mozilla::tasktracer;
+#endif
 
 NS_IMPL_ISUPPORTS2(TimerThread, nsIRunnable, nsIObserver)
 
@@ -91,6 +98,7 @@ nsresult TimerThread::Init()
       mThread = nullptr;
     }
     else {
+      NS_SetThreadName(mThread, "TimerThread");
       nsRefPtr<TimerObserverRunnable> r = new TimerObserverRunnable(this);
       if (NS_IsMainThread()) {
         r->Run();
@@ -238,6 +246,9 @@ NS_IMETHODIMP TimerThread::Run()
             }
 #endif
 
+#ifdef MOZ_TASK_TRACER
+            CreateSourceEventRAII taskTracerEvent(SourceEventType::TIMER);
+#endif
             // We are going to let the call to PostTimerEvent here handle the
             // release of the timer so that we don't end up releasing the timer
             // on the TimerThread instead of on the thread it targets.

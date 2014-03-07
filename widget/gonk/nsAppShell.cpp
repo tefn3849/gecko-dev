@@ -31,6 +31,9 @@
 #include <unistd.h>
 
 #include "base/basictypes.h"
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracer.h"
+#endif
 #include "GonkPermission.h"
 #include "nscore.h"
 #ifdef MOZ_OMX_DECODER
@@ -87,6 +90,9 @@ using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::services;
 using namespace mozilla::widget;
+#ifdef MOZ_TASK_TRACER
+using namespace mozilla::tasktracer;
+#endif
 
 bool gDrawRequest = false;
 static nsAppShell *gAppShell = nullptr;
@@ -670,7 +676,15 @@ GeckoInputDispatcher::dispatchOnce()
         if ((data.action & AMOTION_EVENT_ACTION_MASK) !=
             AMOTION_EVENT_ACTION_HOVER_MOVE) {
             bool captured;
+#ifdef MOZ_TASK_TRACER
+            CreateSourceEventRAII taskTracerEvent(SourceEventType::TOUCH);
+            AddLabel("Touch at (%.f, %.f)", data.motion.touches[0].coords.getX(),
+                                            data.motion.touches[0].coords.getY());
+#endif
             status = sendTouchEvent(data, &captured);
+#ifdef MOZ_TASK_TRACER
+            AddLabel("Capture? %d", captured);
+#endif
             if (captured) {
                 return;
             }
@@ -697,12 +711,27 @@ GeckoInputDispatcher::dispatchOnce()
             break;
         }
         if (msg != NS_EVENT_NULL) {
+#ifdef MOZ_TASK_TRACER
+            CreateSourceEventRAII taskTracerEvent(SourceEventType::MOUSE);
+            AddLabel("Mouse at (%.f, %.f)", data.motion.touches[0].coords.getX(),
+                                            data.motion.touches[0].coords.getY());
+#endif
             sendMouseEvent(msg, data, 
                            status != nsEventStatus_eConsumeNoDefault);
         }
         break;
     }
     case UserInputData::KEY_DATA: {
+#ifdef MOZ_TASK_TRACER
+        uint32_t keyCode = (data.key.keyCode < ArrayLength(kKeyMapping)) ?
+                           kKeyMapping[data.key.keyCode] : 0;
+        SourceEventType type = (keyCode == NS_VK_SLEEP) ? SourceEventType::POWER_KEY :
+                               (keyCode == NS_VK_HOME) ? SourceEventType::HOME_KEY :
+                               SourceEventType::UNKNOWN;
+        CreateSourceEventRAII taskTracerEvent(type);
+        AddLabel("%s key pressed.", type == SourceEventType::POWER_KEY ? "Power" :
+                 type == SourceEventType::HOME_KEY ? "Home" : "Unknown");
+#endif
         sp<KeyCharacterMap> kcm = mEventHub->getKeyCharacterMap(data.deviceId);
         KeyEventDispatcher dispatcher(data, kcm.get());
         dispatcher.Dispatch();

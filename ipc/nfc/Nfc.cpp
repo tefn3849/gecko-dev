@@ -12,6 +12,10 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracer.h"
+#endif
+
 #undef CHROMIUM_LOG
 #if (defined(MOZ_WIDGET_GONK) && defined(DEBUG))
 #include <android/log.h>
@@ -322,6 +326,10 @@ void
 NfcConsumer::ReceiveSocketData(nsAutoPtr<UnixSocketRawData>& aMessage)
 {
     MOZ_ASSERT(NS_IsMainThread());
+
+#ifdef MOZ_TASK_TRACER
+    mozilla::tasktracer::AddLabel("NFC");
+#endif
 
     nsRefPtr<DispatchNFCEvent> dre(new DispatchNFCEvent(aMessage.forget()));
     mDispatcher->PostTask(dre);

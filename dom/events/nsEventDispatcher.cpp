@@ -373,6 +373,10 @@ EventTargetChainItemForChromeTarget(nsTArray<nsEventTargetChainItem>& aChain,
   return etci;
 }
 
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracer.h"
+#endif
+
 /* static */ nsresult
 nsEventDispatcher::Dispatch(nsISupports* aTarget,
                             nsPresContext* aPresContext,
@@ -393,6 +397,10 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
   // If aTargets is non-null, the event isn't going to be dispatched.
   NS_ENSURE_TRUE(aEvent->message || !aDOMEvent || aTargets,
                  NS_ERROR_DOM_INVALID_STATE_ERR);
+#ifdef MOZ_TASK_TRACER
+  mozilla::tasktracer::AddLabel("[nsEventDispatcher::Dispatch] Event name: %s",
+                                Event::GetEventName(aEvent->message));
+#endif
 
   nsCOMPtr<EventTarget> target = do_QueryInterface(aTarget);
 

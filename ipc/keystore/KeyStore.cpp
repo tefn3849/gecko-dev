@@ -23,6 +23,10 @@
 #include "certdb.h"
 #include "ScopedNSSTypes.h"
 
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracer.h"
+#endif
+
 using namespace mozilla::ipc;
 
 namespace mozilla {
@@ -305,6 +309,10 @@ void
 KeyStore::ReceiveSocketData(nsAutoPtr<UnixSocketRawData>& aMessage)
 {
   MOZ_ASSERT(NS_IsMainThread());
+
+#ifdef MOZ_TASK_TRACER
+  mozilla::tasktracer::AddLabel("KeyStore");
+#endif
 
   bool success = true;
   while (aMessage->mCurrentWriteOffset < aMessage->mSize ||
