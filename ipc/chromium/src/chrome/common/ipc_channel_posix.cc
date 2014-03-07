@@ -30,7 +30,14 @@
 #include "chrome/common/file_descriptor_set_posix.h"
 #include "chrome/common/ipc_logging.h"
 #include "chrome/common/ipc_message_utils.h"
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracerImpl.h"
+#endif
 #include "mozilla/ipc/ProtocolUtils.h"
+
+#ifdef MOZ_TASK_TRACER
+using namespace mozilla::tasktracer;
+#endif
 
 namespace IPC {
 
@@ -594,6 +601,14 @@ bool Channel::ChannelImpl::ProcessIncomingMessages() {
         DLOG(INFO) << "received message on channel @" << this <<
                       " with type " << m.type();
 #endif
+
+#ifdef MOZ_TASK_TRACER
+        SaveCurTraceInfoRAII saveCurTraceInfo;
+        SetCurTraceInfo(m.header()->source_event_id,
+                        m.header()->parent_task_id,
+                        m.header()->source_event_type);
+#endif
+
         if (m.routing_id() == MSG_ROUTING_NONE &&
             m.type() == HELLO_MESSAGE_TYPE) {
           // The Hello message contains only the process id.
@@ -687,6 +702,11 @@ bool Channel::ChannelImpl::ProcessOutgoingMessages() {
       msg->set_fd_cookie(++last_pending_fd_id_);
 #endif
     }
+#ifdef MOZ_TASK_TRACER
+    GetCurTraceInfo(&msg->header()->source_event_id,
+                    &msg->header()->parent_task_id,
+                    &msg->header()->source_event_type);
+#endif
 
     size_t amt_to_write = msg->size() - message_send_bytes_written_;
     DCHECK(amt_to_write != 0);

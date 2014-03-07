@@ -7,6 +7,9 @@
 #include <sstream>
 #include <errno.h>
 
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracerImpl.h"
+#endif
 #include "IOInterposer.h"
 #include "NSPRInterposer.h"
 #include "ProfilerIOInterposeObserver.h"
@@ -825,6 +828,10 @@ void mozilla_sampler_unlock()
 
 bool mozilla_sampler_register_thread(const char* aName, void* stackTop)
 {
+#ifdef MOZ_TASK_TRACER
+  mozilla::tasktracer::SetThreadName(aName);
+#endif
+
 #if defined(MOZ_WIDGET_GONK) && !defined(MOZ_PROFILING)
   // The only way to profile secondary threads on b2g
   // is to build with profiling OR have the profiler

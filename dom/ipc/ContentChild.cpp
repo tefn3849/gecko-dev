@@ -113,6 +113,10 @@
 #include "ipc/Nuwa.h"
 #endif
 
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracerImpl.h"
+#endif
+
 #include "mozilla/dom/indexedDB/PIndexedDBChild.h"
 #include "mozilla/dom/mobilemessage/SmsChild.h"
 #include "mozilla/dom/devicestorage/DeviceStorageRequestChild.h"
@@ -472,6 +476,11 @@ ContentChild::SetProcessName(const nsAString& aName)
                       nullptr, __FILE__, __LINE__);
 #endif
     }
+
+#ifdef MOZ_TASK_TRACER
+  mozilla::tasktracer::SetThreadName(NS_LossyConvertUTF16toASCII(aName).get(),
+                                     mozilla::tasktracer::TYPE_PROCESS);
+#endif
 
     mProcessName = aName;
     mozilla::ipc::SetThisProcessName(NS_LossyConvertUTF16toASCII(aName).get());
