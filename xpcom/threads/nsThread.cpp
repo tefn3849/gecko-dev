@@ -41,6 +41,11 @@
 
 using namespace mozilla;
 
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracer.h"
+using namespace mozilla::tasktracer;
+#endif
+
 #ifdef PR_LOGGING
 static PRLogModuleInfo *
 GetThreadLog()
@@ -275,6 +280,10 @@ nsThread::ThreadFunc(void *arg)
   // Release any observer of the thread here.
   self->SetObserver(nullptr);
 
+#ifdef MOZ_TASK_TRACER
+  FreeTraceInfo();
+#endif
+
   NS_RELEASE(self);
 }
 
@@ -378,6 +387,11 @@ nsThread::Dispatch(nsIRunnable *event, uint32_t flags)
     return NS_ERROR_ILLEGAL_DURING_SHUTDOWN;
   }
 
+#ifdef MOZ_TASK_TRACER
+  nsRefPtr<nsIRunnable> event_ = CreateTracedRunnable(event);
+  event = event_;
+#endif
+
   if (flags & DISPATCH_SYNC) {
     nsThread *thread = nsThreadManager::get()->GetCurrentThread();
     if (NS_WARN_IF(!thread))
@@ -386,7 +400,7 @@ nsThread::Dispatch(nsIRunnable *event, uint32_t flags)
     // XXX we should be able to do something better here... we should
     //     be able to monitor the slot occupied by this event and use
     //     that to tell us when the event has been processed.
- 
+
     nsRefPtr<nsThreadSyncDispatch> wrapper =
         new nsThreadSyncDispatch(thread, event);
     if (!wrapper)

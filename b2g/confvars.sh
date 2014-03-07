@@ -60,3 +60,5 @@ if test "$OS_TARGET" = "Android"; then
 MOZ_NUWA_PROCESS=1
 fi
 MOZ_FOLD_LIBS=1
+
+MOZ_TASK_TRACER=1
