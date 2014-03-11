@@ -268,10 +268,16 @@ LogBegin(uint64_t aTaskId, uint64_t aSourceEventId)
   }
 
   // Log format:
-  // [1 taskId beginTime processId threadId "threadName"]
-  TTLOG("%d %lld %lld %d %d \"%s\"",
-        ACTION_BEGIN, aTaskId, PR_Now(), getpid(), gettid(),
-        info->mThreadName.get());
+  // [1 taskId beginTime processId "processName" threadId "threadName"]
+  if (getpid() == gettid()) {
+    TTLOG("%d %lld %lld %d \"%s\" %d \"%s\"",
+          ACTION_BEGIN, aTaskId, PR_Now(), getpid(), info->mThreadName.get(),
+          gettid(), "main");
+  } else {
+    TTLOG("%d %lld %lld %d \"%s\" %d \"%s\"",
+          ACTION_BEGIN, aTaskId, PR_Now(), getpid(), "",
+          gettid(), info->mThreadName.get());
+  }
 }
 
 void
