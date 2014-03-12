@@ -247,7 +247,7 @@ NS_IMETHODIMP TimerThread::Run()
 #endif
 
 #ifdef MOZ_TASK_TRACER
-            CreateSourceEventRAII taskTracerEvent(SourceEventType::TIMER);
+            //CreateSourceEventRAII taskTracerEvent(SourceEventType::TIMER);
 #endif
             // We are going to let the call to PostTimerEvent here handle the
             // release of the timer so that we don't end up releasing the timer
