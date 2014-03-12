@@ -5825,7 +5825,9 @@ nsGlobalWindow::GetFullScreen(bool* aFullScreen)
 
   return rv.ErrorCode();
 }
-
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracer.h"
+#endif
 NS_IMETHODIMP
 nsGlobalWindow::Dump(const nsAString& aStr)
 {
@@ -5834,6 +5836,12 @@ nsGlobalWindow::Dump(const nsAString& aStr)
   }
 
   char *cstr = ToNewUTF8String(aStr);
+
+#ifdef MOZ_TASK_TRACER
+  if (strncmp(cstr, "TaskTracerDump:", 15) == 0) {
+    mozilla::tasktracer::AddLabel("%s", cstr);
+  }
+#endif
 
 #if defined(XP_MACOSX)
   // have to convert \r to \n so that printing to the console works
