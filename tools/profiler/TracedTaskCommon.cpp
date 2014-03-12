@@ -29,6 +29,7 @@ TracedTaskCommon::Init()
   // enough source events setup, this should go away eventually, or hopefully.
   if (!info->mCurTraceSourceId) {
     info->mCurTraceSourceId = mTaskId;
+    info->mCurTaskId = mTaskId;
     info->mCurTraceSourceType = mSourceEventType;
   }
 
