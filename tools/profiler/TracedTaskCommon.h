@@ -70,6 +70,23 @@ private:
   Task* mOriginalObj;
 };
 
+class TracedDummy : public TracedTaskCommon
+{
+public:
+  TracedDummy(int* aVptr);
+  void BeginTracedDummy();
+  void EndTracedDummy();
+};
+
+class RunTracedDummyRAII
+{
+public:
+  RunTracedDummyRAII(TracedDummy& aTracedDummy);
+  ~RunTracedDummyRAII();
+private:
+  TracedDummy mTracedDummy;
+};
+
 } // namespace tasktracer
 } // namespace mozilla
 
