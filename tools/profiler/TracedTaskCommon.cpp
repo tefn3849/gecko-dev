@@ -106,6 +106,37 @@ TracedTask::Run()
   LogEnd(mTaskId, mSourceEventId);
 }
 
+TracedDummy::TracedDummy(int* aVptr)
+  : TracedTaskCommon()
+{
+  LogVirtualTablePtr(mTaskId, mSourceEventId, aVptr);
+}
+
+void
+TracedDummy::BeginTracedDummy()
+{
+  LogBegin(mTaskId, mSourceEventId);
+  SetTraceInfo();
+}
+
+void
+TracedDummy::EndTracedDummy()
+{
+  ClearTraceInfo();
+  LogEnd(mTaskId, mSourceEventId);
+}
+
+RunTracedDummyRAII::RunTracedDummyRAII(TracedDummy& aTracedDummy)
+  : mTracedDummy(aTracedDummy)
+{
+  mTracedDummy.BeginTracedDummy();
+}
+
+RunTracedDummyRAII::~RunTracedDummyRAII()
+{
+  mTracedDummy.EndTracedDummy();
+}
+
 /**
  * CreateTracedRunnable() returns a TracedRunnable wrapping the original
  * nsIRunnable object, aRunnable.

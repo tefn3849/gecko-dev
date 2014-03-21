@@ -19,6 +19,7 @@ if CONFIG['MOZ_ENABLE_PROFILER_SPS']:
         'ProfilerMarkers.h',
         'PseudoStack.h',
         'shared-libraries.h',
+        'TracedTaskCommon.h',
     ]
     EXTRA_JS_MODULES = [
         'Profiler.jsm',

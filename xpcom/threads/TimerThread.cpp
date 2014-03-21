@@ -393,6 +393,9 @@ int32_t TimerThread::AddTimerInternal(nsTimerImpl *aTimer)
 
   aTimer->mArmed = true;
   NS_ADDREF(aTimer);
+
+  aTimer->DispatchTracedTask();
+
   return insertSlot - mTimers.Elements();
 }
 
