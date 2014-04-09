@@ -28,6 +28,12 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <sys/time.h>
+#include <sys/resource.h>
+
+#ifndef RUSAGE_THREAD
+#define RUSAGE_THREAD 1
+#endif
 
 #ifdef MOZ_WIDGET_GONK
 #include <android/log.h>
@@ -267,16 +273,21 @@ LogBegin(uint64_t aTaskId, uint64_t aSourceEventId)
     info->mThreadName.SetIsVoid(false);
   }
 
+  rusage usage;
+  getrusage(RUSAGE_THREAD, &usage);
+  uint64_t userCPUTime = usage.ru_utime.tv_sec*1000000L + usage.ru_utime.tv_usec;
+  uint64_t sysCPUTime = usage.ru_stime.tv_sec*1000000L + usage.ru_stime.tv_usec;
+
   // Log format:
-  // [1 taskId beginTime processId "processName" threadId "threadName"]
+  // [1 taskId beginTime userCPUTime sysCPUTime processId "processName" threadId "threadName"]
   if (getpid() == gettid()) {
-    TTLOG("%d %lld %lld %d \"%s\" %d \"%s\"",
-          ACTION_BEGIN, aTaskId, PR_Now(), getpid(), info->mThreadName.get(),
-          gettid(), "main");
+    TTLOG("%d %lld %lld %lld %lld %d \"%s\" %d \"%s\"",
+          ACTION_BEGIN, aTaskId, PR_Now(), userCPUTime, sysCPUTime,
+          getpid(), info->mThreadName.get(), gettid(), "main");
   } else {
-    TTLOG("%d %lld %lld %d \"%s\" %d \"%s\"",
-          ACTION_BEGIN, aTaskId, PR_Now(), getpid(), "",
-          gettid(), info->mThreadName.get());
+    TTLOG("%d %lld %lld %lld %lld %d \"%s\" %d \"%s\"",
+          ACTION_BEGIN, aTaskId, PR_Now(), userCPUTime, sysCPUTime,
+          getpid(), "", gettid(), info->mThreadName.get());
   }
 }
 
@@ -285,9 +296,14 @@ LogEnd(uint64_t aTaskId, uint64_t aSourceEventId)
 {
   NS_ENSURE_TRUE_VOID(IsInitialized() && aSourceEventId);
 
+  rusage usage;
+  getrusage(RUSAGE_THREAD, &usage);
+  uint64_t userCPUTime = usage.ru_utime.tv_sec*1000000L + usage.ru_utime.tv_usec;
+  uint64_t sysCPUTime = usage.ru_stime.tv_sec*1000000L + usage.ru_stime.tv_usec;
+
   // Log format:
-  // [2 taskId endTime]
-  TTLOG("%d %lld %lld", ACTION_END, aTaskId, PR_Now());
+  // [2 taskId endTime userCPUTime sysCPUTime]
+  TTLOG("%d %lld %lld %lld %lld", ACTION_END, aTaskId, PR_Now(), userCPUTime, sysCPUTime);
 }
 
 void
