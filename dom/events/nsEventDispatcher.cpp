@@ -375,6 +375,7 @@ EventTargetChainItemForChromeTarget(nsTArray<nsEventTargetChainItem>& aChain,
 
 #ifdef MOZ_TASK_TRACER
 #include "GeckoTaskTracer.h"
+using namespace mozilla::tasktracer;
 #endif
 
 /* static */ nsresult
@@ -397,9 +398,28 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
   // If aTargets is non-null, the event isn't going to be dispatched.
   NS_ENSURE_TRUE(aEvent->message || !aDOMEvent || aTargets,
                  NS_ERROR_DOM_INVALID_STATE_ERR);
+
 #ifdef MOZ_TASK_TRACER
-  mozilla::tasktracer::AddLabel("[nsEventDispatcher::Dispatch] Event name: %s",
-                                Event::GetEventName(aEvent->message));
+  {
+    if (!aEvent->typeString.IsEmpty()) {
+      AddLabel("[nsEventDispatcher::Dispatch] WidgetEvent name: %s",
+               NS_ConvertUTF16toUTF8(aEvent->typeString).get());
+    } else if (const char* name = Event::GetEventName(aEvent->message)) {
+      AddLabel("[nsEventDispatcher::Dispatch] WidgetEvent name: %s", name);
+    } else if (aEvent->message == NS_USER_DEFINED_EVENT && aEvent->userType) {
+      nsAutoString type;
+      type = nsDependentAtomString(aEvent->userType);
+      AddLabel("[nsEventDispatcher::Dispatch] WidgetEvent name: %s",
+               NS_ConvertUTF16toUTF8(type).get());
+    }
+
+    if (aDOMEvent) {
+      nsAutoString type;
+      aDOMEvent->GetType(type);
+      AddLabel("[nsEventDispatcher::Dispatch] DOMEvent name: %s",
+               NS_ConvertUTF16toUTF8(type).get());
+    }
+  }
 #endif
 
   nsCOMPtr<EventTarget> target = do_QueryInterface(aTarget);
