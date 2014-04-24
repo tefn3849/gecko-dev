@@ -375,6 +375,7 @@ EventTargetChainItemForChromeTarget(nsTArray<nsEventTargetChainItem>& aChain,
 
 #ifdef MOZ_TASK_TRACER
 #include "GeckoTaskTracer.h"
+#include "mozilla/dom/Element.h"
 using namespace mozilla::tasktracer;
 #endif
 
@@ -401,23 +402,18 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
 
 #ifdef MOZ_TASK_TRACER
   {
-    if (!aEvent->typeString.IsEmpty()) {
-      AddLabel("[nsEventDispatcher::Dispatch] WidgetEvent name: %s",
-               NS_ConvertUTF16toUTF8(aEvent->typeString).get());
-    } else if (const char* name = Event::GetEventName(aEvent->message)) {
-      AddLabel("[nsEventDispatcher::Dispatch] WidgetEvent name: %s", name);
-    } else if (aEvent->message == NS_USER_DEFINED_EVENT && aEvent->userType) {
-      nsAutoString type;
-      type = nsDependentAtomString(aEvent->userType);
-      AddLabel("[nsEventDispatcher::Dispatch] WidgetEvent name: %s",
-               NS_ConvertUTF16toUTF8(type).get());
+    nsCOMPtr<Element> targetElement = do_QueryInterface(aTarget);
+    if (targetElement) {
+      nsAutoString targetId;
+      targetElement->GetId(targetId);
+      AddLabel("[EventDispatcher::Dispatch] TargetEvent Id: %s",
+               NS_ConvertUTF16toUTF8(targetId).get());
     }
-
     if (aDOMEvent) {
-      nsAutoString type;
-      aDOMEvent->GetType(type);
-      AddLabel("[nsEventDispatcher::Dispatch] DOMEvent name: %s",
-               NS_ConvertUTF16toUTF8(type).get());
+      nsAutoString eventType;
+      aDOMEvent->GetType(eventType);
+      AddLabel("[EventDispatcher::Dispatch] DOMEvent name: %s",
+               NS_ConvertUTF16toUTF8(eventType).get());
     }
   }
 #endif
