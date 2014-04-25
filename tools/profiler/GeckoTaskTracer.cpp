@@ -18,6 +18,23 @@
 #include <stdio.h>
 #include <unistd.h>
 
+// For logging.
+#include "prtime.h"
+#include "nsXULAppAPI.h"
+#include <sys/time.h>
+#include <sys/resource.h>
+
+#ifndef RUSAGE_THREAD
+#define RUSAGE_THREAD 1
+#endif
+
+#ifdef MOZ_WIDGET_GONK
+#include <android/log.h>
+#define TTLOG(args...) __android_log_print(ANDROID_LOG_INFO, "TaskTracer", args)
+#else
+#define TTLOG(args...)
+#endif
+
 #if defined(__GLIBC__)
 // glibc doesn't implement gettid(2).
 #include <sys/syscall.h>
@@ -197,6 +214,22 @@ GetCurTraceInfo(uint64_t* aOutSourceEventId, uint64_t* aOutParentTaskId,
 }
 
 void
+SetThreadName(const char* aName, int aType)
+{
+  NS_ENSURE_TRUE_VOID(aName);
+
+  if (aType == TYPE_PROCESS) {
+    NS_ENSURE_TRUE_VOID(NS_IsMainThread());
+  }
+
+  TraceInfo* info = GetOrCreateTraceInfo();
+  NS_ENSURE_TRUE_VOID(info);
+
+  info->mThreadName.Assign(aName);
+  info->mThreadName.SetIsVoid(false);
+}
+
+void
 LogDispatch(uint64_t aTaskId, uint64_t aParentTaskId, uint64_t aSourceEventId,
             SourceEventType aSourceEventType)
 {
@@ -204,6 +237,9 @@ LogDispatch(uint64_t aTaskId, uint64_t aParentTaskId, uint64_t aSourceEventId,
 
   // Log format:
   // [0 taskId dispatchTime sourceEventId sourceEventType parentTaskId]
+  TTLOG("%d %lld %lld %lld %d %lld",
+        ACTION_DISPATCH, aTaskId, PR_Now(), aSourceEventId, aSourceEventType,
+        aParentTaskId);
 }
 
 void
@@ -211,8 +247,41 @@ LogBegin(uint64_t aTaskId, uint64_t aSourceEventId)
 {
   NS_ENSURE_TRUE_VOID(IsInitialized() && aSourceEventId);
 
+  TraceInfo* info = GetOrCreateTraceInfo();
+  if (info->mThreadName.IsVoid()) {
+    info->mThreadName = EmptyCString();
+    if (getpid() == gettid()) {
+      if (XRE_GetProcessType() == GeckoProcessType_Default) {
+        info->mThreadName.AppendASCII("b2g");
+      }
+    } else if (const char* name = PR_GetThreadName(PR_GetCurrentThread())) {
+      info->mThreadName.Append(name);
+    }
+    info->mThreadName.SetIsVoid(false);
+  }
+
+  rusage usage;
+  int rv = getrusage(RUSAGE_THREAD, &usage);
+  uint64_t userCPUTime = usage.ru_utime.tv_sec*1000000L + usage.ru_utime.tv_usec;
+  uint64_t sysCPUTime = usage.ru_stime.tv_sec*1000000L + usage.ru_stime.tv_usec;
+
+/*
   // Log format:
   // [1 taskId beginTime processId threadId]
+  TTLOG("%d %lld %lld %d %d",
+        ACTION_BEGIN, aTaskId, PR_Now(), getpid(), gettid());
+*/
+  // Log format:
+  // [1 taskId beginTime userCPUTime sysCPUTime processId "processName" threadId "threadName"]
+  if (getpid() == gettid()) {
+    TTLOG("%d %lld %lld %lld %lld %d \"%s\" %d \"%s\"",
+          ACTION_BEGIN, aTaskId, PR_Now(), userCPUTime, sysCPUTime,
+          getpid(), info->mThreadName.get(), gettid(), "main");
+  } else {
+    TTLOG("%d %lld %lld %lld %lld %d \"%s\" %d \"%s\"",
+          ACTION_BEGIN, aTaskId, PR_Now(), userCPUTime, sysCPUTime,
+          getpid(), "", gettid(), info->mThreadName.get());
+  }
 }
 
 void
@@ -220,8 +289,19 @@ LogEnd(uint64_t aTaskId, uint64_t aSourceEventId)
 {
   NS_ENSURE_TRUE_VOID(IsInitialized() && aSourceEventId);
 
+  rusage usage;
+  int rv = getrusage(RUSAGE_THREAD, &usage);
+  uint64_t userCPUTime = usage.ru_utime.tv_sec*1000000L + usage.ru_utime.tv_usec;
+  uint64_t sysCPUTime = usage.ru_stime.tv_sec*1000000L + usage.ru_stime.tv_usec;
+
+/*
   // Log format:
   // [2 taskId endTime]
+  TTLOG("%d %lld %lld", ACTION_END, aTaskId, PR_Now());
+*/
+  // Log format:
+  // [2 taskId endTime userCPUTime sysCPUTime]
+  TTLOG("%d %lld %lld %lld %lld", ACTION_END, aTaskId, PR_Now(), userCPUTime, sysCPUTime);
 }
 
 void
@@ -231,6 +311,7 @@ LogVirtualTablePtr(uint64_t aTaskId, uint64_t aSourceEventId, int* aVptr)
 
   // Log format:
   // [4 taskId address]
+  TTLOG("%d %lld %p", ACTION_GET_VTABLE, aTaskId, aVptr);
 }
 
 void
@@ -263,6 +344,9 @@ void AddLabel(const char* aFormat, ...)
 
   // Log format:
   // [3 taskId "label"]
+  TraceInfo* info = GetOrCreateTraceInfo();
+  TTLOG("%d %lld %lld \"%s\"",
+        ACTION_ADD_LABEL, info->mCurTaskId, PR_Now(), buffer);
 }
 
 } // namespace tasktracer

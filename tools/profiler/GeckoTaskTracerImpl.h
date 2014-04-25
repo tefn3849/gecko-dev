@@ -8,6 +8,12 @@
 #define GECKO_TASK_TRACER_IMPL_H
 
 #include "GeckoTaskTracer.h"
+#ifdef MOZILLA_INTERNAL_API
+#include "nsStringFwd.h"
+#include "nsString.h"
+#else
+#include "nsStringAPI.h"
+#endif
 
 namespace mozilla {
 namespace tasktracer {
@@ -36,6 +42,8 @@ struct TraceInfo
   SourceEventType mSavedCurTraceSourceType;
   uint32_t mThreadId;
   uint32_t mLastUniqueTaskId;
+
+  nsCString mThreadName;
 };
 
 void InitTaskTracer();
@@ -58,6 +66,13 @@ void SetCurTraceInfo(uint64_t aSourceEventId, uint64_t aParentTaskId,
 
 void GetCurTraceInfo(uint64_t* aOutSourceEventId, uint64_t* aOutParentTaskId,
                      SourceEventType* aOutSourceEventType);
+
+enum {
+  TYPE_THREAD,
+  TYPE_PROCESS
+};
+
+void SetThreadName(const char* aName, int aType = TYPE_THREAD);
 
 /**
  * Logging functions of different trace actions.

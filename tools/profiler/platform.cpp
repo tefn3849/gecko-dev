@@ -24,6 +24,10 @@
 #include "ProfilerMarkers.h"
 #include "nsXULAppAPI.h"
 
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracerImpl.h"
+#endif
+
 #if defined(SPS_OS_android) && !defined(MOZ_WIDGET_GONK)
   #include "AndroidBridge.h"
   using namespace mozilla::widget::android;
@@ -844,6 +848,11 @@ bool mozilla_sampler_register_thread(const char* aName, void* stackTop)
   PseudoStack* stack = new PseudoStack();
   tlsPseudoStack.set(stack);
   bool isMainThread = is_main_thread_name(aName);
+
+  #ifdef MOZ_TASK_TRACER
+  mozilla::tasktracer::SetThreadName(aName);
+#endif
+
   return Sampler::RegisterCurrentThread(aName, stack, isMainThread, stackTop);
 }
 
