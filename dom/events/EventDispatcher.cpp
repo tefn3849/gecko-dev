@@ -26,6 +26,12 @@
 #include "mozilla/TouchEvents.h"
 #include "mozilla/unused.h"
 
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracer.h"
+#include "mozilla/dom/Element.h"
+using namespace mozilla::tasktracer;
+#endif
+
 namespace mozilla {
 
 using namespace dom;
@@ -378,6 +384,12 @@ EventTargetChainItemForChromeTarget(nsTArray<EventTargetChainItem>& aChain,
   return etci;
 }
 
+//#ifdef MOZ_TASK_TRACER
+//#include "GeckoTaskTracer.h"
+//#include "mozilla/dom/Element.h"
+//using namespace mozilla::tasktracer;
+//#endif
+
 /* static */ nsresult
 EventDispatcher::Dispatch(nsISupports* aTarget,
                           nsPresContext* aPresContext,
@@ -398,6 +410,27 @@ EventDispatcher::Dispatch(nsISupports* aTarget,
   // If aTargets is non-null, the event isn't going to be dispatched.
   NS_ENSURE_TRUE(aEvent->message || !aDOMEvent || aTargets,
                  NS_ERROR_DOM_INVALID_STATE_ERR);
+
+#ifdef MOZ_TASK_TRACER
+  {
+    nsCOMPtr<Element> targetElement = do_QueryInterface(aTarget);
+    if (targetElement) {
+      nsAutoString targetId;
+      targetElement->GetId(targetId);
+      if (!targetId.IsEmpty()) {
+        AddLabel("[EventDispatcher::Dispatch] TargetEvent Id: %s",
+                 NS_ConvertUTF16toUTF8(targetId).get());
+      }
+    }
+
+    if (aDOMEvent) {
+      nsAutoString eventType;
+      aDOMEvent->GetType(eventType);
+      AddLabel("[EventDispatcher::Dispatch] DOMEvent name: %s",
+               NS_ConvertUTF16toUTF8(eventType).get());
+    }
+  }
+#endif
 
   nsCOMPtr<EventTarget> target = do_QueryInterface(aTarget);
 
