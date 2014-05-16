@@ -8007,8 +8007,10 @@ done
     if test -z "$CCACHE" -o "$CCACHE" = ":"; then
         as_fn_error $? "ccache not found" "$LINENO" 5
     elif test -x "$CCACHE"; then
-        CC="$CCACHE $CC"
-        CXX="$CCACHE $CXX"
+        if ! (echo $CC | grep -q "^\ *$CCACHE\ *") then
+            CC="$CCACHE $CC"
+            CXX="$CCACHE $CXX"
+        fi
     else
         as_fn_error $? "$CCACHE is not executable" "$LINENO" 5
     fi
