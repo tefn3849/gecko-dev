@@ -10,6 +10,7 @@
 #include "ProfileEntry.h"
 #include "mozilla/Mutex.h"
 #include "IntelPowerGadget.h"
+#include "GeckoTaskTracer.h"
 
 static bool
 hasFeature(const char** aFeatures, uint32_t aFeatureCount, const char* aFeature) {
@@ -73,6 +74,7 @@ class TableTicker: public Sampler {
     mPrivacyMode = hasFeature(aFeatures, aFeatureCount, "privacy");
     mAddMainThreadIO = hasFeature(aFeatures, aFeatureCount, "mainthreadio");
     mProfileMemory = hasFeature(aFeatures, aFeatureCount, "memory");
+    mTaskTracer = hasFeature(aFeatures, aFeatureCount, "tasktracer");
 
 #if defined(XP_WIN)
     if (mProfilePower) {
@@ -150,6 +152,10 @@ class TableTicker: public Sampler {
   virtual void RequestSave()
   {
     mSaveRequested = true;
+    if (mTaskTracer) {
+      // Save when we stop logging TaskTracer data.
+      mSaveRequested = !(mozilla::tasktracer::ToggleLogging());
+    }
   }
 
   virtual void HandleSaveRequest();
@@ -174,6 +180,7 @@ class TableTicker: public Sampler {
   void ToStreamAsJSON(std::ostream& stream);
   virtual JSObject *ToJSObject(JSContext *aCx);
   void StreamMetaJSCustomObject(JSStreamWriter& b);
+  void StreamTaskTracer(JSStreamWriter& b);
   bool HasUnwinderThread() const { return mUnwinderThread; }
   bool ProfileJS() const { return mProfileJS; }
   bool ProfileJava() const { return mProfileJava; }
@@ -182,6 +189,7 @@ class TableTicker: public Sampler {
   bool InPrivacyMode() const { return mPrivacyMode; }
   bool AddMainThreadIO() const { return mAddMainThreadIO; }
   bool ProfileMemory() const { return mProfileMemory; }
+  bool TaskTracer() const { return mTaskTracer; }
 
 protected:
   // Called within a signal. This function must be reentrant
@@ -214,6 +222,7 @@ protected:
   bool mPrivacyMode;
   bool mAddMainThreadIO;
   bool mProfileMemory;
+  bool mTaskTracer;
 #if defined(XP_WIN)
   IntelPowerGadget* mIntelPowerGadget;
 #endif

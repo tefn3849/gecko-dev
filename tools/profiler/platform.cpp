@@ -670,6 +670,8 @@ const char** mozilla_sampler_get_features()
     "mainthreadio",
     // Add RSS collection
     "memory",
+    // Toggle the state of the task tracer external data provider
+    "tasktracer",
 #if defined(XP_WIN)
     // Add power collection
     "power",
@@ -883,12 +885,14 @@ bool mozilla_sampler_register_thread(const char* aName, void* stackTop)
   }
 
 #if defined(MOZ_WIDGET_GONK) && !defined(MOZ_PROFILING)
+#ifndef MOZ_TASK_TRACER
   // The only way to profile secondary threads on b2g
   // is to build with profiling OR have the profiler
   // running on startup.
   if (!profiler_is_active()) {
     return false;
   }
+#endif
 #endif
 
   PseudoStack* stack = new PseudoStack();

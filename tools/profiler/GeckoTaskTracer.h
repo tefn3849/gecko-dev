@@ -25,9 +25,17 @@
 
 class Task;
 class nsIRunnable;
+class nsCString;
+template <class> class nsTArray;
 
 namespace mozilla {
+
+class TimeStamp;
+
 namespace tasktracer {
+
+void InitTaskTracer();
+void ShutdownTaskTracer();
 
 class FakeTracedTask;
 
@@ -51,6 +59,9 @@ public:
 // Add a label to the currently running task, aFormat is the message to log,
 // followed by corresponding parameters.
 void AddLabel(const char* aFormat, ...);
+
+bool ToggleLogging();
+nsTArray<nsCString>* GetLoggedData(TimeStamp aStartTime);
 
 /**
  * Internal functions.

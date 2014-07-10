@@ -14,14 +14,16 @@ namespace tasktracer {
 
 struct TraceInfo
 {
-  TraceInfo(uint32_t aThreadId) : mCurTraceSourceId(0)
-                                , mCurTaskId(0)
-                                , mSavedCurTraceSourceId(0)
-                                , mSavedCurTaskId(0)
-                                , mCurTraceSourceType(UNKNOWN)
-                                , mSavedCurTraceSourceType(UNKNOWN)
-                                , mThreadId(aThreadId)
-                                , mLastUniqueTaskId(0)
+  TraceInfo(uint32_t aThreadId, bool aStartLogging)
+    : mCurTraceSourceId(0)
+    , mCurTaskId(0)
+    , mSavedCurTraceSourceId(0)
+    , mSavedCurTaskId(0)
+    , mCurTraceSourceType(UNKNOWN)
+    , mSavedCurTraceSourceType(UNKNOWN)
+    , mThreadId(aThreadId)
+    , mLastUniqueTaskId(0)
+    , mStartLogging(aStartLogging)
   {
     MOZ_COUNT_CTOR(TraceInfo);
   }
@@ -36,10 +38,8 @@ struct TraceInfo
   SourceEventType mSavedCurTraceSourceType;
   uint32_t mThreadId;
   uint32_t mLastUniqueTaskId;
+  bool mStartLogging;
 };
-
-void InitTaskTracer();
-void ShutdownTaskTracer();
 
 // Return the TraceInfo of current thread, allocate a new one if not exit.
 TraceInfo* GetOrCreateTraceInfo();

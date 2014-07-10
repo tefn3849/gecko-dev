@@ -36,6 +36,7 @@
 #include "nsIObserverService.h"
 #include "mozilla/Services.h"
 #include "PlatformMacros.h"
+#include "nsTArray.h"
 
 #if defined(SPS_OS_android) && !defined(MOZ_WIDGET_GONK)
   #include "AndroidBridge.h"
@@ -74,6 +75,7 @@ pid_t gettid();
 
 using std::string;
 using namespace mozilla;
+using namespace mozilla::tasktracer;
 
 #ifndef MAXPATHLEN
  #ifdef PATH_MAX
@@ -104,6 +106,42 @@ void TableTicker::HandleSaveRequest()
   // without XPCOM.
   nsCOMPtr<nsIRunnable> runnable = new SaveProfileTask();
   NS_DispatchToMainThread(runnable);
+}
+
+void TableTicker::StreamTaskTracer(JSStreamWriter& b)
+{
+  b.BeginObject();
+    b.Name("tasktracer");
+    b.BeginArray();
+      nsTArray<nsCString>* data = GetLoggedData(sStartTime);
+      for (uint32_t i = 0; i < data->Length(); ++i) {
+        b.Value((data->ElementAt(i)).get());
+      }
+      b.EndArray();
+
+    b.Name("threads");
+    b.BeginArray();
+      SetPaused(true);
+      {
+        mozilla::MutexAutoLock lock(*sRegisteredThreadsMutex);
+        for (size_t i = 0; i < sRegisteredThreads->size(); i++) {
+          // Thread meta data
+          ThreadInfo* info = sRegisteredThreads->at(i);
+          b.BeginObject();
+          if (XRE_GetProcessType() == GeckoProcessType_Plugin) {
+            // TODO Add the proper plugin name
+            b.NameValue("name", "Plugin");
+          } else {
+            b.NameValue("name", info->Name());
+          }
+          b.NameValue("tid", static_cast<int>(info->ThreadId()));
+          b.EndObject();
+        }
+      }
+      SetPaused(false);
+    b.EndArray();
+
+  b.EndObject();
 }
 
 void TableTicker::StreamMetaJSCustomObject(JSStreamWriter& b)
@@ -261,6 +299,13 @@ void BuildJavaThreadJSObject(JSStreamWriter& b)
 
 void TableTicker::StreamJSObject(JSStreamWriter& b)
 {
+  // External data provider. Used for data that doesn't belong
+  // in the ciruclar buffer.
+  if (TaskTracer()) {
+    StreamTaskTracer(b);
+    return;
+  }
+
   b.BeginObject();
     // Put shared library info
     b.NameValue("libs", GetSharedLibraryInfoString().c_str());
