@@ -52,7 +52,8 @@ AllocTraceInfo(int aTid)
 {
   StaticMutexAutoLock lock(sMutex);
 
-  sTraceInfos->Put(aTid, new TraceInfo(aTid, sIsLoggingStarted));
+  sTraceInfos->Put(aTid, new TraceInfo(aTid, getpid(), sIsLoggingStarted));
+//  printf("-- AllocTraceInfo: pid:%d, tid:%d\n", getpid(), aTid);
 
   return sTraceInfos->Get(aTid);
 }
@@ -134,6 +135,21 @@ SetStartLogging(const uint32_t& aThreadId,
   bool* result = static_cast<bool*>(aResult);
   *result = aTraceInfo->mStartLogging;
 
+  printf("(pid:%d, tls(%d:%d) Turn %s logging TaskTracer\n", getpid(),
+          aTraceInfo->mProcessId, aTraceInfo->mThreadId,
+          aTraceInfo->mStartLogging ? "on" : "off");
+
+  return PL_DHASH_NEXT;
+}
+
+static PLDHashOperator
+PrintTraceInfos(const uint32_t& aThreadId,
+                nsAutoPtr<TraceInfo>& aTraceInfo,
+                void* aUserArg)
+{
+  printf("Print TraceInfo: (pid:%d, tls(%d:%d)\n", getpid(),
+          aTraceInfo->mProcessId, aTraceInfo->mThreadId);
+
   return PL_DHASH_NEXT;
 }
 
@@ -144,10 +160,18 @@ InitTaskTracer()
 {
   MOZ_ASSERT(!sTraceInfos);
 
+  if (sTraceInfos) {
+    printf("##### Double initialization!! #####\n");
+    StaticMutexAutoLock lock(sMutex);
+    sTraceInfos->Enumerate(PrintTraceInfos, nullptr);
+  }
+
   sTraceInfos = new nsClassHashtable<nsUint32HashKey, TraceInfo>();
   sLogs = new nsTArray<nsCString>();
 
   sIsLoggingStarted = false;
+  printf("#### InitTaskTracer, pid:%d, tid:%d, isStart=%d\n",
+          getpid(), gettid(), sIsLoggingStarted);
 
   if (!sTraceInfoTLS.initialized()) {
     unused << sTraceInfoTLS.init();
@@ -339,10 +363,13 @@ bool
 ToggleLogging()
 {
   bool result = false;
+  printf("--------- Receive signal on pid(%d) ---------\n", getpid());
   {
     StaticMutexAutoLock lock(sMutex);
-    sTraceInfos->Enumerate(SetStartLogging, &result);
-    sIsLoggingStarted = result;
+//    sTraceInfos->Enumerate(SetStartLogging, &result);
+//    sIsLoggingStarted = result;
+//    printf("== ToggleLogging pid(%d), tid(%d), Turn %d ==\n", getpid(), gettid(), result);
+    sTraceInfos->Enumerate(PrintTraceInfos, nullptr);
   }
 
   return result;

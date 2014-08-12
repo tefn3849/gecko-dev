@@ -14,7 +14,7 @@ namespace tasktracer {
 
 struct TraceInfo
 {
-  TraceInfo(uint32_t aThreadId, bool aStartLogging)
+  TraceInfo(uint32_t aThreadId, uint32_t aProcessId, bool aStartLogging)
     : mCurTraceSourceId(0)
     , mCurTaskId(0)
     , mSavedCurTraceSourceId(0)
@@ -22,6 +22,7 @@ struct TraceInfo
     , mCurTraceSourceType(UNKNOWN)
     , mSavedCurTraceSourceType(UNKNOWN)
     , mThreadId(aThreadId)
+    , mProcessId(aProcessId)
     , mLastUniqueTaskId(0)
     , mStartLogging(aStartLogging)
   {
@@ -37,6 +38,7 @@ struct TraceInfo
   SourceEventType mCurTraceSourceType;
   SourceEventType mSavedCurTraceSourceType;
   uint32_t mThreadId;
+  uint32_t mProcessId;
   uint32_t mLastUniqueTaskId;
   bool mStartLogging;
 };
