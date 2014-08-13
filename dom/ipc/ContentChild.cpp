@@ -125,6 +125,10 @@
 #include "ipc/Nuwa.h"
 #endif
 
+#ifdef MOZ_TASK_TRACER
+#include "GeckoTaskTracer.h"
+#endif
+
 #include "mozilla/dom/indexedDB/PIndexedDBChild.h"
 #include "mozilla/dom/mobilemessage/SmsChild.h"
 #include "mozilla/dom/devicestorage/DeviceStorageRequestChild.h"
@@ -510,6 +514,12 @@ InitOnContentProcessCreated(bool aAfterNuwaFork)
 #endif
     // This will register cross-process observer.
     mozilla::dom::time::InitializeDateCacheCleaner();
+
+#ifdef MOZ_TASK_TRACER
+    if (aAfterNuwaFork) {
+      mozilla::tasktracer::InitTaskTracer();
+    }
+#endif
 }
 
 ContentChild::ContentChild()
@@ -1539,6 +1549,9 @@ ContentChild::ProcessingError(Result what)
 void
 ContentChild::QuickExit()
 {
+#ifdef MOZ_TASK_TRACER
+    mozilla::tasktracer::ShutdownTaskTracer();
+#endif
     NS_WARNING("content process _exit()ing");
     _exit(0);
 }
