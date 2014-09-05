@@ -113,7 +113,8 @@ void TableTicker::StreamTaskTracer(JSStreamWriter& b)
   b.BeginObject();
     b.Name("tasktracer");
     b.BeginArray();
-      nsTArray<nsCString>* data = mozilla::tasktracer::GetLoggedData(sStartTime);
+      nsAutoPtr<nsTArray<nsCString>> data(
+        mozilla::tasktracer::GetLoggedData(sStartTime));
       for (uint32_t i = 0; i < data->Length(); ++i) {
         b.Value((data->ElementAt(i)).get());
       }
