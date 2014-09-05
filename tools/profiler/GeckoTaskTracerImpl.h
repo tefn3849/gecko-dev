@@ -8,11 +8,16 @@
 #define GECKO_TASK_TRACER_IMPL_H
 
 #include "GeckoTaskTracer.h"
+#include "mozilla/LinkedList.h"
+#include "mozilla/Mutex.h"
+#include "nsTArray.h"
 
 namespace mozilla {
 namespace tasktracer {
 
-struct TraceInfo
+typedef nsTArray<nsCString> TraceInfoLogsType;
+
+struct TraceInfo: public mozilla::LinkedListElement<TraceInfo>
 {
   TraceInfo(bool aStartLogging)
     : mCurTraceSourceId(0)
@@ -23,6 +28,7 @@ struct TraceInfo
     , mSavedCurTraceSourceType(UNKNOWN)
     , mLastUniqueTaskId(0)
     , mStartLogging(aStartLogging)
+    , mLogsMutex("TraceInfoMutex")
   {
     MOZ_COUNT_CTOR(TraceInfo);
   }
@@ -37,6 +43,12 @@ struct TraceInfo
   SourceEventType mSavedCurTraceSourceType;
   uint32_t mLastUniqueTaskId;
   bool mStartLogging;
+
+  mozilla::Mutex mLogsMutex;
+  TraceInfoLogsType mLogs;
+
+  nsCString* AppendLog();
+  void MoveLogsInto(TraceInfoLogsType& aResult);
 };
 
 // Return the TraceInfo of current thread, allocate a new one if not exit.
