@@ -74,6 +74,15 @@ function getContentWindow() {
   return shell.contentBrowser.contentWindow;
 }
 
+function testOpenTopWindow() {
+  debug("----- About to open a toplevel window! -----");
+  //window.open("app://system.gaiamobile.org/index-remote.html","myTopWindow","chrome=no");
+  var ww = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
+                     .getService(Components.interfaces.nsIWindowWatcher);
+  var win = ww.openWindow(null, "app://system.gaiamobile.org/index-remote.html",
+                          "myTopWindow", "centerscreen", null);
+}
+
 function debug(str) {
   dump(' -*- Shell.js: ' + str + '\n');
 }
@@ -386,6 +395,10 @@ var shell = {
   broadcastHardwareKeys: function shell_broadcastHardwareKeys(evt) {
     let type;
     let message;
+
+    if (evt.type == 'keyup' && evt.key == 'VolumeUp') {
+      testOpenTopWindow();
+    }
 
     let mediaKeys = {
       'MediaTrackNext': 'media-next-track-button',
