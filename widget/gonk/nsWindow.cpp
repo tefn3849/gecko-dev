@@ -720,7 +720,10 @@ nsWindow::EndRemoteDrawing()
 float
 nsWindow::GetDPI()
 {
-    return GetGonkDisplay()->xdpi;
+    if (!mIsRemoteScreen) {
+        return GetGonkDisplay()->xdpi;
+    }
+    return 213; // stock nexus 7 dpi.
 }
 
 double
