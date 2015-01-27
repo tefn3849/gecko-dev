@@ -13,7 +13,7 @@ const CONNECTION_STATUS_CONNECTING    = "connecting";
 const CONNECTION_STATUS_CONNECTED     = "connected";
 const CONNECTION_STATUS_DISCONNECTING = "disconnecting";
 
-const DEBUG = false;
+const DEBUG = true;
 
 this.EXPORTED_SYMBOLS = ["WifiP2pWorkerObserver"];
 
@@ -53,6 +53,7 @@ this.WifiP2pWorkerObserver = function(aDomMsgResponder) {
     this.isGroupOwner = aPeer.isGroupOwner;
     this.wpsCapabilities = aPeer.wpsCapabilities;
     this.connectionStatus = CONNECTION_STATUS_DISCONNECTED;
+    this.wfdDevInfo = aPeer.wfdDevInfo;
 
     // Since this object will be exposed to web, defined the exposed
     // properties here.
@@ -61,7 +62,8 @@ this.WifiP2pWorkerObserver = function(aDomMsgResponder) {
       name: "r",
       isGroupOwner: "r",
       wpsCapabilities: "r",
-      connectionStatus: "r"
+      connectionStatus: "r",
+      wfdDevInfo: "r",
     };
   }
 
@@ -144,6 +146,7 @@ this.WifiP2pWorkerObserver = function(aDomMsgResponder) {
       if (origianlPeer) {
         newFoundPeer.connectionStatus = origianlPeer.connectionStatus;
       }
+      debug('_peerList: ' + JSON.stringify(_peerList));
       handlePeerListUpdated();
     },
 
@@ -204,11 +207,14 @@ this.WifiP2pWorkerObserver = function(aDomMsgResponder) {
         "WifiP2pManager:connect",
         "WifiP2pManager:disconnect",
         "WifiP2pManager:setPairingConfirmation",
-        "WifiP2pManager:setDeviceName"
+        "WifiP2pManager:setDeviceName",
+        "WifiP2pManager:listenForRemoteDisplay",
       ];
     },
 
     onDOMMessage: function(aMessage) {
+      debug('Received DOM message: ' + JSON.stringify(aMessage));
+
       let msg = aMessage.data || {};
       msg.manager = aMessage.target;
 
@@ -248,6 +254,8 @@ this.WifiP2pWorkerObserver = function(aDomMsgResponder) {
                 peerArray.push(_peerList[key]);
               }
             }
+
+            debug('return peer list: ' + JSON.stringify(peerArray));
 
             returnMessage(aMessage.name, true, peerArray, msg);
           }
@@ -290,6 +298,13 @@ this.WifiP2pWorkerObserver = function(aDomMsgResponder) {
             aDomMsgResponder.setDeviceName(newDeviceName, function(success) {
               returnMessage(aMessage.name, success, (success ? true : "ERROR"), msg);
             });
+          }
+          break;
+
+        case "WifiP2pManager:listenForRemoteDisplay":
+          {
+            aDomMsgResponder.listenForRemoteDisplay();
+            returnMessage(aMessage.name, true, true, msg);
           }
           break;
 

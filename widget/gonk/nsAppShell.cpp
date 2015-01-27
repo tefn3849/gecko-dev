@@ -116,6 +116,7 @@ namespace mozilla {
 
 bool ProcessNextEvent()
 {
+    while (1);
     return gAppShell->ProcessNextNativeEvent(true);
 }
 

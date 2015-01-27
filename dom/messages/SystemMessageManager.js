@@ -20,7 +20,7 @@ XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
                                    "nsISyncMessageSender");
 
 function debug(aMsg) {
-   // dump("-- SystemMessageManager " + Date.now() + " : " + aMsg + "\n");
+   dump("-- SystemMessageManager " + Date.now() + " : " + aMsg + "\n");
 }
 
 // Implementation of the DOM API for system messages

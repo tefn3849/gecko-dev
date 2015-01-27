@@ -79,8 +79,8 @@ function testOpenTopWindow() {
   //window.open("app://system.gaiamobile.org/index-remote.html","myTopWindow","chrome=no");
   var ww = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
                      .getService(Components.interfaces.nsIWindowWatcher);
-  var win = ww.openWindow(null, "app://system.gaiamobile.org/index-remote.html",
-                          "myTopWindow", "centerscreen", null);
+  var win = ww.openWindow(null, "http://www.yahoo.com.tw",
+                          "myTopWindow", "centerscreen,-moz-remote-screen", null);
 }
 
 function debug(str) {

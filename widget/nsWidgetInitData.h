@@ -94,8 +94,8 @@ struct nsWidgetInitData {
       mBorderStyle(eBorderStyle_default),
       mPopupHint(ePopupTypePanel),
       mPopupLevel(ePopupLevelTop),
-      clipChildren(false), 
-      clipSiblings(false), 
+      clipChildren(false),
+      clipSiblings(false),
       mDropShadow(false),
       mListenForResizes(false),
       mUnicode(true),
@@ -105,7 +105,8 @@ struct nsWidgetInitData {
       mIsAnimationSuppressed(false),
       mSupportTranslucency(false),
       mMouseTransparent(false),
-      mRequireOffMainThreadCompositing(false)
+      mRequireOffMainThreadCompositing(false),
+      mIsRemoteScreen(false)
   {
   }
 
@@ -130,6 +131,8 @@ struct nsWidgetInitData {
   // Windows with out-of-process tabs always require OMTC. This flag designates
   // such windows.
   bool          mRequireOffMainThreadCompositing;
+
+  bool          mIsRemoteScreen;
 };
 
 #endif // nsWidgetInitData_h__

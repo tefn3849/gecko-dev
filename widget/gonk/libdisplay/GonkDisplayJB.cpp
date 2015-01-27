@@ -314,6 +314,20 @@ GonkDisplayJB::SetFBReleaseFd(int fd)
     mFBSurface->setReleaseFenceFd(fd);
 }
 
+void GonkDisplayJB::SetVirtualDisplayBuffer
+    (
+    android::sp<android::IGraphicBufferProducer> aVirtualDisplayBuffer
+    )
+{
+    mVirtualDisplayBuffer = aVirtualDisplayBuffer;
+    mVirtualDisplaySurface = new Surface(
+        static_cast<sp<IGraphicBufferProducer> >(mVirtualDisplayBuffer));
+}
+
+ANativeWindow* GonkDisplayJB::GetVirtualDisplaySurface() {
+    return mVirtualDisplaySurface.get();
+}
+
 int
 GonkDisplayJB::GetPrevFBAcquireFd()
 {

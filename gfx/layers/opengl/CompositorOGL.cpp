@@ -59,6 +59,16 @@
 #include <ui/Fence.h>
 #endif
 
+
+#include "GLContextEGL.h"
+
+#include <android/log.h>
+#define ALOG(args...)  __android_log_print(ANDROID_LOG_INFO, "CompositorOGL" , ## args)
+
+
+// FIXME: Remove this hack...
+nsIntRect gVirtualScreenBounds;
+
 namespace mozilla {
 
 using namespace std;
@@ -82,6 +92,7 @@ CompositorOGL::CompositorOGL(nsIWidget *aWidget, int aSurfaceWidth,
                              int aSurfaceHeight, bool aUseExternalSurfaceSize)
   : mWidget(aWidget)
   , mWidgetSize(-1, -1)
+  , mVirtualDisplaySurface(EGL_NO_SURFACE)
   , mSurfaceSize(aSurfaceWidth, aSurfaceHeight)
   , mHasBGRA(0)
   , mUseExternalSurfaceSize(aUseExternalSurfaceSize)
@@ -212,6 +223,9 @@ CompositorOGL::Initialize()
   NS_ABORT_IF_FALSE(mGLContext == nullptr, "Don't reinitialize CompositorOGL");
 
   mGLContext = CreateContext();
+
+  // FIXME: I don't like this hack...
+  mGLContextEGL = static_cast<GLContextEGL*>(mGLContext.get());
 
 #ifdef MOZ_WIDGET_ANDROID
   if (!mGLContext)
@@ -581,6 +595,8 @@ CompositorOGL::BeginFrame(const nsIntRegion& aInvalidRegion,
                           Rect *aClipRectOut,
                           Rect *aRenderBoundsOut)
 {
+  ALOG("BeginFrame start (%p)", mGLContext.get());
+
   PROFILER_LABEL("CompositorOGL", "BeginFrame",
     js::ProfileEntry::Category::GRAPHICS);
 
@@ -608,15 +624,17 @@ CompositorOGL::BeginFrame(const nsIntRegion& aInvalidRegion,
 
   // If the widget size changed, we have to force a MakeCurrent
   // to make sure that GL sees the updated widget size.
-  if (mWidgetSize.width != width ||
-      mWidgetSize.height != height)
-  {
-    MakeCurrent(ForceMakeCurrent);
+  if (EGL_NO_SURFACE == mVirtualDisplaySurface) {
+    if (mWidgetSize.width != width ||
+        mWidgetSize.height != height)
+    {
+      MakeCurrent(ForceMakeCurrent);
 
-    mWidgetSize.width = width;
-    mWidgetSize.height = height;
-  } else {
-    MakeCurrent();
+      mWidgetSize.width = width;
+      mWidgetSize.height = height;
+    } else {
+      MakeCurrent();
+    }
   }
 
   mPixelsPerFrame = width * height;
@@ -654,7 +672,52 @@ CompositorOGL::BeginFrame(const nsIntRegion& aInvalidRegion,
   mGLContext->fClearColor(0.0, 0.0, 0.0, 0.0);
   mGLContext->fClear(LOCAL_GL_COLOR_BUFFER_BIT | LOCAL_GL_DEPTH_BUFFER_BIT);
 #endif
+
+  ALOG("BeginFrame done (%p)", mGLContext.get());
 }
+
+bool
+CompositorOGL::TryVirtualDisplay(gfx::Rect* aVdsRect) {
+  CreateDestroyVirtualDisplaySurfaceIfNeeded();
+
+  if (EGL_NO_SURFACE == mVirtualDisplaySurface) {
+    return false;
+  }
+
+  mGLContextEGL->SetVirtualDisplaySurface(mVirtualDisplaySurface);
+  aVdsRect->width = gVirtualScreenBounds.width;
+  aVdsRect->height = gVirtualScreenBounds.height;
+  return true;
+}
+
+void
+CompositorOGL::EndVirtualDisplay() {
+  if (EGL_NO_SURFACE != mVirtualDisplaySurface) {
+    mGLContextEGL->SetVirtualDisplaySurface(EGL_NO_SURFACE);
+  }
+}
+
+void
+CompositorOGL::CreateDestroyVirtualDisplaySurfaceIfNeeded() {
+  if (GetGonkDisplay()->GetVirtualDisplaySurface() &&
+      EGL_NO_SURFACE == mVirtualDisplaySurface)
+  {
+    ALOG("Creating mVirtualDisplaySurface...");
+    mVirtualDisplaySurface = GLContextEGL::CreateVirtualDisplaySurface();
+    return;
+  }
+
+  if (!GetGonkDisplay()->GetVirtualDisplaySurface() &&
+      EGL_NO_SURFACE != mVirtualDisplaySurface)
+  {
+    ALOG("Destroying mVirtualDisplaySurface...");
+    // Destroy mVirtualDisplaySurface
+    mVirtualDisplaySurface = EGL_NO_SURFACE;
+    mGLContextEGL->SetVirtualDisplaySurface(EGL_NO_SURFACE);
+    return;
+  }
+}
+
 
 void
 CompositorOGL::CreateFBOWithTexture(const IntRect& aRect, bool aCopyFromSource,
@@ -900,6 +963,8 @@ CompositorOGL::DrawQuad(const Rect& aRect,
                         Float aOpacity,
                         const gfx::Matrix4x4 &aTransform)
 {
+  ALOG("DrawQuad start (%p)", mGLContext.get());
+
   PROFILER_LABEL("CompositorOGL", "DrawQuad",
     js::ProfileEntry::Category::GRAPHICS);
 
@@ -1207,11 +1272,15 @@ CompositorOGL::DrawQuad(const Rect& aRect,
 
   // in case rendering has used some other GL context
   MakeCurrent();
+
+  ALOG("DrawQuad done (%p)", mGLContext.get());
 }
 
 void
 CompositorOGL::EndFrame()
 {
+  ALOG("EndFrame start (%p)", mGLContext.get());
+
   PROFILER_LABEL("CompositorOGL", "EndFrame",
     js::ProfileEntry::Category::GRAPHICS);
 
@@ -1270,6 +1339,8 @@ CompositorOGL::EndFrame()
   if (!mGLContext->IsGLES()) {
     mGLContext->fBindTexture(LOCAL_GL_TEXTURE_RECTANGLE_ARB, 0);
   }
+
+  ALOG("EndFrame done (%p)", mGLContext.get());
 }
 
 #if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17

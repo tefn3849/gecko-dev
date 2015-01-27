@@ -188,7 +188,7 @@ nsWatcherWindowEnumerator::HasMoreElements(bool *retval)
   *retval = mCurrentPosition? true : false;
   return NS_OK;
 }
-    
+
 NS_IMETHODIMP
 nsWatcherWindowEnumerator::GetNext(nsISupports **retval)
 {
@@ -358,7 +358,7 @@ struct SizeSpec {
     mUseDefaultWidth(false),
     mUseDefaultHeight(false)
   {}
-  
+
   int32_t mLeft;
   int32_t mTop;
   int32_t mOuterWidth;  // Total window width
@@ -381,7 +381,7 @@ struct SizeSpec {
   bool PositionSpecified() const {
     return mLeftSpecified || mTopSpecified;
   }
-  
+
   bool SizeSpecified() const {
     return mOuterWidthSpecified || mOuterHeightSpecified ||
       mInnerWidthSpecified || mInnerHeightSpecified;
@@ -556,6 +556,10 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
     chromeFlags |= nsIWebBrowserChrome::CHROME_MODAL;
   }
 
+  if (WinHasOption(features.get(), "-moz-remote-screen", 0, nullptr)) {
+    chromeFlags |= nsIWebBrowserChrome::CHROME_REMOTE_SCREEN;
+  }
+
   SizeSpec sizeSpec;
   CalcSizeSpec(features.get(), sizeSpec);
 
@@ -617,7 +621,7 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
     nsCOMPtr<nsIDOMChromeWindow> chromeWin = do_QueryInterface(aParent);
     if (!aDialog && !chromeWin &&
         !(chromeFlags & (nsIWebBrowserChrome::CHROME_MODAL         |
-                         nsIWebBrowserChrome::CHROME_OPENAS_DIALOG | 
+                         nsIWebBrowserChrome::CHROME_OPENAS_DIALOG |
                          nsIWebBrowserChrome::CHROME_OPENAS_CHROME))) {
       nsCOMPtr<nsIWindowProvider> provider = do_GetInterface(parentTreeOwner);
       if (provider) {
@@ -653,7 +657,7 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
       }
     }
   }
-  
+
   bool newWindowShouldBeModal = false;
   bool parentIsModal = false;
   if (!newDocShellItem) {
@@ -769,7 +773,7 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
         SetOnePermittedSandboxedNavigator(parentWindow->GetDocShell());
     }
   }
-  
+
   rv = ReadyOpenedDocShellItem(newDocShellItem, aParent, windowIsNew, _retval);
   if (NS_FAILED(rv))
     return rv;
@@ -982,7 +986,7 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
       return NS_OK;
     }
 
-        
+
     if (!newWindowShouldBeModal && parentIsModal) {
       nsCOMPtr<nsIBaseWindow> parentWindow(do_GetInterface(newTreeOwner));
       if (parentWindow) {
@@ -992,12 +996,12 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
           parentWidget->SetModal(true);
         }
       }
-    } else { 
+    } else {
       // Reset popup state while opening a modal dialog, and firing
       // events about the dialog, to prevent the current state from
       // being active the whole time a modal dialog is open.
       nsAutoPopupStatePusher popupStatePusher(openAbused);
-  
+
       newChrome->ShowAsModal();
     }
   }
@@ -1012,7 +1016,7 @@ nsWindowWatcher::RegisterNotification(nsIObserver *aObserver)
 
   if (!aObserver)
     return NS_ERROR_INVALID_ARG;
-  
+
   nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
   if (!os)
     return NS_ERROR_FAILURE;
@@ -1031,7 +1035,7 @@ nsWindowWatcher::UnregisterNotification(nsIObserver *aObserver)
 
   if (!aObserver)
     return NS_ERROR_INVALID_ARG;
-  
+
   nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
   if (!os)
     return NS_ERROR_FAILURE;
@@ -1055,7 +1059,7 @@ nsWindowWatcher::GetWindowEnumerator(nsISimpleEnumerator** _retval)
 
   return NS_ERROR_OUT_OF_MEMORY;
 }
-    
+
 NS_IMETHODIMP
 nsWindowWatcher::GetNewPrompter(nsIDOMWindow *aParent, nsIPrompt **_retval)
 {
@@ -1166,7 +1170,7 @@ nsWindowWatcher::AddWindow(nsIDOMWindow *aWindow, nsIWebBrowserChrome *aChrome)
       }
       return NS_OK;
     }
-  
+
     // create a window info struct and add it to the list of windows
     info = new nsWatcherWindowEntry(aWindow, aChrome);
     if (!info)
@@ -1252,7 +1256,7 @@ nsresult nsWindowWatcher::RemoveWindow(nsWatcherWindowEntry *inInfo)
   {
     // notify the enumerators
     MutexAutoLock lock(mListLock);
-    for (ctr = 0; ctr < count; ++ctr) 
+    for (ctr = 0; ctr < count; ++ctr)
       mEnumeratorList[ctr]->WindowRemoved(inInfo);
 
     // remove the element from the list
@@ -1302,7 +1306,7 @@ nsWindowWatcher::GetChromeForWindow(nsIDOMWindow *aWindow, nsIWebBrowserChrome *
 }
 
 NS_IMETHODIMP
-nsWindowWatcher::GetWindowByName(const char16_t *aTargetName, 
+nsWindowWatcher::GetWindowByName(const char16_t *aTargetName,
                                  nsIDOMWindow *aCurrentWindow,
                                  nsIDOMWindow **aResult)
 {
@@ -1412,8 +1416,8 @@ uint32_t nsWindowWatcher::CalculateChromeFlags(nsIDOMWindow *aParent,
 {
    if(!aFeaturesSpecified || !aFeatures) {
       if(aDialog)
-         return nsIWebBrowserChrome::CHROME_ALL | 
-                nsIWebBrowserChrome::CHROME_OPENAS_DIALOG | 
+         return nsIWebBrowserChrome::CHROME_ALL |
+                nsIWebBrowserChrome::CHROME_OPENAS_DIALOG |
                 nsIWebBrowserChrome::CHROME_OPENAS_CHROME;
       else
          return nsIWebBrowserChrome::CHROME_ALL;
@@ -1492,7 +1496,7 @@ uint32_t nsWindowWatcher::CalculateChromeFlags(nsIDOMWindow *aParent,
                                nsIWebBrowserChrome::CHROME_WINDOW_MIN);
 
   chromeFlags |= WinHasOption(aFeatures, "popup", 0, &presenceFlag)
-                 ? nsIWebBrowserChrome::CHROME_WINDOW_POPUP : 0; 
+                 ? nsIWebBrowserChrome::CHROME_WINDOW_POPUP : 0;
 
   /* OK.
      Normal browser windows, in spite of a stated pattern of turning off
@@ -1618,7 +1622,7 @@ nsWindowWatcher::WinHasOption(const char *aOptions, const char *aName,
 
 #ifdef DEBUG
     nsAutoCString options(aOptions);
-    NS_ASSERTION(options.FindCharInSet(" \n\r\t") == kNotFound, 
+    NS_ASSERTION(options.FindCharInSet(" \n\r\t") == kNotFound,
                   "There should be no whitespace in this string!");
 #endif
 
@@ -1670,7 +1674,7 @@ nsWindowWatcher::FindItemWithName(const char16_t* aName,
     return NS_OK;
 
   nsDependentString name(aName);
-  
+
   nsCOMPtr<nsISimpleEnumerator> windows;
   GetWindowEnumerator(getter_AddRefs(windows));
   if (!windows)

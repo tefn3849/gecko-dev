@@ -57,7 +57,7 @@ using namespace mozilla;
 
 class nsIAppShell;
 
-nsAppShellService::nsAppShellService() : 
+nsAppShellService::nsAppShellService() :
   mXPCOMWillShutDown(false),
   mXPCOMShuttingDown(false),
   mModalWindowCount(0),
@@ -177,7 +177,7 @@ nsAppShellService::DestroyHiddenWindow()
  */
 NS_IMETHODIMP
 nsAppShellService::CreateTopLevelWindow(nsIXULWindow *aParent,
-                                        nsIURI *aUrl, 
+                                        nsIURI *aUrl,
                                         uint32_t aChromeMask,
                                         int32_t aInitialWidth,
                                         int32_t aInitialHeight,
@@ -577,7 +577,7 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
     // but anyone can explicitly ask for a minimize button
     if (aChromeMask & nsIWebBrowserChrome::CHROME_WINDOW_MIN) {
       widgetInitData.mBorderStyle = static_cast<enum nsBorderStyle>(widgetInitData.mBorderStyle | eBorderStyle_minimize);
-    }  
+    }
   }
 
   if (aInitialWidth == nsIAppShellService::SIZE_TO_CONTENT ||
@@ -597,6 +597,10 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
     bool isRTL = false;
     reg->IsLocaleRTL(package, &isRTL);
     widgetInitData.mRTL = isRTL;
+  }
+
+  if (aChromeMask & nsIWebBrowserChrome::CHROME_REMOTE_SCREEN) {
+    widgetInitData.mIsRemoteScreen = true;
   }
 
   nsresult rv = window->Initialize(parent, center ? aParent : nullptr,
