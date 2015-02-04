@@ -13,6 +13,8 @@ chrome.jar:
 * content/shell.html                    (content/shell.html)
 * content/shell.js                      (content/shell.js)
   content/shell.css                     (content/shell.css)
+* content/shell-remote.html             (content/shell-remote.html)
+* content/shell-remote.js               (content/shell-remote.js)
 #ifdef MOZ_WIDGET_GONK
   content/devtools/adb.js               (content/devtools/adb.js)
 #endif
