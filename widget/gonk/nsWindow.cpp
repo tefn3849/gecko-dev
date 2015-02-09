@@ -57,6 +57,8 @@
 #define LOGW(args...) __android_log_print(ANDROID_LOG_WARN, "Gonk", ## args)
 #define LOGE(args...) __android_log_print(ANDROID_LOG_ERROR, "Gonk", ## args)
 
+#define SLOG(args...)  __android_log_print(ANDROID_LOG_INFO, "slin" , ## args)
+
 #define IS_TOPLEVEL() (mWindowType == eWindowType_toplevel || mWindowType == eWindowType_dialog)
 
 using namespace mozilla;
@@ -81,6 +83,18 @@ static bool sUsingHwc;
 static bool sScreenInitialized;
 
 namespace {
+
+static nsIntRect
+GetGlobalScreenBounds(bool aRemote)
+{
+  return aRemote ? gRemoteScreenBounds : gScreenBounds;
+}
+
+static nsIntRect
+GetVirtualBounds(bool aRemote)
+{
+  return aRemote ? sRemoteVirtualBounds : sVirtualBounds;
+}
 
 static uint32_t
 EffectiveScreenRotation()
@@ -148,11 +162,15 @@ nsWindow::nsWindow()
     nsIntSize screenSize;
 
     ANativeWindow *win = GetGonkDisplay()->GetNativeWindow();
+    if (!win){
+      SLOG("ERROR! Fail to create a native window!!!!");
+    }
 
     if (win->query(win, NATIVE_WINDOW_WIDTH, &screenSize.width) ||
         win->query(win, NATIVE_WINDOW_HEIGHT, &screenSize.height)) {
         NS_RUNTIMEABORT("Failed to get native window size, aborting...");
     }
+    SLOG("Primary screenSize w:%d h:%d", screenSize.width, screenSize.height);
     gScreenBounds = nsIntRect(nsIntPoint(0, 0), screenSize);
 
     char propValue[PROPERTY_VALUE_MAX];
@@ -226,6 +244,8 @@ nsWindow::DispatchInputEvent(WidgetGUIEvent& aEvent)
         return nsEventStatus_eIgnore;
     }
 
+    SLOG("nsWindow::DispatchInputEvent, this:%p", aEvent.widget.get());
+
     gFocusedWindow->UserActivity();
 
     nsEventStatus status;
@@ -240,6 +260,8 @@ nsWindow::DispatchTouchInput(MultiTouchInput& aInput)
     if (!gFocusedWindow) {
         return;
     }
+
+    SLOG("nsWindow::DispatchTouchInput, this:%p", gFocusedWindow);
 
     gFocusedWindow->UserActivity();
     gFocusedWindow->DispatchTouchInputViaAPZ(aInput);
@@ -376,48 +398,54 @@ nsWindow::Create(nsIWidget *aParent,
                  nsDeviceContext *aContext,
                  nsWidgetInitData *aInitData)
 {
-    BaseCreate(aParent, IS_TOPLEVEL() ? sVirtualBounds : aRect,
-               aContext, aInitData);
-
     if (!aParent) {
         mIsRemoteScreen = aInitData ? aInitData->mIsRemoteScreen : false;
     } else {
         mIsRemoteScreen = ((nsWindow*)aParent)->mIsRemoteScreen;
     }
 
-    mBounds = aRect;
-
-    mParent = (nsWindow *)aParent;
-    mVisible = false;
-
     if (mIsRemoteScreen) {
         ANativeWindow *win = GetGonkDisplay()->GetVirtualDisplaySurface();
+
+        if (!win) {
+          SLOG("ERROR! Fail to create a VIRTUAL native window!!!!");
+        }
 
         if (win->query(win, NATIVE_WINDOW_WIDTH, &sRemoteVirtualBounds.width) ||
             win->query(win, NATIVE_WINDOW_HEIGHT, &sRemoteVirtualBounds.height)) {
             NS_RUNTIMEABORT("Failed to get native window size, aborting...");
         }
+        SLOG("Virtual screenSize w:%d h:%d", sRemoteVirtualBounds.width, sRemoteVirtualBounds.height);
         gRemoteScreenBounds = sRemoteVirtualBounds;
     }
 
+    BaseCreate(aParent, IS_TOPLEVEL() ? GetVirtualBounds(mIsRemoteScreen) : aRect,
+               aContext, aInitData);
+
+    mBounds = aRect;
+
+    mParent = (nsWindow *)aParent;
+    mVisible = false;
+
     if (!aParent) {
-        if (!mIsRemoteScreen) {
-            mBounds = sVirtualBounds;
-        } else {
-            mBounds = sRemoteVirtualBounds;
-        }
+        mBounds = GetVirtualBounds(mIsRemoteScreen);
     }
+
+    SLOG("----- nsWindow::Create -----\n");
+    SLOG(" type: %d, this: %p, aRect(w:%d h:%d), remote(%d)\n", mWindowType, this,
+         aRect.width, aRect.height, mIsRemoteScreen);
+
+    SLOG("-- mBounds(%d, %d)", mBounds.width, mBounds.height);
 
     if (!IS_TOPLEVEL())
         return NS_OK;
 
     sTopWindows.AppendElement(this);
 
-    if (!mIsRemoteScreen) {
-        Resize(0, 0, sVirtualBounds.width, sVirtualBounds.height, false);
-    } else {
-        Resize(0, 0, sRemoteVirtualBounds.width, sRemoteVirtualBounds.height, false);
-    }
+    Resize(0, 0, GetVirtualBounds(mIsRemoteScreen).width, GetVirtualBounds(mIsRemoteScreen).height, false);
+
+    SLOG("[After Resize] mBounds(%d, %d) mIsRemoteScreen(%d)", mBounds.width, mBounds.height, mIsRemoteScreen);
+    SLOG("--------------");
 
     return NS_OK;
 }
@@ -498,13 +526,22 @@ nsWindow::Resize(double aX,
                  double aHeight,
                  bool   aRepaint)
 {
+    if (mIsRemoteScreen) {
+      if (NSToIntRound(aWidth) != mBounds.width ||
+          NSToIntRound(aHeight) != mBounds.height) {
+        SLOG("----- nsWindow(%p) Prevent resize to (%f, %f), result mBounds(%d, %d)!!!!", this, aWidth, aHeight, mBounds.width, mBounds.height);
+        return NS_OK;
+      }
+    }
+
     mBounds = nsIntRect(NSToIntRound(aX), NSToIntRound(aY),
                         NSToIntRound(aWidth), NSToIntRound(aHeight));
+    SLOG("----- nsWindow(%p) resize to (%f, %f), result mBounds(%d, %d)", this, aWidth, aHeight, mBounds.width, mBounds.height);
     if (mWidgetListener)
         mWidgetListener->WindowResized(this, mBounds.width, mBounds.height);
 
     if (aRepaint)
-        Invalidate(sVirtualBounds);
+        Invalidate(GetVirtualBounds(mIsRemoteScreen));
 
     return NS_OK;
 }
@@ -528,7 +565,7 @@ nsWindow::SetFocus(bool aRaise)
         BringToTop();
 
     if (!mIsRemoteScreen) {
-        gFocusedWindow = this;
+      gFocusedWindow = this;
     }
 
     return NS_OK;
@@ -551,6 +588,8 @@ nsWindow::Invalidate(const nsIntRect &aRect)
 
     gDrawRequest = true;
     mozilla::NotifyEvent();
+
+    SLOG("nsWindow(%p, remote:%d)Invalidate..", this, mIsRemoteScreen);
     return NS_OK;
 }
 
@@ -620,20 +659,16 @@ nsWindow::MakeFullScreen(bool aFullScreen, nsIScreen*)
     }
 
     if (aFullScreen) {
-        if (!mIsRemoteScreen) {
-            // Fullscreen is "sticky" for toplevel widgets on gonk: we
-            // must paint the entire screen, and should only have one
-            // toplevel widget, so it doesn't make sense to ever "exit"
-            // fullscreen.  If we do, we can leave parts of the screen
-            // unpainted.
-            Resize(sVirtualBounds.x, sVirtualBounds.y,
-                   sVirtualBounds.width, sVirtualBounds.height,
-                   /*repaint*/true);
-        } else {
-            Resize(sRemoteVirtualBounds.x, sRemoteVirtualBounds.y,
-                   sRemoteVirtualBounds.width, sRemoteVirtualBounds.height,
-                   /*repaint*/true);
-        }
+        // Fullscreen is "sticky" for toplevel widgets on gonk: we
+        // must paint the entire screen, and should only have one
+        // toplevel widget, so it doesn't make sense to ever "exit"
+        // fullscreen.  If we do, we can leave parts of the screen
+        // unpainted.
+        Resize(GetVirtualBounds(mIsRemoteScreen).x,
+               GetVirtualBounds(mIsRemoteScreen).y,
+               GetVirtualBounds(mIsRemoteScreen).width,
+               GetVirtualBounds(mIsRemoteScreen).height,
+               /*repaint*/true);
     }
     return NS_OK;
 }
@@ -773,10 +808,16 @@ nsWindow::GetLayerManager(PLayerTransactionChild* aShadowManager,
         return nullptr;
     }
 
+    SLOG("= nsWindow::GetLayerManager =\n");
+    SLOG(" this:%p, CreateCompositor...\n", this);
+    SLOG(" mBounds(%d, %d)", mBounds.width, mBounds.height);
+    SLOG(" compositorParent:%p\n", mCompositorParent.get());
     CreateCompositor();
+    SLOG(" compositorParent:%p\n", mCompositorParent.get());
     if (mCompositorParent && !mIsRemoteScreen) {
         HwcComposer2D::GetInstance()->SetCompositorParent(mCompositorParent);
     }
+    SLOG(" (client)layerManager:%p\n", mLayerManager.get());
     MOZ_ASSERT(mLayerManager);
     return mLayerManager;
 }
@@ -784,17 +825,24 @@ nsWindow::GetLayerManager(PLayerTransactionChild* aShadowManager,
 void
 nsWindow::BringToTop()
 {
+    SLOG("=== nsWindow::BringToTop() this(%p)", this);
+
     if (!sTopWindows.IsEmpty()) {
         if (nsIWidgetListener* listener = sTopWindows[0]->GetWidgetListener())
             listener->WindowDeactivated();
     }
 
+    SLOG("= before: top(0):%p, length:%d", sTopWindows[0], sTopWindows.Length());
+
     sTopWindows.RemoveElement(this);
     sTopWindows.InsertElementAt(0, this);
 
+    SLOG("= result: top(0):%p, length:%d", sTopWindows[0], sTopWindows.Length());
+    SLOG("====");
+
     if (mWidgetListener)
         mWidgetListener->WindowActivated();
-    Invalidate(sVirtualBounds);
+    Invalidate(GetVirtualBounds(mIsRemoteScreen));
 }
 
 void
@@ -824,7 +872,7 @@ nsWindow::GetGLFrameBufferFormat()
 nsIntRect
 nsWindow::GetNaturalBounds()
 {
-    return mIsRemoteScreen ? gRemoteScreenBounds : gScreenBounds;
+    return GetGlobalScreenBounds(mIsRemoteScreen);
 }
 
 bool
@@ -1036,6 +1084,7 @@ nsScreenManagerGonk::ScreenForRect(int32_t inLeft,
 NS_IMETHODIMP
 nsScreenManagerGonk::ScreenForNativeWidget(void *aWidget, nsIScreen **outScreen)
 {
+    SLOG("ScreenForNativeWidget widget(%p) this(%p)", aWidget, this);
     return GetPrimaryScreen(outScreen);
 }
 
