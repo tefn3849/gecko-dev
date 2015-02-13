@@ -74,6 +74,14 @@ function getContentWindow() {
   return shell.contentBrowser.contentWindow;
 }
 
+function testOpenTopWindow() {
+  debug("----- About to open a toplevel window! -----");
+  var ww = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
+                     .getService(Components.interfaces.nsIWindowWatcher);
+  var win = ww.openWindow(null, "./shell-remote.html", "myTopWindow",
+                          "chrome,dialog=no,all,-moz-remote-screen", null);
+}
+
 function debug(str) {
   dump(' -*- Shell.js: ' + str + '\n');
 }
@@ -384,6 +392,10 @@ var shell = {
   broadcastHardwareKeys: function shell_broadcastHardwareKeys(evt) {
     let type;
     let message;
+
+    if (evt.type == 'keyup' && evt.key == 'VolumeUp') {
+      testOpenTopWindow();
+    }
 
     let mediaKeys = {
       'MediaTrackNext': 'media-next-track-button',
