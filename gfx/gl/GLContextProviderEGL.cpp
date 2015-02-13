@@ -218,6 +218,7 @@ GLContextEGL::GLContextEGL(
     , mContext(context)
     , mThebesSurface(nullptr)
     , mBound(false)
+    , mVirtualDisplaySurface(EGL_NO_SURFACE)
     , mIsPBuffer(false)
     , mIsDoubleBuffered(false)
     , mCanBindToTexture(false)
@@ -461,12 +462,15 @@ GLContextEGL::SwapBuffers()
 {
     if (mSurface) {
 #ifdef MOZ_WIDGET_GONK
-        if (!mIsOffscreen) {
+        if (!mIsOffscreen && EGL_NO_SURFACE == mVirtualDisplaySurface) {
             if (mHwc) {
                 return mHwc->Render(EGL_DISPLAY(), mSurface);
             } else {
                 return GetGonkDisplay()->SwapBuffers(EGL_DISPLAY(), mSurface);
             }
+        } else if (EGL_NO_SURFACE != mVirtualDisplaySurface) {
+            // FIXME: A hack of swap buffers with virtual display surface.
+            return sEGLLibrary.fSwapBuffers(EGL_DISPLAY(), mVirtualDisplaySurface);
         } else
 #endif
             return sEGLLibrary.fSwapBuffers(EGL_DISPLAY(), mSurface);
@@ -759,6 +763,19 @@ GLContextProviderEGL::CreateForWindow(nsIWidget *aWidget)
         return nullptr;
     }
 
+    bool isOffscreen = false;
+    void* a = aWidget->GetNativeData(NS_NATIVE_WINDOW);
+    void* b = GetGonkDisplay()->GetNativeWindow();
+
+    LOG("a: %p, b: %p, %d", a, b, a != b);
+
+    if (a != b) {
+        LOG("isOffscreen!!!!!!!!!!!!!!!!!!!!!!!");
+        isOffscreen = true;
+    } else {
+        LOG("NOT isOffscreen!!!!!!!!!!!!!!!!!!!!!!!");
+    }
+
     EGLSurface surface = mozilla::gl::CreateSurfaceForWindow(aWidget, config);
 
     if (surface == EGL_NO_SURFACE) {
@@ -769,7 +786,7 @@ GLContextProviderEGL::CreateForWindow(nsIWidget *aWidget)
     SurfaceCaps caps = SurfaceCaps::Any();
     nsRefPtr<GLContextEGL> glContext =
         GLContextEGL::CreateGLContext(caps,
-                                      nullptr, false,
+                                      nullptr, isOffscreen,
                                       config, surface);
 
     if (!glContext) {
