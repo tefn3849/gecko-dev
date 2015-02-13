@@ -556,6 +556,10 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
     chromeFlags |= nsIWebBrowserChrome::CHROME_MODAL;
   }
 
+  if (WinHasOption(features.get(), "-moz-remote-screen", 0, nullptr)) {
+    chromeFlags |= nsIWebBrowserChrome::CHROME_REMOTE_SCREEN;
+  }
+
   SizeSpec sizeSpec;
   CalcSizeSpec(features.get(), sizeSpec);
 

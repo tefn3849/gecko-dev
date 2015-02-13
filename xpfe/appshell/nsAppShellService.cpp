@@ -599,6 +599,10 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
     widgetInitData.mRTL = isRTL;
   }
 
+  if (aChromeMask & nsIWebBrowserChrome::CHROME_REMOTE_SCREEN) {
+    widgetInitData.mIsRemoteScreen = true;
+  }
+
   nsresult rv = window->Initialize(parent, center ? aParent : nullptr,
                                    aUrl, aInitialWidth, aInitialHeight,
                                    aIsHiddenWindow, aOpeningTab, widgetInitData);

@@ -54,6 +54,17 @@ public:
 
     bool Post(buffer_handle_t buf, int fence);
 
+    // This is called when the callback
+    // onDisplayConnected(const sp<IGraphicBufferProducer>& bufferProducer,
+    //                    uint32_t width, uint32_t height,
+    //                    uint32_t flags, uint32_t session)
+    // is received from WifiDisplayManager.
+    virtual void SetVirtualDisplayBuffer(
+      android::sp<android::IGraphicBufferProducer> aVirtualDisplayBuffer);
+
+    // Used when attempting to create a new EGLSurface.
+    virtual ANativeWindow* GetVirtualDisplaySurface();
+
 private:
     hw_module_t const*        mModule;
     hw_module_t const*        mFBModule;
@@ -68,6 +79,9 @@ private:
     uint32_t mWidth;
     uint32_t mHeight;
     OnEnabledCallbackType mEnabledCallback;
+
+    android::sp<android::IGraphicBufferProducer> mVirtualDisplayBuffer;
+    android::sp<ANativeWindow> mVirtualDisplaySurface;
 };
 
 }

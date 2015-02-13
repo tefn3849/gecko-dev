@@ -69,9 +69,14 @@ using namespace mozilla::layers;
 using namespace mozilla::widget;
 
 nsIntRect gScreenBounds;
+// FIXME: We should use an array of bounds.
+nsIntRect gRemoteScreenBounds;
+
 static uint32_t sScreenRotation;
 static uint32_t sPhysicalScreenRotation;
 static nsIntRect sVirtualBounds;
+// FIXME: Same here, we should use an array of bounds.
+static nsIntRect sRemoteVirtualBounds;
 
 static nsTArray<nsWindow *> sTopWindows;
 static nsWindow *gFocusedWindow = nullptr;
@@ -79,6 +84,19 @@ static bool sUsingHwc;
 static bool sScreenInitialized;
 
 namespace {
+
+// FIXME: Temporary solution for returning the corresponding screen bounds.
+static nsIntRect
+GetGlobalScreenBounds(bool aRemote)
+{
+  return aRemote ? gRemoteScreenBounds : gScreenBounds;
+}
+
+static nsIntRect
+GetVirtualBounds(bool aRemote)
+{
+  return aRemote ? sRemoteVirtualBounds : sVirtualBounds;
+}
 
 static uint32_t
 EffectiveScreenRotation()
@@ -132,6 +150,7 @@ displayEnabledCallback(bool enabled)
 NS_IMPL_ISUPPORTS_INHERITED(nsWindow, nsBaseWidget, nsISupportsWeakReference)
 
 nsWindow::nsWindow()
+    : mIsRemoteScreen(false)
 {
     mFramebuffer = nullptr;
 
@@ -424,8 +443,24 @@ nsWindow::Create(nsIWidget *aParent,
                  const nsIntRect &aRect,
                  nsWidgetInitData *aInitData)
 {
-    BaseCreate(aParent, IS_TOPLEVEL() ? sVirtualBounds : aRect,
-               aInitData);
+    if (!aParent) {
+        mIsRemoteScreen = aInitData ? aInitData->mIsRemoteScreen : false;
+    } else {
+        mIsRemoteScreen = ((nsWindow*)aParent)->mIsRemoteScreen;
+    }
+
+    // TODO: Screen bounds will be double queried when creating child windows.
+   if (mIsRemoteScreen) {
+        ANativeWindow *win = GetGonkDisplay()->GetVirtualDisplaySurface();
+
+        if (win->query(win, NATIVE_WINDOW_WIDTH, &sRemoteVirtualBounds.width) ||
+            win->query(win, NATIVE_WINDOW_HEIGHT, &sRemoteVirtualBounds.height)) {
+            NS_RUNTIMEABORT("Failed to get native window size, aborting...");
+        }
+        gRemoteScreenBounds = sRemoteVirtualBounds;
+    }
+
+    BaseCreate(aParent, IS_TOPLEVEL() ? GetVirtualBounds(mIsRemoteScreen) : aRect, aInitData);
 
     mBounds = aRect;
 
@@ -433,7 +468,7 @@ nsWindow::Create(nsIWidget *aParent,
     mVisible = false;
 
     if (!aParent) {
-        mBounds = sVirtualBounds;
+        mBounds = GetVirtualBounds(mIsRemoteScreen);
     }
 
     if (!IS_TOPLEVEL())
@@ -441,7 +476,9 @@ nsWindow::Create(nsIWidget *aParent,
 
     sTopWindows.AppendElement(this);
 
-    Resize(0, 0, sVirtualBounds.width, sVirtualBounds.height, false);
+    Resize(0, 0, GetVirtualBounds(mIsRemoteScreen).width,
+           GetVirtualBounds(mIsRemoteScreen).height, false);
+
     return NS_OK;
 }
 
@@ -521,13 +558,22 @@ nsWindow::Resize(double aX,
                  double aHeight,
                  bool   aRepaint)
 {
+    // FIXME: This is totally a hack! Remote window will somehow resize to a
+    // weird size when trying to display the content.
+    if (mIsRemoteScreen) {
+      if (NSToIntRound(aWidth) != mBounds.width ||
+          NSToIntRound(aHeight) != mBounds.height) {
+        return NS_OK;
+      }
+    }
+
     mBounds = nsIntRect(NSToIntRound(aX), NSToIntRound(aY),
                         NSToIntRound(aWidth), NSToIntRound(aHeight));
     if (mWidgetListener)
         mWidgetListener->WindowResized(this, mBounds.width, mBounds.height);
 
     if (aRepaint)
-        Invalidate(sVirtualBounds);
+        Invalidate(GetVirtualBounds(mIsRemoteScreen));
 
     return NS_OK;
 }
@@ -550,7 +596,12 @@ nsWindow::SetFocus(bool aRaise)
     if (aRaise)
         BringToTop();
 
-    gFocusedWindow = this;
+    // NOTE: In order to remain focus on the primary screen. However, somehow
+    // the call of BringToTop makes it focus at the wrong window
+    if (!mIsRemoteScreen) {
+      gFocusedWindow = this;
+    }
+
     return NS_OK;
 }
 
@@ -571,6 +622,7 @@ nsWindow::Invalidate(const nsIntRect &aRect)
 
     gDrawRequest = true;
     mozilla::NotifyEvent();
+
     return NS_OK;
 }
 
@@ -595,7 +647,8 @@ nsWindow::GetNativeData(uint32_t aDataType)
 {
     switch (aDataType) {
     case NS_NATIVE_WINDOW:
-        return GetGonkDisplay()->GetNativeWindow();
+        return mIsRemoteScreen ? GetGonkDisplay()->GetVirtualDisplaySurface()
+                               : GetGonkDisplay()->GetNativeWindow();
     }
     return nullptr;
 }
@@ -644,8 +697,10 @@ nsWindow::MakeFullScreen(bool aFullScreen, nsIScreen*)
         // toplevel widget, so it doesn't make sense to ever "exit"
         // fullscreen.  If we do, we can leave parts of the screen
         // unpainted.
-        Resize(sVirtualBounds.x, sVirtualBounds.y,
-               sVirtualBounds.width, sVirtualBounds.height,
+        Resize(GetVirtualBounds(mIsRemoteScreen).x,
+               GetVirtualBounds(mIsRemoteScreen).y,
+               GetVirtualBounds(mIsRemoteScreen).width,
+               GetVirtualBounds(mIsRemoteScreen).height,
                /*repaint*/true);
     }
     return NS_OK;
@@ -733,7 +788,10 @@ nsWindow::EndRemoteDrawing()
 float
 nsWindow::GetDPI()
 {
-    return GetGonkDisplay()->xdpi;
+    if (!mIsRemoteScreen) {
+        return GetGonkDisplay()->xdpi;
+    }
+    return 213; // stock nexus 7 dpi.
 }
 
 double
@@ -784,7 +842,7 @@ nsWindow::GetLayerManager(PLayerTransactionChild* aShadowManager,
     }
 
     CreateCompositor();
-    if (mCompositorParent) {
+    if (mCompositorParent && !mIsRemoteScreen) {
         HwcComposer2D::GetInstance()->SetCompositorParent(mCompositorParent);
     }
     MOZ_ASSERT(mLayerManager);
@@ -804,7 +862,7 @@ nsWindow::BringToTop()
 
     if (mWidgetListener)
         mWidgetListener->WindowActivated();
-    Invalidate(sVirtualBounds);
+    Invalidate(GetVirtualBounds(mIsRemoteScreen));
 }
 
 void
@@ -834,7 +892,7 @@ nsWindow::GetGLFrameBufferFormat()
 nsIntRect
 nsWindow::GetNaturalBounds()
 {
-    return gScreenBounds;
+    return GetGlobalScreenBounds(mIsRemoteScreen);
 }
 
 bool
@@ -849,6 +907,12 @@ nsWindow::NeedsPaint()
 Composer2D*
 nsWindow::GetComposer2D()
 {
+    // TODO: We are skipping hwc for rendering remote window with Wifidisplay,
+    // but probable not in the case of "external" display via HDMI?
+    if (mIsRemoteScreen) {
+        return nullptr;
+    }
+
     if (!sUsingHwc) {
         return nullptr;
     }
@@ -881,6 +945,8 @@ NS_IMETHODIMP
 nsScreenGonk::GetRect(int32_t *outLeft,  int32_t *outTop,
                       int32_t *outWidth, int32_t *outHeight)
 {
+    // TODO: nsScreenGonk should be able to represent itself as screen other
+    // then the primary one.
     *outLeft = sVirtualBounds.x;
     *outTop = sVirtualBounds.y;
 
@@ -1008,6 +1074,7 @@ NS_IMPL_ISUPPORTS(nsScreenManagerGonk, nsIScreenManager)
 
 nsScreenManagerGonk::nsScreenManagerGonk()
 {
+    // TODO: Should have an array of screens.
     mOneScreen = new nsScreenGonk(nullptr);
 }
 
@@ -1042,6 +1109,7 @@ nsScreenManagerGonk::ScreenForRect(int32_t inLeft,
 NS_IMETHODIMP
 nsScreenManagerGonk::ScreenForNativeWidget(void *aWidget, nsIScreen **outScreen)
 {
+    // TODO: Should return the correct screen base on aWidget.
     return GetPrimaryScreen(outScreen);
 }
 

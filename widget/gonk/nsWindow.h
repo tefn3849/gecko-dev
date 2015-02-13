@@ -163,6 +163,8 @@ private:
     // This is used by SynthesizeNativeTouchPoint to maintain state between
     // multiple synthesized points
     nsAutoPtr<mozilla::MultiTouchInput> mSynthesizedTouchInput;
+
+    bool mIsRemoteScreen;
 };
 
 #endif /* nsWindow_h */
