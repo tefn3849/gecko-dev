@@ -32,6 +32,8 @@ public:
 
     virtual ANativeWindow* GetNativeWindow();
 
+    virtual ANativeWindow* GetNativeWindow_hdmi();
+
     virtual void SetEnabled(bool enabled);
 
     virtual void OnEnabled(OnEnabledCallbackType callback);
@@ -40,7 +42,11 @@ public:
 
     virtual void* GetFBSurface();
 
+    virtual void* GetFBSurface_hdmi();
+
     virtual bool SwapBuffers(EGLDisplay dpy, EGLSurface sur);
+
+    virtual ANativeWindowBuffer* DequeueBuffer(ANativeWindowBuffer** aBuf_hdmi);
 
     virtual ANativeWindowBuffer* DequeueBuffer();
 
@@ -58,6 +64,10 @@ public:
 
     virtual ANativeWindow* GetVirtualDisplaySurface();
 
+    virtual hwc_display_contents_1_t* GetHDMILayerList() {return mList_hdmi;}
+
+    hwc_display_contents_1_t* mList_hdmi;
+
 private:
     hw_module_t const*        mModule;
     hw_module_t const*        mFBModule;
@@ -65,6 +75,7 @@ private:
     framebuffer_device_t*     mFBDevice;
     power_module_t*           mPowerModule;
     android::sp<android::FramebufferSurface> mFBSurface;
+
     android::sp<ANativeWindow> mSTClient;
     android::sp<android::IGraphicBufferAlloc> mAlloc;
     int mFence;
@@ -75,6 +86,12 @@ private:
 
     android::sp<android::IGraphicBufferProducer> mVirtualDisplayBuffer;
     android::sp<ANativeWindow> mVirtualDisplaySurface;
+
+    int mFence_hdmi;
+    uint32_t mWidth_hdmi;
+    uint32_t mHeight_hdmi;
+    android::sp<android::FramebufferSurface> mFBSurface_hdmi;
+    android::sp<ANativeWindow> mSTClient_hdmi;
 };
 
 }

@@ -85,11 +85,26 @@ HookVsync(const struct hwc_procs* aProcs, int aDisplay,
     HwcComposer2D::GetInstance()->Vsync(aDisplay, aTimestamp);
 }
 
+static bool active_hdmi = false;
+
 static void
 HookHotplug(const struct hwc_procs* aProcs, int aDisplay,
             int aConnected)
 {
-    // no op
+    LOGE("marco demo hookhotplug dis %d, acon %d", aDisplay, aConnected);
+
+    active_hdmi = aConnected;
+
+    int32_t values[3];
+        const uint32_t attrs[] = {
+            HWC_DISPLAY_WIDTH,
+            HWC_DISPLAY_HEIGHT,
+            HWC_DISPLAY_DPI_X,
+            HWC_DISPLAY_NO_ATTRIBUTE
+        };
+        HwcDevice * mHwc = (HwcDevice*)GetGonkDisplay()->GetHWCDevice();
+        mHwc->getDisplayAttributes(mHwc, 1, 0, attrs, values);
+        LOGE("marco demo hookhotplug w %d, h %d", values[0], values[1]);
 }
 
 static const hwc_procs_t sHWCProcs = {
@@ -830,6 +845,10 @@ HwcComposer2D::Prepare(buffer_handle_t fbHandle, int fence)
     if (mPrepared) {
         LOGE("Multiple hwc prepare calls!");
     }
+    displays[HWC_DISPLAY_EXTERNAL] = GetGonkDisplay()->GetHDMILayerList();
+    if (active_hdmi) {
+      mHwc->blank(mHwc, HWC_DISPLAY_EXTERNAL, 0);
+    }
     mHwc->prepare(mHwc, HWC_NUM_DISPLAY_TYPES, displays);
     mPrepared = true;
 }
@@ -859,6 +878,8 @@ HwcComposer2D::Commit()
             mList->hwLayers[j].acquireFenceFd = fence->dup();
         }
     }
+
+    displays[HWC_DISPLAY_EXTERNAL] = GetGonkDisplay()->GetHDMILayerList();
 
     int err = mHwc->set(mHwc, HWC_NUM_DISPLAY_TYPES, displays);
 

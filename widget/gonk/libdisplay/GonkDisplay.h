@@ -19,6 +19,7 @@
 #include <system/window.h>
 #include "mozilla/Types.h"
 #include <utils/StrongPointer.h>
+#include "hardware/hwcomposer.h"
 
 namespace android {
     class IGraphicBufferProducer;
@@ -49,6 +50,8 @@ public:
 
     virtual bool SwapBuffers(EGLDisplay dpy, EGLSurface sur) = 0;
 
+    virtual ANativeWindowBuffer* DequeueBuffer(ANativeWindowBuffer** aBuf_hdmi) = 0;
+
     virtual ANativeWindowBuffer* DequeueBuffer() = 0;
 
     virtual bool QueueBuffer(ANativeWindowBuffer* buf) = 0;
@@ -74,8 +77,12 @@ public:
      */
     virtual int GetPrevFBAcquireFd() = 0;
 
+    virtual hwc_display_contents_1_t* GetHDMILayerList() = 0;
+
     float xdpi;
+    float xdpi_hdmi;
     int32_t surfaceformat;
+    int32_t surfaceformat_hdmi;
 };
 
 MOZ_EXPORT __attribute__ ((weak))
