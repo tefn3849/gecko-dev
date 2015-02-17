@@ -58,6 +58,8 @@
 #define LOGW(args...) __android_log_print(ANDROID_LOG_WARN, "Gonk", ## args)
 #define LOGE(args...) __android_log_print(ANDROID_LOG_ERROR, "Gonk", ## args)
 
+#define SLOG(args...) __android_log_print(ANDROID_LOG_ERROR, "slin", ## args)
+
 #define IS_TOPLEVEL() (mWindowType == eWindowType_toplevel || mWindowType == eWindowType_dialog)
 
 using namespace mozilla;
@@ -96,6 +98,20 @@ static nsIntRect
 GetVirtualBounds(bool aRemote)
 {
   return aRemote ? sRemoteVirtualBounds : sVirtualBounds;
+}
+
+static uint32_t
+GetDisplayTypeFromInitData(nsWidgetInitData *aInitData)
+{
+    if (aInitData) {
+        switch (aInitData->mDisplayType) {
+            case eDisplayType_external:
+                return GonkDisplay::DISPLAY_EXTERNAL;
+            case eDisplayType_virtual:
+                return GonkDisplay::DISPLAY_VIRTUAL;
+        }
+    }
+    return GonkDisplay::DISPLAY_PRIMARY;
 }
 
 static uint32_t
@@ -150,9 +166,9 @@ displayEnabledCallback(bool enabled)
 NS_IMPL_ISUPPORTS_INHERITED(nsWindow, nsBaseWidget, nsISupportsWeakReference)
 
 nsWindow::nsWindow()
-    : mIsRemoteScreen(false)
 {
     mFramebuffer = nullptr;
+    mDisplayType = GonkDisplay::DISPLAY_PRIMARY;
 
     if (sScreenInitialized)
         return;
@@ -443,24 +459,25 @@ nsWindow::Create(nsIWidget *aParent,
                  const nsIntRect &aRect,
                  nsWidgetInitData *aInitData)
 {
-    if (!aParent) {
-        mIsRemoteScreen = aInitData ? aInitData->mIsRemoteScreen : false;
-    } else {
-        mIsRemoteScreen = ((nsWindow*)aParent)->mIsRemoteScreen;
-    }
+    mDisplayType = aParent ? ((nsWindow*)aParent)->mDisplayType :
+                   GetDisplayTypeFromInitData(aInitData);
 
-    // TODO: Screen bounds will be double queried when creating child windows.
-   if (mIsRemoteScreen) {
-        ANativeWindow *win = GetGonkDisplay()->GetVirtualDisplaySurface();
+    // FIXME:
+    bool remote = mDisplayType != GonkDisplay::DISPLAY_PRIMARY;
+    if (!aParent && mDisplayType != GonkDisplay::DISPLAY_PRIMARY) {
+        ANativeWindow *win = GetGonkDisplay()->GetNativeWindow(mDisplayType);
+        MOZ_ASSERT(win);
 
         if (win->query(win, NATIVE_WINDOW_WIDTH, &sRemoteVirtualBounds.width) ||
             win->query(win, NATIVE_WINDOW_HEIGHT, &sRemoteVirtualBounds.height)) {
             NS_RUNTIMEABORT("Failed to get native window size, aborting...");
         }
         gRemoteScreenBounds = sRemoteVirtualBounds;
+        SLOG("Setting up window with type(%d) w(%d) h(%d)", mDisplayType, sRemoteVirtualBounds.width, sRemoteVirtualBounds.height);
     }
 
-    BaseCreate(aParent, IS_TOPLEVEL() ? GetVirtualBounds(mIsRemoteScreen) : aRect, aInitData);
+
+    BaseCreate(aParent, IS_TOPLEVEL() ? GetVirtualBounds(remote) : aRect, aInitData);
 
     mBounds = aRect;
 
@@ -468,7 +485,7 @@ nsWindow::Create(nsIWidget *aParent,
     mVisible = false;
 
     if (!aParent) {
-        mBounds = GetVirtualBounds(mIsRemoteScreen);
+        mBounds = GetVirtualBounds(remote);
     }
 
     if (!IS_TOPLEVEL())
@@ -476,8 +493,8 @@ nsWindow::Create(nsIWidget *aParent,
 
     sTopWindows.AppendElement(this);
 
-    Resize(0, 0, GetVirtualBounds(mIsRemoteScreen).width,
-           GetVirtualBounds(mIsRemoteScreen).height, false);
+    Resize(0, 0, GetVirtualBounds(remote).width,
+           GetVirtualBounds(remote).height, false);
 
     return NS_OK;
 }
@@ -558,22 +575,15 @@ nsWindow::Resize(double aX,
                  double aHeight,
                  bool   aRepaint)
 {
-    // FIXME: This is totally a hack! Remote window will somehow resize to a
-    // weird size when trying to display the content.
-    if (mIsRemoteScreen) {
-      if (NSToIntRound(aWidth) != mBounds.width ||
-          NSToIntRound(aHeight) != mBounds.height) {
-        return NS_OK;
-      }
-    }
-
     mBounds = nsIntRect(NSToIntRound(aX), NSToIntRound(aY),
                         NSToIntRound(aWidth), NSToIntRound(aHeight));
     if (mWidgetListener)
         mWidgetListener->WindowResized(this, mBounds.width, mBounds.height);
 
+    // FIXME:
+    bool remote = mDisplayType != GonkDisplay::DISPLAY_PRIMARY;
     if (aRepaint)
-        Invalidate(GetVirtualBounds(mIsRemoteScreen));
+        Invalidate(GetVirtualBounds(remote));
 
     return NS_OK;
 }
@@ -598,8 +608,8 @@ nsWindow::SetFocus(bool aRaise)
 
     // NOTE: In order to remain focus on the primary screen. However, somehow
     // the call of BringToTop makes it focus at the wrong window
-    if (!mIsRemoteScreen) {
-      gFocusedWindow = this;
+    if (mDisplayType == GonkDisplay::DISPLAY_PRIMARY) {
+        gFocusedWindow = this;
     }
 
     return NS_OK;
@@ -647,8 +657,12 @@ nsWindow::GetNativeData(uint32_t aDataType)
 {
     switch (aDataType) {
     case NS_NATIVE_WINDOW:
-        return mIsRemoteScreen ? GetGonkDisplay()->GetVirtualDisplaySurface()
-                               : GetGonkDisplay()->GetNativeWindow();
+        // FIXME:
+        if (mDisplayType == GonkDisplay::DISPLAY_PRIMARY) {
+          return GetGonkDisplay()->GetNativeWindow();
+        } else {
+            return GetGonkDisplay()->GetNativeWindow(mDisplayType);
+        }
     }
     return nullptr;
 }
@@ -691,16 +705,18 @@ nsWindow::MakeFullScreen(bool aFullScreen, nsIScreen*)
         return nsBaseWidget::MakeFullScreen(aFullScreen);
     }
 
+    // FIXME
+    bool remote = mDisplayType != GonkDisplay::DISPLAY_PRIMARY;
     if (aFullScreen) {
         // Fullscreen is "sticky" for toplevel widgets on gonk: we
         // must paint the entire screen, and should only have one
         // toplevel widget, so it doesn't make sense to ever "exit"
         // fullscreen.  If we do, we can leave parts of the screen
         // unpainted.
-        Resize(GetVirtualBounds(mIsRemoteScreen).x,
-               GetVirtualBounds(mIsRemoteScreen).y,
-               GetVirtualBounds(mIsRemoteScreen).width,
-               GetVirtualBounds(mIsRemoteScreen).height,
+        Resize(GetVirtualBounds(remote).x,
+               GetVirtualBounds(remote).y,
+               GetVirtualBounds(remote).width,
+               GetVirtualBounds(remote).height,
                /*repaint*/true);
     }
     return NS_OK;
@@ -788,10 +804,9 @@ nsWindow::EndRemoteDrawing()
 float
 nsWindow::GetDPI()
 {
-    if (!mIsRemoteScreen) {
-        return GetGonkDisplay()->xdpi;
-    }
-    return 213; // stock nexus 7 dpi.
+    DisplayDevice* device =  GetGonkDisplay()->GetDevice(mDisplayType);
+    // FIXME
+    return device ? device->mXdpi : GetGonkDisplay()->xdpi;
 }
 
 double
@@ -842,7 +857,8 @@ nsWindow::GetLayerManager(PLayerTransactionChild* aShadowManager,
     }
 
     CreateCompositor();
-    if (mCompositorParent && !mIsRemoteScreen) {
+    // FIXME
+    if (mCompositorParent && mDisplayType == GonkDisplay::DISPLAY_PRIMARY) {
         HwcComposer2D::GetInstance()->SetCompositorParent(mCompositorParent);
     }
     MOZ_ASSERT(mLayerManager);
@@ -862,7 +878,9 @@ nsWindow::BringToTop()
 
     if (mWidgetListener)
         mWidgetListener->WindowActivated();
-    Invalidate(GetVirtualBounds(mIsRemoteScreen));
+
+    // FIXME
+    Invalidate(GetVirtualBounds(mDisplayType != GonkDisplay::DISPLAY_PRIMARY));
 }
 
 void
@@ -892,7 +910,8 @@ nsWindow::GetGLFrameBufferFormat()
 nsIntRect
 nsWindow::GetNaturalBounds()
 {
-    return GetGlobalScreenBounds(mIsRemoteScreen);
+    // FIXME
+    return GetGlobalScreenBounds(mDisplayType != GonkDisplay::DISPLAY_PRIMARY);
 }
 
 bool
@@ -909,7 +928,8 @@ nsWindow::GetComposer2D()
 {
     // TODO: We are skipping hwc for rendering remote window with Wifidisplay,
     // but probable not in the case of "external" display via HDMI?
-    if (mIsRemoteScreen) {
+    // FIXME
+    if (mDisplayType != GonkDisplay::DISPLAY_PRIMARY) {
         return nullptr;
     }
 

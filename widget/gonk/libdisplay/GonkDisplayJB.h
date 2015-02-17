@@ -23,6 +23,8 @@
 #include "ui/Fence.h"
 #include "utils/RefBase.h"
 
+#include "nsTArray.h"
+
 namespace mozilla {
 
 class MOZ_EXPORT GonkDisplayJB : public GonkDisplay {
@@ -42,8 +44,12 @@ public:
 
     virtual bool SwapBuffers(EGLDisplay dpy, EGLSurface sur);
 
+    // HDMI Testing
+    virtual ANativeWindowBuffer* DequeueBuffer(ANativeWindowBuffer** aBuf_hdmi);
+
     virtual ANativeWindowBuffer* DequeueBuffer();
 
+    // HDMI Testing
     virtual bool QueueBuffer(ANativeWindowBuffer* buf);
 
     virtual void UpdateFBSurface(EGLDisplay dpy, EGLSurface sur);
@@ -54,16 +60,21 @@ public:
 
     bool Post(buffer_handle_t buf, int fence);
 
-    // This is called when the callback
-    // onDisplayConnected(const sp<IGraphicBufferProducer>& bufferProducer,
-    //                    uint32_t width, uint32_t height,
-    //                    uint32_t flags, uint32_t session)
-    // is received from WifiDisplayManager.
-    virtual void SetVirtualDisplayBuffer(
-      android::sp<android::IGraphicBufferProducer> aVirtualDisplayBuffer);
+    // HDMI Testing
+    virtual hwc_display_contents_1_t* GetHDMILayerList() {return mList_hdmi;}
 
-    // Used when attempting to create a new EGLSurface.
-    virtual ANativeWindow* GetVirtualDisplaySurface();
+    // HDMI Testing
+    hwc_display_contents_1_t* mList_hdmi;
+
+    virtual void AddDisplay(
+        const uint32_t aType,
+        const android::sp<android::IGraphicBufferProducer>& aProducer = nullptr);
+
+    virtual void RemoveDisplay(const uint32_t aType);
+
+    virtual DisplayDevice* GetDevice(const uint32_t aType);
+
+    virtual ANativeWindow* GetNativeWindow(const uint32_t aType);
 
 private:
     hw_module_t const*        mModule;
@@ -80,8 +91,14 @@ private:
     uint32_t mHeight;
     OnEnabledCallbackType mEnabledCallback;
 
-    android::sp<android::IGraphicBufferProducer> mVirtualDisplayBuffer;
-    android::sp<ANativeWindow> mVirtualDisplaySurface;
+    // HDMI Testing
+    android::sp<android::FramebufferSurface> mFBSurface_hdmi;
+    android::sp<ANativeWindow> mSTClient_hdmi;
+    int mFence_hdmi;
+    uint32_t mWidth_hdmi;
+    uint32_t mHeight_hdmi;
+
+    nsTArray<DisplayDevice> mDevices;
 };
 
 }

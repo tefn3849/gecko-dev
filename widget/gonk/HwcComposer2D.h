@@ -96,6 +96,7 @@ public:
     bool RegisterHwcEventCallback();
     void Vsync(int aDisplay, int64_t aTimestamp);
     void Invalidate();
+    void Hotplug(int aDisplay, int aConnected);
 #endif
     void SetCompositorParent(layers::CompositorParent* aCompositorParent);
 

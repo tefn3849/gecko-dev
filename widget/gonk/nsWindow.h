@@ -133,6 +133,8 @@ public:
 
     virtual Composer2D* GetComposer2D() MOZ_OVERRIDE;
 
+    uint32_t GetDisplayType() { return mDisplayType; }
+
 protected:
     nsWindow* mParent;
     bool mVisible;
@@ -164,7 +166,7 @@ private:
     // multiple synthesized points
     nsAutoPtr<mozilla::MultiTouchInput> mSynthesizedTouchInput;
 
-    bool mIsRemoteScreen;
+    uint32_t mDisplayType;
 };
 
 #endif /* nsWindow_h */

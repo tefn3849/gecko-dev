@@ -79,7 +79,7 @@ function testOpenTopWindow() {
   var ww = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
                      .getService(Components.interfaces.nsIWindowWatcher);
   var win = ww.openWindow(null, "./shell-remote.html", "myTopWindow",
-                          "chrome,dialog=no,all,-moz-remote-screen", null);
+                          "chrome,dialog=no,close,resizable,scrollbars,extrachrome,-moz-virtual-display", null);
 }
 
 function debug(str) {

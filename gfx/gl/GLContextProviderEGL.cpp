@@ -18,6 +18,7 @@
 #elif defined(MOZ_WIDGET_GONK)
 #define GET_NATIVE_WINDOW(aWidget) ((EGLNativeWindowType)aWidget->GetNativeData(NS_NATIVE_WINDOW))
 #include "HwcComposer2D.h"
+#include "nsWindow.h"
 #include "libdisplay/GonkDisplay.h"
 #endif
 
@@ -218,7 +219,6 @@ GLContextEGL::GLContextEGL(
     , mContext(context)
     , mThebesSurface(nullptr)
     , mBound(false)
-    , mVirtualDisplaySurface(EGL_NO_SURFACE)
     , mIsPBuffer(false)
     , mIsDoubleBuffered(false)
     , mCanBindToTexture(false)
@@ -462,15 +462,12 @@ GLContextEGL::SwapBuffers()
 {
     if (mSurface) {
 #ifdef MOZ_WIDGET_GONK
-        if (!mIsOffscreen && EGL_NO_SURFACE == mVirtualDisplaySurface) {
+        if (!mIsOffscreen) {
             if (mHwc) {
                 return mHwc->Render(EGL_DISPLAY(), mSurface);
             } else {
                 return GetGonkDisplay()->SwapBuffers(EGL_DISPLAY(), mSurface);
             }
-        } else if (EGL_NO_SURFACE != mVirtualDisplaySurface) {
-            // FIXME: A hack of swap buffers with virtual display surface.
-            return sEGLLibrary.fSwapBuffers(EGL_DISPLAY(), mVirtualDisplaySurface);
         } else
 #endif
             return sEGLLibrary.fSwapBuffers(EGL_DISPLAY(), mSurface);
@@ -763,25 +760,18 @@ GLContextProviderEGL::CreateForWindow(nsIWidget *aWidget)
         return nullptr;
     }
 
-    bool isOffscreen = false;
-    void* a = aWidget->GetNativeData(NS_NATIVE_WINDOW);
-    void* b = GetGonkDisplay()->GetNativeWindow();
-
-    LOG("a: %p, b: %p, %d", a, b, a != b);
-
-    if (a != b) {
-        LOG("isOffscreen!!!!!!!!!!!!!!!!!!!!!!!");
-        isOffscreen = true;
-    } else {
-        LOG("NOT isOffscreen!!!!!!!!!!!!!!!!!!!!!!!");
-    }
-
     EGLSurface surface = mozilla::gl::CreateSurfaceForWindow(aWidget, config);
 
     if (surface == EGL_NO_SURFACE) {
         MOZ_CRASH("Failed to create EGLSurface!\n");
         return nullptr;
     }
+
+    // FIXME: 1. should try to enable hwc.
+    //        2. DisplayType might be able to get from GonkDidsplay.
+    uint32_t displaytype = (static_cast<nsWindow*>(aWidget))->GetDisplayType();
+    bool isOffscreen = displaytype != GonkDisplay::DISPLAY_PRIMARY;
+    LOG("slin: Display type: %d, offscreen: %d", displaytype, isOffscreen);
 
     SurfaceCaps caps = SurfaceCaps::Any();
     nsRefPtr<GLContextEGL> glContext =

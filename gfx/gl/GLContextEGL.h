@@ -110,9 +110,6 @@ protected:
     nsRefPtr<gfxASurface> mThebesSurface;
     bool mBound;
 
-    // FIXME: Can we merge this to mSurfaceOverride?
-    EGLSurface mVirtualDisplaySurface;
-
     bool mIsPBuffer;
     bool mIsDoubleBuffered;
     bool mCanBindToTexture;
