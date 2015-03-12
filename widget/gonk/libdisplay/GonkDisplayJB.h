@@ -73,6 +73,9 @@ public:
     virtual void QueueBuffer(const uint32_t aType);
 
 private:
+    void NotifyDisplayChange(uint32_t aDisplayType, bool aConnected);
+
+private:
     hw_module_t const*        mModule;
     hw_module_t const*        mFBModule;
     hwc_composer_device_1_t*  mHwc;

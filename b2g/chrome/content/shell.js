@@ -74,14 +74,6 @@ function getContentWindow() {
   return shell.contentBrowser.contentWindow;
 }
 
-function testOpenTopWindow() {
-  debug("----- About to open a toplevel window! -----");
-  var ww = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
-                     .getService(Components.interfaces.nsIWindowWatcher);
-  var win = ww.openWindow(null, "./shell-remote.html", "myTopWindow",
-                          "chrome,dialog=no,close,resizable,scrollbars,extrachrome,-moz-virtual-display", null);
-}
-
 function debug(str) {
   dump(' -*- Shell.js: ' + str + '\n');
 }
@@ -393,10 +385,6 @@ var shell = {
     let type;
     let message;
 
-    if (evt.type == 'keyup' && evt.key == 'VolumeUp') {
-      testOpenTopWindow();
-    }
-
     let mediaKeys = {
       'MediaTrackNext': 'media-next-track-button',
       'MediaTrackPrevious': 'media-previous-track-button',
@@ -566,6 +554,25 @@ var shell = {
     this.sendEvent(target, type, payload);
   },
 
+  handleDisplayChangeEvent: function(aSubject, aTopic, aData) {
+    debug('handleDisplayChangeEvent: ' + aTopic);
+
+    const EVENT_TO_DISPLAY_OPTION = {
+      'virtual_display_connected': '-moz-virtual-display',
+      // Un-comment the following line to enable secondary window on HDMI.
+      // 'external_display_connected': '-moz-external-display'
+    };
+
+    if (EVENT_TO_DISPLAY_OPTION[aTopic]) {
+      debug("----- About to open a toplevel window! -----");
+      let options = 'chrome,dialog=no,close,resizable,scrollbars,extrachrome,' +
+                    EVENT_TO_DISPLAY_OPTION[aTopic];
+      var win = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
+                         .getService(Components.interfaces.nsIWindowWatcher)
+                         .openWindow(null, "./shell-remote.html", "myTopWindow", options, null);
+    }
+  },
+
   sendChromeEvent: function shell_sendChromeEvent(details) {
     if (!this.isHomeLoaded) {
       if (!('pendingChromeEvents' in this)) {
@@ -669,6 +676,17 @@ Services.obs.addObserver(function onBluetoothVolumeChange(subject, topic, data) 
     value: data
   });
 }, 'bluetooth-volume-change', false);
+
+Services.obs.addObserver(function(subject, topic, data) {
+  shell.sendCustomEvent('mozmemorypressure');
+}, 'memory-pressure', false);
+
+['virtual_display_connected',
+ 'virtual_display_disconnected',
+ 'external_display_connected',
+ 'external_display_disconnected'].forEach((aEvent) => {
+  Services.obs.addObserver(shell.handleDisplayChangeEvent, aEvent, false);
+});
 
 Services.obs.addObserver(function(subject, topic, data) {
   shell.sendCustomEvent('mozmemorypressure');

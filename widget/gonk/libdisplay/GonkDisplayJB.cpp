@@ -30,6 +30,9 @@
 #include "GraphicBufferAlloc.h"
 #endif
 #include "BootAnimation.h"
+#include "nsIObserverService.h"
+#include "nsServiceManagerUtils.h"
+#include "nsThreadUtils.h"
 
 #define SLOG(args...) __android_log_print(ANDROID_LOG_ERROR, "slin", ## args)
 
@@ -386,6 +389,60 @@ GonkDisplayJB::GetDevice(const uint32_t aType)
   return nullptr;
 }
 
+namespace
+{
+class NotifyTask : public nsIRunnable
+{
+public:
+    NS_DECL_ISUPPORTS
+
+public:
+    NotifyTask(uint32_t aDisplayType, bool aConnected)
+        : mDisplayType(aDisplayType)
+        , mConnected(aConnected)
+    {
+    }
+
+    NS_IMETHOD Run()
+    {
+        nsCOMPtr<nsIObserverService> os(do_GetService("@mozilla.org/observer-service;1"));
+        if (!os) {
+            return NS_ERROR_FAILURE;
+        }
+
+        const static struct {
+            const char* mConnectedEvent;
+            const char* mDisconnectedEvent;
+        } DISPLAY_CHANGE_EVENT_TABLE[] = {
+            /* DISPLAY_PRIMARY  */ {"", ""},
+            /* DISPLAY_EXTERNAL */ {"external_display_connected", "external_display_disconnected"},
+            /* DISPLAY_VIRTUAL  */ {"virtual_display_connected",  "virtual_display_disconnected"},
+        };
+
+        if (mDisplayType >= GonkDisplay::NUM_DISPLAY_TYPES) {
+            return NS_ERROR_FAILURE;
+        }
+
+        const char* event = mConnected ?
+            DISPLAY_CHANGE_EVENT_TABLE[mDisplayType].mConnectedEvent :
+            DISPLAY_CHANGE_EVENT_TABLE[mDisplayType].mDisconnectedEvent;
+
+        return os->NotifyObservers(nullptr, event, nullptr);
+    }
+private:
+    uint32_t mDisplayType;
+    bool mConnected;
+};
+
+NS_IMPL_ISUPPORTS(NotifyTask, nsIRunnable)
+} // end of unnamed namespace
+
+void
+GonkDisplayJB::NotifyDisplayChange(uint32_t aDisplayType, bool aConnected) 
+{
+    NS_DispatchToMainThread(new NotifyTask(aDisplayType, aConnected));
+}
+
 void
 GonkDisplayJB::AddDisplay(const uint32_t aType,
                           const sp<IGraphicBufferProducer>& aProducer)
@@ -436,12 +493,15 @@ GonkDisplayJB::AddDisplay(const uint32_t aType,
                                GRALLOC_USAGE_HW_RENDER |
                                GRALLOC_USAGE_HW_COMPOSER);
     SLOG("GonkDisplayJB::AddDisplay - success!");
+
+    NotifyDisplayChange(aType, true);
 }
 
 void
 GonkDisplayJB::RemoveDisplay(const uint32_t aType)
 {
     SLOG("TODO: Implement RemoveDisplay!!");
+    NotifyDisplayChange(aType, false);
 }
 
 ANativeWindow*
