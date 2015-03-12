@@ -111,13 +111,17 @@ private:
     void setCrop(HwcLayer* layer, hwc_rect_t srcCrop);
     void setHwcGeometry(bool aGeometryChanged);
     void SendtoLayerScope();
+    void PrepareFromPrimary();
 
     HwcDevice*              mHwc;
     HwcList*                mList;
+    HwcList*                mListHdmi; // FIXME!
     hwc_display_t           mDpy;
     hwc_surface_t           mSur;
     gl::GLContext*          mGLContext;
     nsIntRect               mScreenRect;
+    nsIntRect               mScreenRectHdmi; // FIXME!
+    hwc_rect_t              mMirroredDisplayFrame;
     int                     mMaxLayerCount;
     bool                    mColorFill;
     bool                    mRBSwapSupport;
@@ -132,6 +136,7 @@ private:
     nsTArray<layers::LayerComposite*> mHwcLayerMap;
     bool                    mPrepared;
     bool                    mHasHWVsync;
+    bool                    mMirrorEnabled;
     nsRefPtr<layers::CompositorParent> mCompositorParent;
     Mutex mLock;
 };

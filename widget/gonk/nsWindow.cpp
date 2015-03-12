@@ -929,7 +929,7 @@ nsWindow::GetComposer2D()
     // TODO: We are skipping hwc for rendering remote window with Wifidisplay,
     // but probable not in the case of "external" display via HDMI?
     // FIXME
-    if (mDisplayType != GonkDisplay::DISPLAY_PRIMARY) {
+    if (mDisplayType == GonkDisplay::DISPLAY_VIRTUAL) {
         return nullptr;
     }
 

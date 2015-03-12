@@ -97,18 +97,6 @@ GonkDisplayJB::GonkDisplayJB()
         mHeight = values[1];
         xdpi = values[2] / 1000.0f;
         surfaceformat = HAL_PIXEL_FORMAT_RGBA_8888;
-
-        int32_t values_hdmi[3];
-        mHwc->getDisplayAttributes(mHwc, 1, 0, attrs, values_hdmi);
-
-        mWidth_hdmi = values_hdmi[0];
-        mHeight_hdmi = values_hdmi[1];
-        mWidth_hdmi = 1920;
-        mHeight_hdmi = 1080;
-        xdpi_hdmi = values_hdmi[2] / 1000.0f;
-        surfaceformat_hdmi = HAL_PIXEL_FORMAT_RGBA_8888;
-
-        ALOGE("marco demo getdisplayattr hdmi w %d, h %d", mWidth_hdmi, mHeight_hdmi);
     }
 
     err = hw_get_module(POWER_HARDWARE_MODULE_ID,
@@ -119,40 +107,27 @@ GonkDisplayJB::GonkDisplayJB()
 
     mAlloc = new GraphicBufferAlloc();
 
-    status_t error;
 #if ANDROID_VERSION >= 21
     sp<IGraphicBufferProducer> producer;
     sp<IGraphicBufferConsumer> consumer;
     BufferQueue::createBufferQueue(&producer, &consumer, mAlloc);
-
-    // marco test
-    sp<IGraphicBufferProducer> producer_hdmi;
-    sp<IGraphicBufferConsumer> consumer_hdmi;
-    BufferQueue::createBufferQueue(&producer_hdmi, &consumer_hdmi, mAlloc);
-    ALOGE("marco test create new producer and consumer");
 #elif ANDROID_VERSION >= 19
     sp<BufferQueue> consumer = new BufferQueue(mAlloc);
     sp<IGraphicBufferProducer> producer = consumer;
-
-    sp<BufferQueue> consumer_hdmi = new BufferQueue(mAlloc);
-    sp<IGraphicBufferProducer> producer_hdmi = consumer_hdmi;
 #elif ANDROID_VERSION >= 18
     sp<BufferQueue> consumer = new BufferQueue(true, mAlloc);
     sp<IGraphicBufferProducer> producer = consumer;
 #else
     sp<BufferQueue> consumer = new BufferQueue(true, mAlloc);
 #endif
-    mFBSurface = new FramebufferSurface(0, mWidth, mHeight, surfaceformat, consumer);
 
-    mFBSurface_hdmi = new FramebufferSurface(0, mWidth_hdmi, mHeight_hdmi, surfaceformat_hdmi, consumer_hdmi);
+    mFBSurface = new FramebufferSurface(0, mWidth, mHeight, surfaceformat, consumer);
 
 #if ANDROID_VERSION == 17
     sp<SurfaceTextureClient> stc = new SurfaceTextureClient(
         static_cast<sp<ISurfaceTexture> >(mFBSurface->getBufferQueue()));
 #else
     sp<Surface> stc = new Surface(producer);
-    sp<Surface> stc_hdmi = new Surface(producer_hdmi);
-    ALOGE("marco demo create new surface from producer %p", stc_hdmi.get());
 #endif
     mSTClient = stc;
     mSTClient->perform(mSTClient.get(), NATIVE_WINDOW_SET_BUFFER_COUNT, 2);
@@ -161,15 +136,7 @@ GonkDisplayJB::GonkDisplayJB()
                                         GRALLOC_USAGE_HW_RENDER |
                                         GRALLOC_USAGE_HW_COMPOSER);
 
-    mSTClient_hdmi = stc_hdmi;
-    mSTClient_hdmi->perform(mSTClient_hdmi.get(), NATIVE_WINDOW_SET_BUFFER_COUNT, 2);
-    mSTClient_hdmi->perform(mSTClient_hdmi.get(), NATIVE_WINDOW_SET_USAGE,
-                                            GRALLOC_USAGE_HW_FB |
-                                            GRALLOC_USAGE_HW_RENDER |
-                                            GRALLOC_USAGE_HW_COMPOSER);
-
     mList = (hwc_display_contents_1_t *)malloc(sizeof(*mList) + (sizeof(hwc_layer_1_t)*2));
-    mList_hdmi = (hwc_display_contents_1_t *)malloc(sizeof(*mList_hdmi) + (sizeof(hwc_layer_1_t)*2));
     if (mHwc) {
 #if ANDROID_VERSION >= 21
         if (mHwc->common.version >= HWC_DEVICE_API_VERSION_1_4) {
@@ -262,6 +229,34 @@ GonkDisplayJB::GetFBSurface()
     return mFBSurface.get();
 }
 
+void*
+GonkDisplayJB::GetFBSurface(const uint32_t aType)
+{
+    DisplayDevice* device = GetDevice(aType);
+    MOZ_ASSERT(device);
+    return device->mFBSurface.get();
+}
+
+ANativeWindowBuffer* buf_hdmi;
+
+void
+GonkDisplayJB::DequeueBuffer(const uint32_t aType)
+{
+  DisplayDevice* device = GetDevice(aType);
+  if (device) {
+    device->mSTClient->dequeueBuffer(device->mSTClient.get(), &buf_hdmi, &device->mFence);
+  }
+}
+
+void
+GonkDisplayJB::QueueBuffer(const uint32_t aType)
+{
+  DisplayDevice* device = GetDevice(aType);
+  if (device) {
+    device->mSTClient->queueBuffer(device->mSTClient.get(), buf_hdmi, device->mFence);
+  }
+}
+
 bool
 GonkDisplayJB::SwapBuffers(EGLDisplay dpy, EGLSurface sur)
 {
@@ -281,10 +276,9 @@ GonkDisplayJB::SwapBuffers(EGLDisplay dpy, EGLSurface sur)
     mList->outbufAcquireFenceFd = -1;
 #endif
     eglSwapBuffers(dpy, sur);
+
     return Post(mFBSurface->lastHandle, mFBSurface->GetPrevFBAcquireFd());
 }
-
-ANativeWindowBuffer *buf_hdmi;
 
 bool
 GonkDisplayJB::Post(buffer_handle_t buf, int fence)
@@ -336,80 +330,13 @@ GonkDisplayJB::Post(buffer_handle_t buf, int fence)
 #if ANDROID_VERSION >= 18
     mList->hwLayers[1].planeAlpha = 0xFF;
 #endif
-    //mHwc->prepare(mHwc, HWC_NUM_DISPLAY_TYPES, displays);
-    //int err = mHwc->set(mHwc, HWC_NUM_DISPLAY_TYPES, displays);
-    //mFBSurface->setReleaseFenceFd(mList->hwLayers[1].releaseFenceFd);
-    if (mList->retireFenceFd >= 0)
-        close(mList->retireFenceFd);
-
-// =================================
-
-    const hwc_rect_t r_hdmi = { 0, 0, static_cast<int>(mWidth_hdmi), static_cast<int>(mHeight_hdmi) };
-    displays[HWC_DISPLAY_EXTERNAL] = mList_hdmi;
-    mList_hdmi->retireFenceFd = -1;
-    mList_hdmi->numHwLayers = 2;
-    mList_hdmi->flags = HWC_GEOMETRY_CHANGED;
-    mList_hdmi->hwLayers[0].compositionType = HWC_FRAMEBUFFER;
-    mList_hdmi->hwLayers[0].hints = 0;
-    /* Skip this layer so the hwc module doesn't complain about null handles */
-    mList_hdmi->hwLayers[0].flags = HWC_SKIP_LAYER;
-    mList_hdmi->hwLayers[0].backgroundColor = {0};
-    mList_hdmi->hwLayers[0].acquireFenceFd = -1;
-    mList_hdmi->hwLayers[0].releaseFenceFd = -1;
-    /* hwc module checks displayFrame even though it shouldn't */
-    mList_hdmi->hwLayers[0].displayFrame = r_hdmi;
-    mList_hdmi->hwLayers[1].compositionType = HWC_FRAMEBUFFER_TARGET;
-    mList_hdmi->hwLayers[1].hints = 0;
-    mList_hdmi->hwLayers[1].flags = 0;
-    mList_hdmi->hwLayers[1].handle = buf_hdmi->handle;
-    mList_hdmi->hwLayers[1].transform = 0;
-    mList_hdmi->hwLayers[1].blending = HWC_BLENDING_NONE;
-#if ANDROID_VERSION >= 19
-    if (mHwc->common.version >= HWC_DEVICE_API_VERSION_1_3) {
-        ALOGE("marco demo hwc api version 1.3");
-        mList_hdmi->hwLayers[1].sourceCropf.left = 0;
-        mList_hdmi->hwLayers[1].sourceCropf.top = 0;
-        mList_hdmi->hwLayers[1].sourceCropf.right = mWidth_hdmi;
-        mList_hdmi->hwLayers[1].sourceCropf.bottom = mHeight_hdmi;
-    } else {
-        ALOGE("marco demo hwc api version not 1.3");
-        mList_hdmi->hwLayers[1].sourceCrop = r_hdmi;
-    }
-#else
-    mList_hdmi->hwLayers[1].sourceCrop = r_hdmi;
-#endif
-    mList_hdmi->hwLayers[1].displayFrame = r_hdmi;
-    mList_hdmi->hwLayers[1].visibleRegionScreen.numRects = 1;
-    mList_hdmi->hwLayers[1].visibleRegionScreen.rects = &mList_hdmi->hwLayers[1].displayFrame;
-    mList_hdmi->hwLayers[1].acquireFenceFd = fence;
-    mList_hdmi->hwLayers[1].releaseFenceFd = -1;
-#if ANDROID_VERSION >= 18
-    mList_hdmi->hwLayers[1].planeAlpha = 0xFF;
-#endif
 
     mHwc->prepare(mHwc, HWC_NUM_DISPLAY_TYPES, displays);
     int err = mHwc->set(mHwc, HWC_NUM_DISPLAY_TYPES, displays);
-    ALOGE("marco demo post after mHwc->set() err %d", err);
-    mFBSurface_hdmi->setReleaseFenceFd(mList_hdmi->hwLayers[1].releaseFenceFd);
     mFBSurface->setReleaseFenceFd(mList->hwLayers[1].releaseFenceFd);
-    if (mList_hdmi->retireFenceFd >= 0)
-        close(mList_hdmi->retireFenceFd);
     if (mList->retireFenceFd >= 0)
         close(mList->retireFenceFd);
-
     return !err;
-}
-
-ANativeWindowBuffer*
-GonkDisplayJB::DequeueBuffer(ANativeWindowBuffer** aBuf_hdmi)
-{
-    ANativeWindowBuffer *buf;
-    mSTClient->dequeueBuffer(mSTClient.get(), &buf, &mFence);
-
-    mSTClient_hdmi->dequeueBuffer(mSTClient_hdmi.get(), &buf_hdmi, &mFence_hdmi);
-    ALOGE("marco demo dequebuffer hdmi %p", buf_hdmi);
-    *aBuf_hdmi = buf_hdmi;
-    return buf;
 }
 
 ANativeWindowBuffer*
@@ -417,7 +344,6 @@ GonkDisplayJB::DequeueBuffer()
 {
     ANativeWindowBuffer *buf;
     mSTClient->dequeueBuffer(mSTClient.get(), &buf, &mFence);
-
     return buf;
 }
 
@@ -426,9 +352,6 @@ GonkDisplayJB::QueueBuffer(ANativeWindowBuffer* buf)
 {
     bool success = Post(buf->handle, -1);
     int error = mSTClient->queueBuffer(mSTClient.get(), buf, mFence);
-
-    int error_htmi = mSTClient_hdmi->queueBuffer(mSTClient_hdmi.get(), buf_hdmi, mFence_hdmi);
-    ALOGE("marco demo queuebuffer %d", error_htmi);
 
     return error == 0 && success;
 }
@@ -485,35 +408,34 @@ GonkDisplayJB::AddDisplay(const uint32_t aType,
     device->mXdpi = values[2] / 1000.0f;
     device->mSurfaceformat = HAL_PIXEL_FORMAT_RGBA_8888;
 
-     SLOG("GonkDisplayJB::AddDisplay - type(%d), w(%d) h(%d) xdpi(%f)",
+    SLOG("GonkDisplayJB::AddDisplay - type(%d), w(%d) h(%d) xdpi(%f)",
           aType, device->mWidth, device->mHeight, device->mXdpi);
 
-     if (aType == DISPLAY_EXTERNAL) {
-         // 19 <= ANDROID_VERSION < 21
-         sp<BufferQueue> consumer = new BufferQueue(mAlloc);
-         sp<IGraphicBufferProducer> producer = consumer;
-         device->mSTClient = new Surface(producer);
-         device->mFBSurface = new FramebufferSurface(0, device->mWidth,
-             device->mHeight, device->mSurfaceformat, consumer);
-         // FIXME: for my monitor.
-         device->mXdpi = 81.5;
-         // Testing purpose.
-         device->mList = (hwc_display_contents_1_t *)malloc(
-             sizeof(*device->mList) + (sizeof(hwc_layer_1_t)*2));
-     } else if (aType == DISPLAY_VIRTUAL) {
+    if (aType == DISPLAY_EXTERNAL) {
+        // 19 <= ANDROID_VERSION < 21
+        sp<BufferQueue> consumer = new BufferQueue(mAlloc);
+        sp<IGraphicBufferProducer> producer = consumer;
+        device->mSTClient = new Surface(producer);
+        device->mFBSurface = new FramebufferSurface(1, device->mWidth,
+            device->mHeight, device->mSurfaceformat, consumer);
+        // FIXME: for my monitor.
+        device->mXdpi = 81.5;
+        // Testing purpose.
+        device->mList = (hwc_display_contents_1_t *)malloc(
+            sizeof(*device->mList) + (sizeof(hwc_layer_1_t)*2));
+    } else if (aType == DISPLAY_VIRTUAL) {
          MOZ_ASSERT(aProducer);
          device->mSTClient = new Surface(aProducer);
          // FIXME: for nexus 7.
          device->mXdpi = 213;
-     }
-
-     device->mSTClient->perform(device->mSTClient.get(),
-                                NATIVE_WINDOW_SET_BUFFER_COUNT, 2);
-     device->mSTClient->perform(mSTClient_hdmi.get(), NATIVE_WINDOW_SET_USAGE,
-                                GRALLOC_USAGE_HW_FB |
-                                GRALLOC_USAGE_HW_RENDER |
-                                GRALLOC_USAGE_HW_COMPOSER);
-     SLOG("GonkDisplayJB::AddDisplay - success!");
+    }
+    device->mSTClient->perform(device->mSTClient.get(),
+                               NATIVE_WINDOW_SET_BUFFER_COUNT, 2);
+    device->mSTClient->perform(device->mSTClient.get(), NATIVE_WINDOW_SET_USAGE,
+                               GRALLOC_USAGE_HW_FB |
+                               GRALLOC_USAGE_HW_RENDER |
+                               GRALLOC_USAGE_HW_COMPOSER);
+    SLOG("GonkDisplayJB::AddDisplay - success!");
 }
 
 void

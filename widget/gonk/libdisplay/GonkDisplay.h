@@ -58,9 +58,6 @@ public:
 
     virtual bool SwapBuffers(EGLDisplay dpy, EGLSurface sur) = 0;
 
-    // HDMI Testing
-    virtual ANativeWindowBuffer* DequeueBuffer(ANativeWindowBuffer** aBuf_hdmi) = 0;
-
     virtual ANativeWindowBuffer* DequeueBuffer() = 0;
 
     virtual bool QueueBuffer(ANativeWindowBuffer* buf) = 0;
@@ -81,6 +78,12 @@ public:
 
     virtual DisplayDevice* GetDevice(const uint32_t aType) { return nullptr; }
 
+    virtual void* GetFBSurface(const uint32_t aType) { return nullptr; }
+
+    virtual void DequeueBuffer(const uint32_t aType) {}
+
+    virtual void QueueBuffer(const uint32_t aType) {}
+
     /**
      * Set FramebufferSurface ReleaseFence's file descriptor.
      * ReleaseFence will be signaled after the HWC has finished reading
@@ -94,13 +97,8 @@ public:
      */
     virtual int GetPrevFBAcquireFd() = 0;
 
-    // HDMI Testing
-    virtual hwc_display_contents_1_t* GetHDMILayerList() = 0;
-
     float xdpi;
-    float xdpi_hdmi;
     int32_t surfaceformat;
-    int32_t surfaceformat_hdmi;
 };
 
 MOZ_EXPORT __attribute__ ((weak))

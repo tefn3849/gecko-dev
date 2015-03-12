@@ -44,12 +44,8 @@ public:
 
     virtual bool SwapBuffers(EGLDisplay dpy, EGLSurface sur);
 
-    // HDMI Testing
-    virtual ANativeWindowBuffer* DequeueBuffer(ANativeWindowBuffer** aBuf_hdmi);
-
     virtual ANativeWindowBuffer* DequeueBuffer();
 
-    // HDMI Testing
     virtual bool QueueBuffer(ANativeWindowBuffer* buf);
 
     virtual void UpdateFBSurface(EGLDisplay dpy, EGLSurface sur);
@@ -60,12 +56,6 @@ public:
 
     bool Post(buffer_handle_t buf, int fence);
 
-    // HDMI Testing
-    virtual hwc_display_contents_1_t* GetHDMILayerList() {return mList_hdmi;}
-
-    // HDMI Testing
-    hwc_display_contents_1_t* mList_hdmi;
-
     virtual void AddDisplay(
         const uint32_t aType,
         const android::sp<android::IGraphicBufferProducer>& aProducer = nullptr);
@@ -75,6 +65,12 @@ public:
     virtual DisplayDevice* GetDevice(const uint32_t aType);
 
     virtual ANativeWindow* GetNativeWindow(const uint32_t aType);
+
+    virtual void* GetFBSurface(const uint32_t aType);
+
+    virtual void DequeueBuffer(const uint32_t aType);
+
+    virtual void QueueBuffer(const uint32_t aType);
 
 private:
     hw_module_t const*        mModule;
@@ -90,13 +86,6 @@ private:
     uint32_t mWidth;
     uint32_t mHeight;
     OnEnabledCallbackType mEnabledCallback;
-
-    // HDMI Testing
-    android::sp<android::FramebufferSurface> mFBSurface_hdmi;
-    android::sp<ANativeWindow> mSTClient_hdmi;
-    int mFence_hdmi;
-    uint32_t mWidth_hdmi;
-    uint32_t mHeight_hdmi;
 
     nsTArray<DisplayDevice> mDevices;
 };

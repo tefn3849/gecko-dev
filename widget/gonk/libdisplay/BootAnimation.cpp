@@ -562,9 +562,7 @@ AnimationThread(void *)
                     frame.ReadPngFrame(format);
                 }
 
-                ANativeWindowBuffer *buf_hdmi;
-                ANativeWindowBuffer *buf = display->DequeueBuffer(&buf_hdmi);
-                LOGE("marco demo bootanimiation get hdmi %p", buf_hdmi);
+                ANativeWindowBuffer *buf = display->DequeueBuffer();
                 if (!buf) {
                     LOGW("Failed to get an ANativeWindowBuffer");
                     break;
@@ -580,18 +578,6 @@ AnimationThread(void *)
                     display->QueueBuffer(buf);
                     break;
                 }
-
-                void *vaddr_hdmi;
-
-                if (grmodule->lock(grmodule, buf_hdmi->handle,
-                                   GRALLOC_USAGE_SW_READ_NEVER |
-                                   GRALLOC_USAGE_SW_WRITE_OFTEN |
-                                   GRALLOC_USAGE_HW_FB,
-                                   0, 0, buf_hdmi->width, buf_hdmi->height, &vaddr_hdmi)) {
-                    LOGW("marco demo Failed to lock hdmi buffer_handle_t");
-                }
-                LOGE("marco demo hdmi buffer h %d, w %d", buf_hdmi->height, buf_hdmi->width);
-
 
                 if (frame.has_bgcolor) {
                     wchar_t bgfill = AsBackgroundFill(frame.bgcolor, format);
@@ -620,25 +606,6 @@ AnimationThread(void *)
                     }
                 }
                 grmodule->unlock(grmodule, buf->handle);
-
-                {
-                    int startx = (buf_hdmi->width - frame.width) / 2;
-                    int starty = (buf_hdmi->height - frame.height) / 2;
-
-                    int src_stride = frame.width * frame.bytepp;
-                    int dst_stride = buf_hdmi->stride * frame.bytepp;
-
-                    char *src = frame.buf;
-                    char *dst = (char *) vaddr_hdmi + starty * dst_stride + startx * frame.bytepp;
-
-                    for (int i = 0; i < frame.height; i++) {
-                        memcpy(dst, src, src_stride);
-                        src += src_stride;
-                        dst += dst_stride;
-                    }
-                }
-
-                grmodule->unlock(grmodule, buf_hdmi->handle);
 
                 gettimeofday(&tv2, nullptr);
 

@@ -43,6 +43,7 @@ public:
   hwc_display_contents_1_t* mList;
   float mXdpi;
   int32_t mSurfaceformat;
+  int mFence;
 };
 
 }
