@@ -66,6 +66,7 @@ XPIDL_SOURCES += [
     'nsIClipboardHelper.idl',
     'nsIClipboardOwner.idl',
     'nsIColorPicker.idl',
+    'nsIDisplayDevice.idl',
     'nsIDragService.idl',
     'nsIDragSession.idl',
     'nsIFilePicker.idl',

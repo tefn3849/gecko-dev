@@ -554,22 +554,29 @@ var shell = {
     this.sendEvent(target, type, payload);
   },
 
+  openTopLevelWindow: function(aDisplayDevice) {
+    debug("----- About to open a toplevel window! -----");
+
+    let DISPLAY_OPTION_DICT = [
+      '',                      // nsIDisplayDevice.DISPLAY_TYPE_PRIMARY  (0)
+      '-moz-external-display', // nsIDisplayDevice.DISPLAY_TYPE_EXTERNAL (1)
+      '-moz-virtual-display',  // nsIDisplayDevice.DISPLAY_TYPE_VIRTUAL  (2)
+    ];
+
+    let options = 'chrome,dialog=no,close,resizable,scrollbars,extrachrome,' +
+                  DISPLAY_OPTION_DICT[aDisplayDevice.type];
+    var win = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
+                       .getService(Components.interfaces.nsIWindowWatcher)
+                       .openWindow(null, "./shell-remote.html", "myTopWindow", options, null);
+  },
+
   handleDisplayChangeEvent: function(aSubject, aTopic, aData) {
-    debug('handleDisplayChangeEvent: ' + aTopic);
+    let displayDevice = aSubject.QueryInterface(Ci.nsIDisplayDevice);
 
-    const EVENT_TO_DISPLAY_OPTION = {
-      'virtual_display_connected': '-moz-virtual-display',
-      // Un-comment the following line to enable secondary window on HDMI.
-      // 'external_display_connected': '-moz-external-display'
-    };
+    debug('handleDisplayChangeEvent: ' + JSON.stringify(displayDevice));
 
-    if (EVENT_TO_DISPLAY_OPTION[aTopic]) {
-      debug("----- About to open a toplevel window! -----");
-      let options = 'chrome,dialog=no,close,resizable,scrollbars,extrachrome,' +
-                    EVENT_TO_DISPLAY_OPTION[aTopic];
-      var win = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
-                         .getService(Components.interfaces.nsIWindowWatcher)
-                         .openWindow(null, "./shell-remote.html", "myTopWindow", options, null);
+    if (Ci.nsIDisplayDevice.DISPLAY_TYPE_VIRTUAL === displayDevice.type) {
+      this.openTopLevelWindow(displayDevice);
     }
   },
 
@@ -681,12 +688,9 @@ Services.obs.addObserver(function(subject, topic, data) {
   shell.sendCustomEvent('mozmemorypressure');
 }, 'memory-pressure', false);
 
-['virtual_display_connected',
- 'virtual_display_disconnected',
- 'external_display_connected',
- 'external_display_disconnected'].forEach((aEvent) => {
-  Services.obs.addObserver(shell.handleDisplayChangeEvent, aEvent, false);
-});
+Services.obs.addObserver(shell.handleDisplayChangeEvent.bind(shell),
+                         'display-change',
+                         false);
 
 Services.obs.addObserver(function(subject, topic, data) {
   shell.sendCustomEvent('mozmemorypressure');

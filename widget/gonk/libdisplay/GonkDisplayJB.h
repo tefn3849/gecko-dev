@@ -22,7 +22,7 @@
 #include "hardware/power.h"
 #include "ui/Fence.h"
 #include "utils/RefBase.h"
-
+#include "nsIDisplayDevice.h"
 #include "nsTArray.h"
 
 namespace mozilla {
@@ -73,7 +73,7 @@ public:
     virtual void QueueBuffer(const uint32_t aType);
 
 private:
-    void NotifyDisplayChange(uint32_t aDisplayType, bool aConnected);
+    void NotifyDisplayChange(nsIDisplayDevice* aDisplayDevice);
 
 private:
     hw_module_t const*        mModule;

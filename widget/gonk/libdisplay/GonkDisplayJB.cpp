@@ -397,9 +397,8 @@ public:
     NS_DECL_ISUPPORTS
 
 public:
-    NotifyTask(uint32_t aDisplayType, bool aConnected)
-        : mDisplayType(aDisplayType)
-        , mConnected(aConnected)
+    NotifyTask(nsIDisplayDevice* aDisplayDevice)
+        : mDisplayDevice(aDisplayDevice)
     {
     }
 
@@ -410,37 +409,19 @@ public:
             return NS_ERROR_FAILURE;
         }
 
-        const static struct {
-            const char* mConnectedEvent;
-            const char* mDisconnectedEvent;
-        } DISPLAY_CHANGE_EVENT_TABLE[] = {
-            /* DISPLAY_PRIMARY  */ {"", ""},
-            /* DISPLAY_EXTERNAL */ {"external_display_connected", "external_display_disconnected"},
-            /* DISPLAY_VIRTUAL  */ {"virtual_display_connected",  "virtual_display_disconnected"},
-        };
-
-        if (mDisplayType >= GonkDisplay::NUM_DISPLAY_TYPES) {
-            return NS_ERROR_FAILURE;
-        }
-
-        const char* event = mConnected ?
-            DISPLAY_CHANGE_EVENT_TABLE[mDisplayType].mConnectedEvent :
-            DISPLAY_CHANGE_EVENT_TABLE[mDisplayType].mDisconnectedEvent;
-
-        return os->NotifyObservers(nullptr, event, nullptr);
+        return os->NotifyObservers(mDisplayDevice, "display-change", nullptr);
     }
 private:
-    uint32_t mDisplayType;
-    bool mConnected;
+    nsCOMPtr<nsIDisplayDevice> mDisplayDevice;
 };
 
 NS_IMPL_ISUPPORTS(NotifyTask, nsIRunnable)
 } // end of unnamed namespace
 
 void
-GonkDisplayJB::NotifyDisplayChange(uint32_t aDisplayType, bool aConnected) 
+GonkDisplayJB::NotifyDisplayChange(nsIDisplayDevice* aDisplayDevice)
 {
-    NS_DispatchToMainThread(new NotifyTask(aDisplayType, aConnected));
+    NS_DispatchToMainThread(new NotifyTask(aDisplayDevice));
 }
 
 void
@@ -494,14 +475,16 @@ GonkDisplayJB::AddDisplay(const uint32_t aType,
                                GRALLOC_USAGE_HW_COMPOSER);
     SLOG("GonkDisplayJB::AddDisplay - success!");
 
-    NotifyDisplayChange(aType, true);
+    NotifyDisplayChange(new DisplayDevice(*device));
 }
 
 void
 GonkDisplayJB::RemoveDisplay(const uint32_t aType)
 {
     SLOG("TODO: Implement RemoveDisplay!!");
-    NotifyDisplayChange(aType, false);
+    DisplayDevice *device = new DisplayDevice(aType);
+    device->mConnected = false;
+    NotifyDisplayChange(device);
 }
 
 ANativeWindow*

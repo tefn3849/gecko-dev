@@ -20,6 +20,7 @@
 #include "mozilla/Types.h"
 #include <utils/StrongPointer.h>
 #include "hardware/hwcomposer.h"
+#include "nsIDisplayDevice.h"
 
 namespace android {
 class FramebufferSurface;
@@ -27,7 +28,11 @@ class FramebufferSurface;
 
 namespace mozilla {
 
-class DisplayDevice {
+class DisplayDevice : public nsIDisplayDevice {
+public:
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIDISPLAYDEVICE
+
 public:
   DisplayDevice();
   DisplayDevice(uint32_t aType);
@@ -36,6 +41,7 @@ public:
 
 //private:
   int mType;
+  bool mConnected;
   android::sp<android::FramebufferSurface> mFBSurface;
   android::sp<ANativeWindow> mSTClient;
   uint32_t mWidth;
