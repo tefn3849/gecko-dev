@@ -807,7 +807,8 @@ var WebappsHelper = {
           let payload = {
             timestamp: json.timestamp,
             url: manifest.fullLaunchPath(json.startPoint),
-            manifestURL: json.manifestURL
+            manifestURL: json.manifestURL,
+            remoteId: json.remoteId
           };
           shell.sendCustomEvent("webapps-launch", payload);
         });
