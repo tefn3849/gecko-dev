@@ -57,6 +57,8 @@
 #endif
 #include "GeckoProfiler.h"
 #include "TextRenderer.h"               // for TextRenderer
+// gonk platform
+#include "nsWindow.h"
 
 class gfxContext;
 struct nsIntSize;
@@ -664,7 +666,12 @@ LayerManagerComposite::Render()
     composer2D = mCompositor->GetWidget()->GetComposer2D();
   }
 
-  if (!mTarget && composer2D && composer2D->TryRender(mRoot, mGeometryChanged)) {
+  int displaytype = 0;
+  if (composer2D) {
+    displaytype = (static_cast<nsWindow*>(mCompositor->GetWidget()))->GetDisplayType();
+  }
+
+  if (!mTarget && composer2D && composer2D->TryRender(mRoot, mGeometryChanged, displaytype)) {
     LayerScope::SetHWComposed();
     if (mFPS) {
       double fps = mFPS->mCompositionFps.AddFrameAndGetFps(TimeStamp::Now());

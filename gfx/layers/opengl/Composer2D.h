@@ -52,7 +52,7 @@ public:
    * Currently, when TryRender() returns true, the entire framebuffer
    * must have been rendered.
    */
-  virtual bool TryRender(Layer* aRoot, bool aGeometryChanged) = 0;
+  virtual bool TryRender(Layer* aRoot, bool aGeometryChanged, int aDisplayType = 0) = 0;
 };
 
 } // namespace layers

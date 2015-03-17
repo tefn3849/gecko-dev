@@ -26,7 +26,8 @@ class GLContextEGL : public GLContext
                     GLContextEGL *shareContext,
                     bool isOffscreen,
                     EGLConfig config,
-                    EGLSurface surface);
+                    EGLSurface surface,
+                    uint32_t displayType);
 
 public:
     MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(GLContextEGL, MOZ_OVERRIDE)
@@ -35,7 +36,8 @@ public:
                  bool isOffscreen,
                  EGLConfig config,
                  EGLSurface surface,
-                 EGLContext context);
+                 EGLContext context,
+                 uint32_t displayType);
 
     ~GLContextEGL();
 
@@ -118,6 +120,7 @@ protected:
     nsRefPtr<HwcComposer2D> mHwc;
 #endif
     bool mOwnsContext;
+    uint32_t mDisplayType;
 
     static EGLSurface CreatePBufferSurfaceTryingPowerOfTwo(EGLConfig config,
                                                            EGLenum bindToTextureFormat,

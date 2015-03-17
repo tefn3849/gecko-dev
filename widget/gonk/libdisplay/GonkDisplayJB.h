@@ -72,6 +72,10 @@ public:
 
     virtual void QueueBuffer(const uint32_t aType);
 
+    virtual void SetFBReleaseFd(const uint32_t aType, int fd);
+
+    virtual int GetPrevFBAcquireFd(const uint32_t aType);
+
 private:
     void NotifyDisplayChange(nsIDisplayDevice* aDisplayDevice);
 

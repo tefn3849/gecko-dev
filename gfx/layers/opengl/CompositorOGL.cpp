@@ -56,6 +56,7 @@
 
 #if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
 #include "libdisplay/GonkDisplay.h"     // for GonkDisplay
+#include "nsWindow.h"
 #include <ui/Fence.h>
 #endif
 
@@ -1287,7 +1288,8 @@ CompositorOGL::SetFBAcquireFence(Layer* aLayer)
     return;
   }
 
-  android::sp<android::Fence> fence = new android::Fence(GetGonkDisplay()->GetPrevFBAcquireFd());
+  uint32_t displaytype = (static_cast<nsWindow*>(mWidget))->GetDisplayType();
+  android::sp<android::Fence> fence = new android::Fence(GetGonkDisplay()->GetPrevFBAcquireFd(displaytype));
   if (fence.get() && fence->isValid()) {
     FenceHandle handle = FenceHandle(fence);
     mReleaseFenceHandle.Merge(handle);

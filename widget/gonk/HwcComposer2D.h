@@ -87,9 +87,10 @@ public:
     // Returns FALSE if the container cannot be fully rendered
     // by this composer so nothing was rendered at all
     bool TryRender(layers::Layer* aRoot,
-                   bool aGeometryChanged) MOZ_OVERRIDE;
+                   bool aGeometryChanged,
+                   int aDisplayType = 0) MOZ_OVERRIDE;
 
-    bool Render(EGLDisplay dpy, EGLSurface sur);
+    bool Render(EGLDisplay dpy, EGLSurface sur, int aDisplayType = 0);
 
     bool EnableVsync(bool aEnable);
 #if ANDROID_VERSION >= 17
@@ -98,7 +99,7 @@ public:
     void Invalidate();
     void Hotplug(int aDisplay, int aConnected);
 #endif
-    void SetCompositorParent(layers::CompositorParent* aCompositorParent);
+    void SetCompositorParent(int aDisplayType, layers::CompositorParent* aCompositorParent);
 
 private:
     void Reset();
@@ -115,11 +116,13 @@ private:
 
     HwcDevice*              mHwc;
     HwcList*                mList;
+    HwcList*                mLists[3];
     HwcList*                mListHdmi; // FIXME!
     hwc_display_t           mDpy;
     hwc_surface_t           mSur;
     gl::GLContext*          mGLContext;
     nsIntRect               mScreenRect;
+    nsIntRect               mScreenRects[3];
     nsIntRect               mScreenRectHdmi; // FIXME!
     hwc_rect_t              mMirroredDisplayFrame;
     int                     mMaxLayerCount;
@@ -137,7 +140,9 @@ private:
     bool                    mPrepared;
     bool                    mHasHWVsync;
     bool                    mMirrorEnabled;
+    bool                    mExternalConnected;
     nsRefPtr<layers::CompositorParent> mCompositorParent;
+    nsRefPtr<layers::CompositorParent> mCompositorParents[3];
     Mutex mLock;
 };
 

@@ -211,7 +211,8 @@ GLContextEGL::GLContextEGL(
                   bool isOffscreen,
                   EGLConfig config,
                   EGLSurface surface,
-                  EGLContext context)
+                  EGLContext context,
+                  uint32_t aDisplayType)
     : GLContext(caps, shareContext, isOffscreen)
     , mConfig(config)
     , mSurface(surface)
@@ -224,6 +225,7 @@ GLContextEGL::GLContextEGL(
     , mCanBindToTexture(false)
     , mShareWithEGLImage(false)
     , mOwnsContext(true)
+    , mDisplayType(aDisplayType)
 {
     // any EGL contexts will always be GLESv2
     SetProfileVersion(ContextProfile::OpenGLES, 200);
@@ -234,11 +236,15 @@ GLContextEGL::GLContextEGL(
 #if defined(MOZ_WIDGET_GONK)
     if (!mIsOffscreen) {
         mHwc = HwcComposer2D::GetInstance();
-        MOZ_ASSERT(!mHwc->Initialized());
+        if (mDisplayType == GonkDisplay::DISPLAY_PRIMARY) {
+            MOZ_ASSERT(!mHwc->Initialized());
 
-        if (mHwc->Init(EGL_DISPLAY(), mSurface, this)) {
-            NS_WARNING("HWComposer initialization failed!");
-            mHwc = nullptr;
+            if (mHwc->Init(EGL_DISPLAY(), mSurface, this)) {
+                NS_WARNING("HWComposer initialization failed!");
+                mHwc = nullptr;
+            }
+        } else {
+            MOZ_ASSERT(mHwc->Initialized());
         }
     }
 #endif
@@ -464,7 +470,7 @@ GLContextEGL::SwapBuffers()
 #ifdef MOZ_WIDGET_GONK
         if (!mIsOffscreen) {
             if (mHwc) {
-                return mHwc->Render(EGL_DISPLAY(), mSurface);
+                return mHwc->Render(EGL_DISPLAY(), mSurface, mDisplayType);
             } else {
                 return GetGonkDisplay()->SwapBuffers(EGL_DISPLAY(), mSurface);
             }
@@ -488,7 +494,8 @@ GLContextEGL::CreateGLContext(const SurfaceCaps& caps,
                 GLContextEGL *shareContext,
                 bool isOffscreen,
                 EGLConfig config,
-                EGLSurface surface)
+                EGLSurface surface,
+                uint32_t displayType)
 {
     if (sEGLLibrary.fBindAPI(LOCAL_EGL_OPENGL_ES_API) == LOCAL_EGL_FALSE) {
         NS_WARNING("Failed to bind API to GLES!");
@@ -521,7 +528,8 @@ GLContextEGL::CreateGLContext(const SurfaceCaps& caps,
                                                         isOffscreen,
                                                         config,
                                                         surface,
-                                                        context);
+                                                        context,
+                                                        displayType);
 
     if (!glContext->Init())
         return nullptr;
@@ -733,7 +741,7 @@ GLContextProviderEGL::CreateWrappingExisting(void* aContext, void* aSurface)
         nsRefPtr<GLContextEGL> glContext =
             new GLContextEGL(caps,
                              nullptr, false,
-                             config, (EGLSurface)aSurface, (EGLContext)aContext);
+                             config, (EGLSurface)aSurface, (EGLContext)aContext, 0);
 
         glContext->SetIsDoubleBuffered(true);
         glContext->mOwnsContext = false;
@@ -770,14 +778,14 @@ GLContextProviderEGL::CreateForWindow(nsIWidget *aWidget)
     // FIXME: 1. should try to enable hwc.
     //        2. DisplayType might be able to get from GonkDidsplay.
     uint32_t displaytype = (static_cast<nsWindow*>(aWidget))->GetDisplayType();
-    bool isOffscreen = displaytype != GonkDisplay::DISPLAY_PRIMARY;
+    bool isOffscreen = displaytype == GonkDisplay::DISPLAY_VIRTUAL;
     LOG("slin: Display type: %d, offscreen: %d", displaytype, isOffscreen);
 
     SurfaceCaps caps = SurfaceCaps::Any();
     nsRefPtr<GLContextEGL> glContext =
         GLContextEGL::CreateGLContext(caps,
                                       nullptr, isOffscreen,
-                                      config, surface);
+                                      config, surface, displaytype);
 
     if (!glContext) {
         MOZ_CRASH("Failed to create EGLContext!\n");
@@ -828,7 +836,7 @@ GLContextEGL::CreateEGLPBufferOffscreenContext(const gfxIntSize& size)
     nsRefPtr<GLContextEGL> glContext =
         GLContextEGL::CreateGLContext(dummyCaps,
                                       nullptr, true,
-                                      config, surface);
+                                      config, surface, 0);
     if (!glContext) {
         NS_WARNING("Failed to create GLContext from PBuffer");
         sEGLLibrary.fDestroySurface(EGL_DISPLAY(), surface);
@@ -866,7 +874,7 @@ GLContextEGL::CreateEGLPixmapOffscreenContext(const gfxIntSize& size)
     nsRefPtr<GLContextEGL> glContext =
         GLContextEGL::CreateGLContext(dummyCaps,
                                       nullptr, true,
-                                      config, surface);
+                                      config, surface, 0);
     if (!glContext) {
         NS_WARNING("Failed to create GLContext from XSurface");
         sEGLLibrary.fDestroySurface(EGL_DISPLAY(), surface);

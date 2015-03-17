@@ -235,9 +235,13 @@ GonkDisplayJB::GetFBSurface()
 void*
 GonkDisplayJB::GetFBSurface(const uint32_t aType)
 {
-    DisplayDevice* device = GetDevice(aType);
-    MOZ_ASSERT(device);
-    return device->mFBSurface.get();
+    if (aType == DISPLAY_PRIMARY) {
+      return mFBSurface.get();
+    } else {
+        DisplayDevice* device = GetDevice(aType);
+        MOZ_ASSERT(device);
+        return device->mFBSurface.get();
+    }
 }
 
 ANativeWindowBuffer* buf_hdmi;
@@ -371,10 +375,36 @@ GonkDisplayJB::SetFBReleaseFd(int fd)
     mFBSurface->setReleaseFenceFd(fd);
 }
 
+void
+GonkDisplayJB::SetFBReleaseFd(const uint32_t aType, int fd)
+{
+    if (aType == DISPLAY_PRIMARY) {
+        mFBSurface->setReleaseFenceFd(fd);
+    } else {
+        DisplayDevice* device = GetDevice(aType);
+        if (device) {
+            device->mFBSurface->setReleaseFenceFd(fd);
+        }
+    }
+}
+
 int
 GonkDisplayJB::GetPrevFBAcquireFd()
 {
     return mFBSurface->GetPrevFBAcquireFd();
+}
+
+int
+GonkDisplayJB::GetPrevFBAcquireFd(const uint32_t aType)
+{
+    if (aType == DISPLAY_PRIMARY) {
+        return mFBSurface->GetPrevFBAcquireFd();
+   } else {
+       DisplayDevice* device = GetDevice(aType);
+       if (device) {
+           return device->mFBSurface->GetPrevFBAcquireFd();
+       }
+   }
 }
 
 DisplayDevice*
@@ -430,6 +460,13 @@ GonkDisplayJB::AddDisplay(const uint32_t aType,
 {
     MOZ_ASSERT(aType < NUM_DISPLAY_TYPES && mHwc);
 
+    if (GetDevice(aType)) {
+        // TODO: A device of aType is already existed, should we return an
+        // error or remove the old one, add the new one automatically?
+        SLOG("GonkDisplayJB::AddDisplay, Error!?");
+        return;
+    }
+
     int32_t values[3];
     const uint32_t attrs[] = {
         HWC_DISPLAY_WIDTH,
@@ -482,9 +519,20 @@ void
 GonkDisplayJB::RemoveDisplay(const uint32_t aType)
 {
     SLOG("TODO: Implement RemoveDisplay!!");
-    DisplayDevice *device = new DisplayDevice(aType);
+    DisplayDevice *device = GetDevice(aType);
+    if (!device) {
+        return;
+    }
+
     device->mConnected = false;
-    NotifyDisplayChange(device);
+    NotifyDisplayChange(new DisplayDevice(*device));
+
+    for (int i = 0; i < mDevices.Length(); ++i) {
+        if (aType == mDevices[i].mType) {
+            mDevices.RemoveElementAt(i);
+            break;
+        }
+    }
 }
 
 ANativeWindow*

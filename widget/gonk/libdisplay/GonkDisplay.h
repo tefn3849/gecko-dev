@@ -38,9 +38,9 @@ typedef void * EGLSurface;
 class MOZ_EXPORT GonkDisplay {
 public:
     enum {
-        DISPLAY_PRIMARY,
-        DISPLAY_EXTERNAL,
-        DISPLAY_VIRTUAL,
+        DISPLAY_PRIMARY, // The default builtin display.
+        DISPLAY_EXTERNAL, // Display connected through HDMI.
+        DISPLAY_VIRTUAL, // Display connected through network.
         NUM_DISPLAY_TYPES
     };
 
@@ -64,11 +64,17 @@ public:
 
     virtual void UpdateFBSurface(EGLDisplay dpy, EGLSurface sur) = 0;
 
+    /**
+     *
+     */
     virtual void AddDisplay(
         const uint32_t aType,
         const android::sp<android::IGraphicBufferProducer>& aProducer = nullptr)
     {}
 
+    /**
+     *
+     */
     virtual void RemoveDisplay(const uint32_t aType) {}
 
     virtual ANativeWindow* GetNativeWindow(const uint32_t aType)
@@ -83,6 +89,10 @@ public:
     virtual void DequeueBuffer(const uint32_t aType) {}
 
     virtual void QueueBuffer(const uint32_t aType) {}
+
+    virtual void SetFBReleaseFd(const uint32_t aType, int fd) {}
+
+    virtual int GetPrevFBAcquireFd(const uint32_t aType) { return -1; }
 
     /**
      * Set FramebufferSurface ReleaseFence's file descriptor.
