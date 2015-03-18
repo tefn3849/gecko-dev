@@ -575,7 +575,8 @@ var shell = {
 
     debug('handleDisplayChangeEvent: ' + JSON.stringify(displayDevice));
 
-    if (Ci.nsIDisplayDevice.DISPLAY_TYPE_EXTERNAL === displayDevice.type) {
+    if (Ci.nsIDisplayDevice.DISPLAY_TYPE_EXTERNAL === displayDevice.type ||
+        Ci.nsIDisplayDevice.DISPLAY_TYPE_VIRTUAL === displayDevice.type) {
       if (displayDevice.connected) {
         this.openTopLevelWindow(displayDevice);
       }

@@ -1289,6 +1289,10 @@ CompositorOGL::SetFBAcquireFence(Layer* aLayer)
   }
 
   uint32_t displaytype = (static_cast<nsWindow*>(mWidget))->GetDisplayType();
+  if (displaytype == GonkDisplay::DISPLAY_VIRTUAL) {
+    // Don't bother with fence for virtual dispaly
+    return;
+  }
   android::sp<android::Fence> fence = new android::Fence(GetGonkDisplay()->GetPrevFBAcquireFd(displaytype));
   if (fence.get() && fence->isValid()) {
     FenceHandle handle = FenceHandle(fence);
