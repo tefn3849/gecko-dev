@@ -1099,8 +1099,8 @@ pref("dom.requestSync.enabled", true);
 // kit kat == 19, L = 21, 20 is kit-kat for wearables
 // 15 is for the ICS emulators which will fallback to software vsync
 #if ANDROID_VERSION == 19 || ANDROID_VERSION == 21 || ANDROID_VERSION == 15
-pref("gfx.vsync.hw-vsync.enabled", false);
-pref("gfx.vsync.compositor", false);
+pref("gfx.vsync.hw-vsync.enabled", true);
+pref("gfx.vsync.compositor", true);
 pref("gfx.touch.resample", true);
 #else
 pref("gfx.vsync.hw-vsync.enabled", false);
