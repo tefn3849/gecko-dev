@@ -110,7 +110,6 @@ static int sType = GonkDisplay::DISPLAY_PRIMARY;
 HwcComposer2D::HwcComposer2D()
     : mHwc(nullptr)
     , mList(nullptr)
-    , mListHdmi(nullptr)
     , mGLContext(nullptr)
     , mMaxLayerCount(0)
     , mColorFill(false)
@@ -122,7 +121,6 @@ HwcComposer2D::HwcComposer2D()
 #endif
     , mPrepared(false)
     , mHasHWVsync(false)
-    , mMirrorEnabled(false)
     , mLock("mozilla.HwcComposer2D.mLock")
 {
 #if ANDROID_VERSION >= 17
@@ -135,7 +133,6 @@ HwcComposer2D::HwcComposer2D()
 
 HwcComposer2D::~HwcComposer2D() {
     free(mList);
-    free(mListHdmi);
     for (int i = 0; i < GonkDisplay::NUM_DISPLAY_TYPES; ++i) {
         free(mLists[i]);
     }
@@ -268,7 +265,6 @@ void
 HwcComposer2D::Hotplug(int aDisplay, int aConnected)
 {
     if (aConnected) {
-        LOGE("slin: Hotplug detected, about the add a display");
         GetGonkDisplay()->AddDisplay(GonkDisplay::DISPLAY_EXTERNAL);
         nsIntSize screenSize;
         ANativeWindow *win = GetGonkDisplay()->GetNativeWindow(GonkDisplay::DISPLAY_EXTERNAL);
@@ -281,7 +277,7 @@ HwcComposer2D::Hotplug(int aDisplay, int aConnected)
             int size = sizeof(HwcList) + (mMaxLayerCount * sizeof(HwcLayer));
             HwcList* listrealloc = (HwcList*)realloc(mLists[GonkDisplay::DISPLAY_EXTERNAL], size);
             if (!listrealloc) {
-              LOGE("slin: Allocating layer list of hdmi has failed!");
+              LOGE("Allocating layer list of hdmi has failed!");
             }
             listrealloc->numHwLayers = 0;
             listrealloc->flags = 0;
@@ -290,36 +286,6 @@ HwcComposer2D::Hotplug(int aDisplay, int aConnected)
     } else {
       GetGonkDisplay()->RemoveDisplay(GonkDisplay::DISPLAY_EXTERNAL);
     }
-
-/*
-    // FIXME: Should not always be mirror mode.
-    mMirrorEnabled = (aConnected == 1);
-    if (mMirrorEnabled) {
-        LOGE("slin: Hotplug detected, enable mirror display!");
-        GetGonkDisplay()->AddDisplay(GonkDisplay::DISPLAY_EXTERNAL);
-
-        nsIntSize screenSize;
-        ANativeWindow *win = GetGonkDisplay()->GetNativeWindow(GonkDisplay::DISPLAY_EXTERNAL);
-        if (win) {
-            win->query(win, NATIVE_WINDOW_WIDTH, &screenSize.width);
-            win->query(win, NATIVE_WINDOW_HEIGHT, &screenSize.height);
-        }
-        mScreenRectHdmi = nsIntRect(nsIntPoint(0, 0), screenSize);
-
-        if (!mListHdmi) {
-            int size = sizeof(HwcList) + (mMaxLayerCount * sizeof(HwcLayer));
-            HwcList* listrealloc = (HwcList*)realloc(mListHdmi, size);
-            if (!listrealloc) {
-              LOGE("slin: Allocating layer list of hdmi has failed!");
-            }
-            listrealloc->numHwLayers = 0;
-            listrealloc->flags = 0;
-            mListHdmi = listrealloc;
-        }
-    } else {
-        GetGonkDisplay()->RemoveDisplay(GonkDisplay::DISPLAY_EXTERNAL);
-    }
-*/
 }
 #endif
 
@@ -334,7 +300,6 @@ HwcComposer2D::SetCompositorParent(int aDisplayType, CompositorParent* aComposit
 bool
 HwcComposer2D::ReallocLayerList()
 {
-    LOGE("slin: ReallocLayerList type:%d", sType);
     int size = sizeof(HwcList) +
         ((mMaxLayerCount + LAYER_COUNT_INCREMENTS) * sizeof(HwcLayer));
 
@@ -832,9 +797,6 @@ HwcComposer2D::TryHwComposition()
 
     GetGonkDisplay()->SetFBReleaseFd(sType, mLists[sType]->hwLayers[idx].releaseFenceFd);
     mLists[sType]->hwLayers[idx].releaseFenceFd = -1;
-    if (mListHdmi) {
-        mListHdmi->hwLayers[mListHdmi->numHwLayers - 1].releaseFenceFd = -1;
-    }
     return true;
 }
 
@@ -845,10 +807,6 @@ HwcComposer2D::Render(EGLDisplay dpy, EGLSurface sur, int aDisplayType)
     if (!mLists[sType]) {
         // After boot, HWC list hasn't been created yet
         return GetGonkDisplay()->SwapBuffers(dpy, sur);
-    }
-
-    if (mMirrorEnabled) {
-        GetGonkDisplay()->DequeueBuffer(GonkDisplay::DISPLAY_EXTERNAL);
     }
 
     GetGonkDisplay()->UpdateFBSurface(dpy, sur);
@@ -863,12 +821,6 @@ HwcComposer2D::Render(EGLDisplay dpy, EGLSurface sur, int aDisplayType)
         // No mHwc prepare, if already prepared in current draw cycle
         mLists[sType]->hwLayers[mLists[sType]->numHwLayers - 1].handle = fbsurface->lastHandle;
         mLists[sType]->hwLayers[mLists[sType]->numHwLayers - 1].acquireFenceFd = fbsurface->GetPrevFBAcquireFd();
-        if (mMirrorEnabled) {
-            FramebufferSurface* fbsurface = (FramebufferSurface*)
-                      (GetGonkDisplay()->GetFBSurface(GonkDisplay::DISPLAY_EXTERNAL));
-            mListHdmi->hwLayers[mListHdmi->numHwLayers - 1].handle = fbsurface->lastHandle;
-            mListHdmi->hwLayers[mListHdmi->numHwLayers - 1].acquireFenceFd = -1;
-        }
     } else {
         mLists[sType]->flags = HWC_GEOMETRY_CHANGED;
         mLists[sType]->numHwLayers = 2;
@@ -888,10 +840,6 @@ HwcComposer2D::Render(EGLDisplay dpy, EGLSurface sur, int aDisplayType)
     GetGonkDisplay()->SetFBReleaseFd(sType, mLists[sType]->hwLayers[mLists[sType]->numHwLayers - 1].releaseFenceFd);
     mLists[sType]->hwLayers[mLists[sType]->numHwLayers - 1].releaseFenceFd = -1;
 
-    if (mMirrorEnabled) {
-        mListHdmi->hwLayers[mListHdmi->numHwLayers - 1].releaseFenceFd = -1;
-        GetGonkDisplay()->QueueBuffer(GonkDisplay::DISPLAY_EXTERNAL);
-    }
     return true;
 }
 
@@ -928,51 +876,9 @@ HwcComposer2D::Prepare(buffer_handle_t fbHandle, int fence)
         LOGE("Multiple hwc prepare calls!");
     }
 
-    if (mMirrorEnabled) {
-        PrepareFromPrimary();
-
-        displays[HWC_DISPLAY_EXTERNAL] = mListHdmi;
-        mListHdmi->outbufAcquireFenceFd = -1;
-        mListHdmi->outbuf = nullptr;
-        mListHdmi->retireFenceFd = -1;
-
-        FramebufferSurface* fbsurface = (FramebufferSurface*)
-                    (GetGonkDisplay()->GetFBSurface(GonkDisplay::DISPLAY_EXTERNAL));
-
-        mListHdmi->numHwLayers++;
-        int idx = mListHdmi->numHwLayers - 1;
-
-        mListHdmi->hwLayers[idx].hints = 0;
-        mListHdmi->hwLayers[idx].flags = 0;
-        mListHdmi->hwLayers[idx].transform = 0;
-        mListHdmi->hwLayers[idx].handle = fbsurface->lastHandle; // new handle
-        mListHdmi->hwLayers[idx].blending = HWC_BLENDING_PREMULT;
-        mListHdmi->hwLayers[idx].compositionType = HWC_FRAMEBUFFER_TARGET;
-        setCrop(&mListHdmi->hwLayers[idx], r);
-        mListHdmi->hwLayers[idx].displayFrame = mMirroredDisplayFrame;
-        mListHdmi->hwLayers[idx].visibleRegionScreen.numRects = 1;
-        mListHdmi->hwLayers[idx].visibleRegionScreen.rects = &mListHdmi->hwLayers[idx].displayFrame;
-        mListHdmi->hwLayers[idx].acquireFenceFd = -1;
-        mListHdmi->hwLayers[idx].releaseFenceFd = -1;
-#if ANDROID_VERSION >= 18
-        mListHdmi->hwLayers[idx].planeAlpha = 0xFF;
-#endif
-        // FIXME: Should blank only once.
-        mHwc->blank(mHwc, HWC_DISPLAY_EXTERNAL, 0);
-    }
-
     if (sType != GonkDisplay::DISPLAY_PRIMARY) {
+        // FIXME: Should blank only once.
         mHwc->blank(mHwc, sType, 0);
-    }
-
-    LOGE("hwc prepare, type:%d", sType);
-    for (int i = 0; i < mLists[sType]->numHwLayers; ++i) {
-      LOGE("layer[%d] type:%d, display frame:(%d,%d,%d,%d)", i,
-          mLists[sType]->hwLayers[i].compositionType,
-          mLists[sType]->hwLayers[i].displayFrame.top,
-          mLists[sType]->hwLayers[i].displayFrame.left,
-          mLists[sType]->hwLayers[i].displayFrame.right,
-          mLists[sType]->hwLayers[i].displayFrame.bottom);
     }
 
     mHwc->prepare(mHwc, HWC_NUM_DISPLAY_TYPES, displays);
@@ -986,13 +892,9 @@ HwcComposer2D::Commit()
     for (int i = 0; i < HWC_NUM_DISPLAY_TYPES; ++i) {
         displays[i] = mLists[i];
     }
-    //displays[HWC_DISPLAY_EXTERNAL] = mListHdmi;
 
     for (uint32_t j=0; j < (mLists[sType]->numHwLayers - 1); j++) {
         mLists[sType]->hwLayers[j].acquireFenceFd = -1;
-        if (mMirrorEnabled) {
-            mListHdmi->hwLayers[j].acquireFenceFd = -1;
-        }
         if (mHwcLayerMap.IsEmpty() ||
             (mLists[sType]->hwLayers[j].compositionType == HWC_FRAMEBUFFER)) {
             continue;
@@ -1011,16 +913,6 @@ HwcComposer2D::Commit()
         }
     }
 
-    LOGE("hwc set, type:%d", sType);
-    for (int i = 0; i < mLists[sType]->numHwLayers; ++i) {
-      LOGE("layer[%d] type:%d, display frame:(%d,%d,%d,%d)", i,
-          mLists[sType]->hwLayers[i].compositionType,
-          mLists[sType]->hwLayers[i].displayFrame.top,
-          mLists[sType]->hwLayers[i].displayFrame.left,
-          mLists[sType]->hwLayers[i].displayFrame.right,
-          mLists[sType]->hwLayers[i].displayFrame.bottom);
-    }
-
     int err = mHwc->set(mHwc, HWC_NUM_DISPLAY_TYPES, displays);
 
     mPrevDisplayFence = mPrevRetireFence;
@@ -1030,9 +922,6 @@ HwcComposer2D::Commit()
         if (mLists[sType]->hwLayers[j].releaseFenceFd >= 0) {
             int fd = mLists[sType]->hwLayers[j].releaseFenceFd;
             mLists[sType]->hwLayers[j].releaseFenceFd = -1;
-            if (mMirrorEnabled) {
-                mListHdmi->hwLayers[j].releaseFenceFd = -1;
-            }
             sp<Fence> fence = new Fence(fd);
 
             LayerRenderState state = mHwcLayerMap[j]->GetLayer()->GetRenderState();
@@ -1089,8 +978,8 @@ HwcComposer2D::TryRender(Layer* aRoot,
                          int aDisplayType)
 {
     MOZ_ASSERT(Initialized());
+
     sType = aDisplayType;
-    LOGE("slin: TryRender with display type:%d", sType);
     if (mLists[sType]) {
         setHwcGeometry(aGeometryChanged);
         mLists[sType]->numHwLayers = 0;
@@ -1099,16 +988,6 @@ HwcComposer2D::TryRender(Layer* aRoot,
 
     if (mPrepared) {
         Reset();
-    }
-
-    // Calculate the display frame for external display in mirror mode
-    if (mMirrorEnabled) {
-        nsIntSize rect(mScreenRect.width * mScreenRectHdmi.height / mScreenRect.height,
-                       mScreenRect.height * mScreenRectHdmi.height / mScreenRect.height);
-        mMirroredDisplayFrame = {(mScreenRectHdmi.width-rect.width)/2,
-                                 (mScreenRectHdmi.height-rect.height)/2,
-                                 (mScreenRectHdmi.width+rect.width)/2,
-                                 (mScreenRectHdmi.height+rect.height)/2};
     }
 
     // XXX: The clear() below means all rect vectors will be have to be
@@ -1150,30 +1029,6 @@ HwcComposer2D::SendtoLayerScope()
         LayerComposite* layer = mHwcLayerMap[i];
         const hwc_rect_t r = mLists[sType]->hwLayers[i].displayFrame;
         LayerScope::SendLayer(layer, r.right - r.left, r.bottom - r.top);
-    }
-}
-
-void
-HwcComposer2D::PrepareFromPrimary()
-{
-    if (!mListHdmi) {
-        return;
-    }
-
-    mListHdmi->numHwLayers = 0;
-    mListHdmi->flags = mList->flags;
-    int idx = 0;
-    for (int i = 0; i < mList->numHwLayers; ++i) {
-        if (mList->hwLayers[i].compositionType == HWC_FRAMEBUFFER) {
-            continue;
-        }
-        mListHdmi->hwLayers[idx] = mList->hwLayers[i];
-        mListHdmi->hwLayers[idx].displayFrame = mMirroredDisplayFrame;
-        mListHdmi->hwLayers[idx].visibleRegionScreen.rects = &mListHdmi->hwLayers[i].displayFrame;
-        if (mListHdmi->hwLayers[idx].compositionType == HWC_FRAMEBUFFER_TARGET) {
-            mListHdmi->hwLayers[idx].compositionType = HWC_FRAMEBUFFER;
-        }
-        idx = mListHdmi->numHwLayers++;
     }
 }
 

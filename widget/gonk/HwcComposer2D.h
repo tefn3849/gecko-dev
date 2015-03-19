@@ -117,13 +117,11 @@ private:
     HwcDevice*              mHwc;
     HwcList*                mList;
     HwcList*                mLists[3];
-    HwcList*                mListHdmi; // FIXME!
     hwc_display_t           mDpy;
     hwc_surface_t           mSur;
     gl::GLContext*          mGLContext;
     nsIntRect               mScreenRect;
     nsIntRect               mScreenRects[3];
-    nsIntRect               mScreenRectHdmi; // FIXME!
     hwc_rect_t              mMirroredDisplayFrame;
     int                     mMaxLayerCount;
     bool                    mColorFill;
@@ -139,7 +137,6 @@ private:
     nsTArray<layers::LayerComposite*> mHwcLayerMap;
     bool                    mPrepared;
     bool                    mHasHWVsync;
-    bool                    mMirrorEnabled;
     bool                    mExternalConnected;
     nsRefPtr<layers::CompositorParent> mCompositorParent;
     nsRefPtr<layers::CompositorParent> mCompositorParents[3];
