@@ -565,9 +565,10 @@ var shell = {
 
     let options = 'chrome,dialog=no,close,resizable,scrollbars,extrachrome,' +
                   DISPLAY_OPTION_DICT[aDisplayDevice.type];
-    var win = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
+    let shellUrl = './shell-remote.html#' + aDisplayDevice.type;
+    let win = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
                        .getService(Components.interfaces.nsIWindowWatcher)
-                       .openWindow(null, "./shell-remote.html", "myTopWindow", options, null);
+                       .openWindow(null, shellUrl, 'myTopWindow' + aDisplayDevice.type, options, null);
   },
 
   handleDisplayChangeEvent: function(aSubject, aTopic, aData) {

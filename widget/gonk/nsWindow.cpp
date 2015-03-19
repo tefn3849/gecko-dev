@@ -85,19 +85,23 @@ static nsWindow *gFocusedWindow = nullptr;
 static bool sUsingHwc;
 static bool sScreenInitialized;
 
+static nsIntRect sScreenBoundList[3];
+
 namespace {
 
 // FIXME: Temporary solution for returning the corresponding screen bounds.
 static nsIntRect
-GetGlobalScreenBounds(bool aRemote)
+GetGlobalScreenBounds(int aDisplayType)
 {
-  return aRemote ? gRemoteScreenBounds : gScreenBounds;
+  return sScreenBoundList[aDisplayType];
+  //return aRemote ? gRemoteScreenBounds : gScreenBounds;
 }
 
 static nsIntRect
-GetVirtualBounds(bool aRemote)
+GetVirtualBounds(int aDisplayType)
 {
-  return aRemote ? sRemoteVirtualBounds : sVirtualBounds;
+  return sScreenBoundList[aDisplayType];
+  //return aRemote ? sRemoteVirtualBounds : sVirtualBounds;
 }
 
 static uint32_t
@@ -188,6 +192,7 @@ nsWindow::nsWindow()
         NS_RUNTIMEABORT("Failed to get native window size, aborting...");
     }
     gScreenBounds = nsIntRect(nsIntPoint(0, 0), screenSize);
+    sScreenBoundList[mDisplayType] = gScreenBounds;
 
     char propValue[PROPERTY_VALUE_MAX];
     property_get("ro.sf.hwrotation", propValue, "0");
@@ -473,11 +478,12 @@ nsWindow::Create(nsIWidget *aParent,
             NS_RUNTIMEABORT("Failed to get native window size, aborting...");
         }
         gRemoteScreenBounds = sRemoteVirtualBounds;
+        sScreenBoundList[mDisplayType] = sRemoteVirtualBounds;
         SLOG("Setting up window with type(%d) w(%d) h(%d)", mDisplayType, sRemoteVirtualBounds.width, sRemoteVirtualBounds.height);
     }
 
 
-    BaseCreate(aParent, IS_TOPLEVEL() ? GetVirtualBounds(remote) : aRect, aInitData);
+    BaseCreate(aParent, IS_TOPLEVEL() ? GetVirtualBounds(mDisplayType) : aRect, aInitData);
 
     mBounds = aRect;
 
@@ -485,7 +491,7 @@ nsWindow::Create(nsIWidget *aParent,
     mVisible = false;
 
     if (!aParent) {
-        mBounds = GetVirtualBounds(remote);
+        mBounds = GetVirtualBounds(mDisplayType);
     }
 
     if (!IS_TOPLEVEL())
@@ -493,8 +499,8 @@ nsWindow::Create(nsIWidget *aParent,
 
     sTopWindows.AppendElement(this);
 
-    Resize(0, 0, GetVirtualBounds(remote).width,
-           GetVirtualBounds(remote).height, false);
+    Resize(0, 0, GetVirtualBounds(mDisplayType).width,
+           GetVirtualBounds(mDisplayType).height, false);
 
     return NS_OK;
 }
@@ -583,7 +589,7 @@ nsWindow::Resize(double aX,
     // FIXME:
     bool remote = mDisplayType != GonkDisplay::DISPLAY_PRIMARY;
     if (aRepaint)
-        Invalidate(GetVirtualBounds(remote));
+        Invalidate(GetVirtualBounds(mDisplayType));
 
     return NS_OK;
 }
@@ -713,10 +719,10 @@ nsWindow::MakeFullScreen(bool aFullScreen, nsIScreen*)
         // toplevel widget, so it doesn't make sense to ever "exit"
         // fullscreen.  If we do, we can leave parts of the screen
         // unpainted.
-        Resize(GetVirtualBounds(remote).x,
-               GetVirtualBounds(remote).y,
-               GetVirtualBounds(remote).width,
-               GetVirtualBounds(remote).height,
+        Resize(GetVirtualBounds(mDisplayType).x,
+               GetVirtualBounds(mDisplayType).y,
+               GetVirtualBounds(mDisplayType).width,
+               GetVirtualBounds(mDisplayType).height,
                /*repaint*/true);
     }
     return NS_OK;
@@ -911,7 +917,7 @@ nsIntRect
 nsWindow::GetNaturalBounds()
 {
     // FIXME
-    return GetGlobalScreenBounds(mDisplayType != GonkDisplay::DISPLAY_PRIMARY);
+    return GetGlobalScreenBounds(mDisplayType);
 }
 
 bool
@@ -1054,18 +1060,18 @@ ComputeOrientation(uint32_t aRotation, const nsIntSize& aScreenSize)
     bool naturallyPortrait = (aScreenSize.height > aScreenSize.width);
     switch (aRotation) {
     case nsIScreen::ROTATION_0_DEG:
-        return (naturallyPortrait ? eScreenOrientation_PortraitPrimary : 
+        return (naturallyPortrait ? eScreenOrientation_PortraitPrimary :
                 eScreenOrientation_LandscapePrimary);
     case nsIScreen::ROTATION_90_DEG:
         // Arbitrarily choosing 90deg to be primary "unnatural"
         // rotation.
-        return (naturallyPortrait ? eScreenOrientation_LandscapePrimary : 
+        return (naturallyPortrait ? eScreenOrientation_LandscapePrimary :
                 eScreenOrientation_PortraitPrimary);
     case nsIScreen::ROTATION_180_DEG:
-        return (naturallyPortrait ? eScreenOrientation_PortraitSecondary : 
+        return (naturallyPortrait ? eScreenOrientation_PortraitSecondary :
                 eScreenOrientation_LandscapeSecondary);
     case nsIScreen::ROTATION_270_DEG:
-        return (naturallyPortrait ? eScreenOrientation_LandscapeSecondary : 
+        return (naturallyPortrait ? eScreenOrientation_LandscapeSecondary :
                 eScreenOrientation_PortraitSecondary);
     default:
         MOZ_CRASH("Gonk screen must always have a known rotation");

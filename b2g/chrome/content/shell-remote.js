@@ -48,7 +48,7 @@ var shellRemote = {
 
     let container = document.getElementById('container');
     this.contentBrowser = container.appendChild(systemAppFrame);
-    this.contentBrowser.src = homeURL;
+    this.contentBrowser.src = homeURL + window.location.hash;
   },
 
   stop: function shellRemote_stop() {
