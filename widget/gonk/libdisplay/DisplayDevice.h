@@ -17,39 +17,40 @@
 #define DISPLAYDEVICE_H
 
 #include <system/window.h>
-#include "mozilla/Types.h"
 #include <utils/StrongPointer.h>
-#include "hardware/hwcomposer.h"
+#include "mozilla/Types.h"
 #include "nsIDisplayDevice.h"
+
+class nsWindow;
 
 namespace android {
 class FramebufferSurface;
 }
 
 namespace mozilla {
+class GonkDisplayJB;
 
 class DisplayDevice : public nsIDisplayDevice {
+  friend class GonkDisplayJB;
+  friend class nsWindow;
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDISPLAYDEVICE
 
-public:
   DisplayDevice();
   DisplayDevice(uint32_t aType);
   ~DisplayDevice();
 
-
-//private:
-  int mType;
-  bool mConnected;
-  android::sp<android::FramebufferSurface> mFBSurface;
-  android::sp<ANativeWindow> mSTClient;
+private:
+  uint32_t mType;
   uint32_t mWidth;
   uint32_t mHeight;
-  hwc_display_contents_1_t* mList;
-  float mXdpi;
+  int32_t mFence;
   int32_t mSurfaceformat;
-  int mFence;
+  float mXdpi;
+  android::sp<android::FramebufferSurface> mFBSurface;
+  android::sp<ANativeWindow> mSTClient;
+  bool mConnected;
 };
 
 }

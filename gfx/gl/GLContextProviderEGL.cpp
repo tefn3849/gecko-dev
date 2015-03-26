@@ -669,7 +669,7 @@ CreateConfig(EGLConfig* aConfig, int32_t depth)
         EGLint format;
         if (sEGLLibrary.fGetConfigAttrib(EGL_DISPLAY(), config,
                                          LOCAL_EGL_NATIVE_VISUAL_ID, &format) &&
-            format == GetGonkDisplay()->surfaceformat)
+            format == GetGonkDisplay()->GetSurfaceformat())
         {
             *aConfig = config;
             return true;

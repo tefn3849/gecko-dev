@@ -776,8 +776,8 @@ nsWindow::StartRemoteDrawing()
         return nullptr;
     }
     int bytepp;
-    SurfaceFormat format = HalFormatToSurfaceFormat(display->surfaceformat,
-                                                    &bytepp);
+
+    SurfaceFormat format = HalFormatToSurfaceFormat(display->GetSurfaceformat(), &bytepp);
     mFramebufferTarget = Factory::CreateDrawTargetForData(
          BackendType::CAIRO, (uint8_t*)vaddr,
          IntSize(width, height), mFramebuffer->stride * bytepp, format);
@@ -810,9 +810,7 @@ nsWindow::EndRemoteDrawing()
 float
 nsWindow::GetDPI()
 {
-    DisplayDevice* device =  GetGonkDisplay()->GetDevice(mDisplayType);
-    // FIXME
-    return device ? device->mXdpi : GetGonkDisplay()->xdpi;
+    return GetGonkDisplay()->GetXdpi(mDisplayType);
 }
 
 double
@@ -992,7 +990,8 @@ nsScreenGonk::GetAvailRect(int32_t *outLeft,  int32_t *outTop,
 static uint32_t
 ColorDepth()
 {
-    switch (GetGonkDisplay()->surfaceformat) {
+    // FIXME: Surfaceformat should be returned base on screen's display type
+    switch (GetGonkDisplay()->GetSurfaceformat()) {
     case GGL_PIXEL_FORMAT_RGB_565:
         return 16;
     case GGL_PIXEL_FORMAT_RGBA_8888:

@@ -32,7 +32,7 @@ public:
     GonkDisplayJB();
     ~GonkDisplayJB();
 
-    virtual ANativeWindow* GetNativeWindow();
+    virtual ANativeWindow* GetNativeWindow(const uint32_t aType = DISPLAY_PRIMARY);
 
     virtual void SetEnabled(bool enabled);
 
@@ -40,7 +40,7 @@ public:
 
     virtual void* GetHWCDevice();
 
-    virtual void* GetFBSurface();
+    virtual void* GetFBSurface(const uint32_t aType = DISPLAY_PRIMARY);
 
     virtual bool SwapBuffers(EGLDisplay dpy, EGLSurface sur);
 
@@ -50,9 +50,9 @@ public:
 
     virtual void UpdateFBSurface(EGLDisplay dpy, EGLSurface sur);
 
-    virtual void SetFBReleaseFd(int fd);
+    virtual void SetFBReleaseFd(int fd, const uint32_t aType = DISPLAY_PRIMARY);
 
-    virtual int GetPrevFBAcquireFd();
+    virtual int GetPrevFBAcquireFd(const uint32_t aType = DISPLAY_PRIMARY);
 
     bool Post(buffer_handle_t buf, int fence);
 
@@ -62,38 +62,24 @@ public:
 
     virtual void RemoveDisplay(const uint32_t aType);
 
+    virtual float GetXdpi(const uint32_t aType = DISPLAY_PRIMARY);
+
+    virtual int32_t GetSurfaceformat(const uint32_t aType = DISPLAY_PRIMARY);
+
+protected:
     virtual DisplayDevice* GetDevice(const uint32_t aType);
-
-    virtual ANativeWindow* GetNativeWindow(const uint32_t aType);
-
-    virtual void* GetFBSurface(const uint32_t aType);
-
-    virtual void DequeueBuffer(const uint32_t aType);
-
-    virtual void QueueBuffer(const uint32_t aType);
-
-    virtual void SetFBReleaseFd(const uint32_t aType, int fd);
-
-    virtual int GetPrevFBAcquireFd(const uint32_t aType);
 
 private:
     void NotifyDisplayChange(nsIDisplayDevice* aDisplayDevice);
 
-private:
     hw_module_t const*        mModule;
     hw_module_t const*        mFBModule;
     hwc_composer_device_1_t*  mHwc;
+    hwc_display_contents_1_t* mList;
     framebuffer_device_t*     mFBDevice;
     power_module_t*           mPowerModule;
-    android::sp<android::FramebufferSurface> mFBSurface;
-    android::sp<ANativeWindow> mSTClient;
     android::sp<android::IGraphicBufferAlloc> mAlloc;
-    int mFence;
-    hwc_display_contents_1_t* mList;
-    uint32_t mWidth;
-    uint32_t mHeight;
     OnEnabledCallbackType mEnabledCallback;
-
     nsTArray<DisplayDevice> mDevices;
 };
 

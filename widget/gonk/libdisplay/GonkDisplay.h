@@ -18,8 +18,6 @@
 
 #include <system/window.h>
 #include "mozilla/Types.h"
-#include <utils/StrongPointer.h>
-#include "hardware/hwcomposer.h"
 #include "DisplayDevice.h"
 
 namespace android {
@@ -44,7 +42,7 @@ public:
         NUM_DISPLAY_TYPES
     };
 
-    virtual ANativeWindow* GetNativeWindow() = 0;
+    virtual ANativeWindow* GetNativeWindow(const uint32_t aType = DISPLAY_PRIMARY) = 0;
 
     virtual void SetEnabled(bool enabled) = 0;
 
@@ -54,7 +52,7 @@ public:
 
     virtual void* GetHWCDevice() = 0;
 
-    virtual void* GetFBSurface() = 0;
+    virtual void* GetFBSurface(const uint32_t aType = DISPLAY_PRIMARY) = 0;
 
     virtual bool SwapBuffers(EGLDisplay dpy, EGLSurface sur) = 0;
 
@@ -77,38 +75,25 @@ public:
      */
     virtual void RemoveDisplay(const uint32_t aType) {}
 
-    virtual ANativeWindow* GetNativeWindow(const uint32_t aType)
-    {
-        return nullptr;
-    }
+    virtual float GetXdpi(const uint32_t aType = DISPLAY_PRIMARY) = 0;
 
-    virtual DisplayDevice* GetDevice(const uint32_t aType) { return nullptr; }
-
-    virtual void* GetFBSurface(const uint32_t aType) { return nullptr; }
-
-    virtual void DequeueBuffer(const uint32_t aType) {}
-
-    virtual void QueueBuffer(const uint32_t aType) {}
-
-    virtual void SetFBReleaseFd(const uint32_t aType, int fd) {}
-
-    virtual int GetPrevFBAcquireFd(const uint32_t aType) { return -1; }
+    virtual int32_t GetSurfaceformat(const uint32_t aType = DISPLAY_PRIMARY) = 0;
 
     /**
      * Set FramebufferSurface ReleaseFence's file descriptor.
      * ReleaseFence will be signaled after the HWC has finished reading
      * from a buffer.
      */
-    virtual void SetFBReleaseFd(int fd) = 0;
+    virtual void SetFBReleaseFd(int fd, const uint32_t aType = DISPLAY_PRIMARY) = 0;
 
     /**
      * Get FramebufferSurface AcquireFence's file descriptor
      * AcquireFence will be signaled when a buffer's content is available.
      */
-    virtual int GetPrevFBAcquireFd() = 0;
+    virtual int GetPrevFBAcquireFd(const uint32_t aType = DISPLAY_PRIMARY) = 0;
 
-    float xdpi;
-    int32_t surfaceformat;
+protected:
+    virtual DisplayDevice* GetDevice(const uint32_t aType) = 0;
 };
 
 MOZ_EXPORT __attribute__ ((weak))
