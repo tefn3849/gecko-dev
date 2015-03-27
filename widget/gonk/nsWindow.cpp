@@ -468,7 +468,6 @@ nsWindow::Create(nsIWidget *aParent,
                    GetDisplayTypeFromInitData(aInitData);
 
     // FIXME:
-    bool remote = mDisplayType != GonkDisplay::DISPLAY_PRIMARY;
     if (!aParent && mDisplayType != GonkDisplay::DISPLAY_PRIMARY) {
         ANativeWindow *win = GetGonkDisplay()->GetNativeWindow(mDisplayType);
         MOZ_ASSERT(win);
@@ -587,7 +586,6 @@ nsWindow::Resize(double aX,
         mWidgetListener->WindowResized(this, mBounds.width, mBounds.height);
 
     // FIXME:
-    bool remote = mDisplayType != GonkDisplay::DISPLAY_PRIMARY;
     if (aRepaint)
         Invalidate(GetVirtualBounds(mDisplayType));
 
@@ -609,14 +607,16 @@ nsWindow::IsEnabled() const
 NS_IMETHODIMP
 nsWindow::SetFocus(bool aRaise)
 {
+    // NOTE: In order to remain focus on the primary screen. However, somehow
+    // the call of BringToTop makes it focus at the wrong window
+    if (mDisplayType != GonkDisplay::DISPLAY_PRIMARY) {
+        return NS_OK;
+    }
+
     if (aRaise)
         BringToTop();
 
-    // NOTE: In order to remain focus on the primary screen. However, somehow
-    // the call of BringToTop makes it focus at the wrong window
-    if (mDisplayType == GonkDisplay::DISPLAY_PRIMARY) {
-        gFocusedWindow = this;
-    }
+    gFocusedWindow = this;
 
     return NS_OK;
 }
@@ -663,12 +663,7 @@ nsWindow::GetNativeData(uint32_t aDataType)
 {
     switch (aDataType) {
     case NS_NATIVE_WINDOW:
-        // FIXME:
-        if (mDisplayType == GonkDisplay::DISPLAY_PRIMARY) {
-          return GetGonkDisplay()->GetNativeWindow();
-        } else {
-            return GetGonkDisplay()->GetNativeWindow(mDisplayType);
-        }
+        return GetGonkDisplay()->GetNativeWindow(mDisplayType);
     }
     return nullptr;
 }
@@ -712,7 +707,6 @@ nsWindow::MakeFullScreen(bool aFullScreen, nsIScreen*)
     }
 
     // FIXME
-    bool remote = mDisplayType != GonkDisplay::DISPLAY_PRIMARY;
     if (aFullScreen) {
         // Fullscreen is "sticky" for toplevel widgets on gonk: we
         // must paint the entire screen, and should only have one
@@ -884,7 +878,7 @@ nsWindow::BringToTop()
         mWidgetListener->WindowActivated();
 
     // FIXME
-    Invalidate(GetVirtualBounds(mDisplayType != GonkDisplay::DISPLAY_PRIMARY));
+    Invalidate(GetVirtualBounds(mDisplayType));
 }
 
 void
