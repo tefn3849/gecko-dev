@@ -39,6 +39,7 @@ public:
 
   DisplayDevice();
   DisplayDevice(uint32_t aType);
+  DisplayDevice(const DisplayDevice& aDisplayDevice);
   ~DisplayDevice();
 
 private:

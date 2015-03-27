@@ -554,8 +554,15 @@ var shell = {
     this.sendEvent(target, type, payload);
   },
 
+  topLevelWindows: {},
+
   openTopLevelWindow: function(aDisplayDevice) {
     debug("----- About to open a toplevel window! -----");
+
+    if (this.topLevelWindows[aDisplayDevice.type]) {
+      debug("Top level window for display type: " + aDisplayDevice.type + ' has been opened.');
+      return;
+    }
 
     let DISPLAY_OPTION_DICT = [
       '',                      // nsIDisplayDevice.DISPLAY_TYPE_PRIMARY  (0)
@@ -569,6 +576,19 @@ var shell = {
     let win = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
                        .getService(Components.interfaces.nsIWindowWatcher)
                        .openWindow(null, shellUrl, 'myTopWindow' + aDisplayDevice.type, options, null);
+
+    this.topLevelWindows[aDisplayDevice.type] = win;
+  },
+
+  closeTopLevelWindow: function(aDisplayDevice) {
+    debug("----- About to close a toplevel window! -----");
+
+    let win = this.topLevelWindows[aDisplayDevice.type];
+
+    if (win) {
+      win.close();
+      delete this.topLevelWindows[aDisplayDevice.type];
+    }
   },
 
   handleDisplayChangeEvent: function(aSubject, aTopic, aData) {
@@ -580,6 +600,8 @@ var shell = {
         Ci.nsIDisplayDevice.DISPLAY_TYPE_VIRTUAL === displayDevice.type) {
       if (displayDevice.connected) {
         this.openTopLevelWindow(displayDevice);
+      } else {
+        this.closeTopLevelWindow(displayDevice);
       }
     }
   },

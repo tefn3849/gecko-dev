@@ -38,6 +38,16 @@ DisplayDevice::~DisplayDevice()
 {
 }
 
+DisplayDevice::DisplayDevice(const DisplayDevice& aDisplayDevice)
+	: mType(aDisplayDevice.mType)
+	, mConnected(aDisplayDevice.mConnected)
+	, mWidth(aDisplayDevice.mWidth)
+	, mHeight(aDisplayDevice.mHeight)
+	, mXdpi(aDisplayDevice.mXdpi)
+	, mSurfaceformat(aDisplayDevice.mSurfaceformat)
+{
+}
+
 //
 // nsIDisplayDevice implementation.
 //
