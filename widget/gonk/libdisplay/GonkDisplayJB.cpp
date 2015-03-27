@@ -34,8 +34,6 @@
 #include "nsServiceManagerUtils.h"
 #include "nsThreadUtils.h"
 
-#define SLOG(args...) __android_log_print(ANDROID_LOG_ERROR, "slin", ## args)
-
 using namespace android;
 
 namespace mozilla {
@@ -346,7 +344,7 @@ GonkDisplayJB::DequeueBuffer()
     ANativeWindowBuffer *buf;
 
     DisplayDevice* device = GetDevice(DISPLAY_PRIMARY);
-    MOZ_ASSERT(device, "ERROR: DisplayDevice not found!");
+    MOZ_ASSERT(device);
     device->mSTClient->dequeueBuffer(device->mSTClient.get(), &buf, &device->mFence);
     return buf;
 }
@@ -482,9 +480,6 @@ GonkDisplayJB::AddDisplay(const uint32_t aType,
     device->mXdpi = values[2] / 1000.0f;
     device->mSurfaceformat = HAL_PIXEL_FORMAT_RGBA_8888;
 
-    SLOG("GonkDisplayJB::AddDisplay - type(%d), w(%d) h(%d) xdpi(%f)",
-          aType, device->mWidth, device->mHeight, device->mXdpi);
-
     if (aType == DISPLAY_EXTERNAL) {
         // 19 <= ANDROID_VERSION < 21
         sp<BufferQueue> consumer = new BufferQueue(mAlloc);
@@ -506,19 +501,23 @@ GonkDisplayJB::AddDisplay(const uint32_t aType,
                                GRALLOC_USAGE_HW_FB |
                                GRALLOC_USAGE_HW_RENDER |
                                GRALLOC_USAGE_HW_COMPOSER);
-    SLOG("GonkDisplayJB::AddDisplay - success!");
 
     NotifyDisplayChange(new DisplayDevice(*device));
+
+    ALOGI("Add a new DisplayDevice of type:%d, w:%d, h:%d", device->mType,
+          device->mWidth,  device->mHeight);
 }
 
 void
 GonkDisplayJB::RemoveDisplay(const uint32_t aType)
 {
-    SLOG("GonkDisplayJB::RemoveDisplay - type(%d)", aType);
     DisplayDevice *device = GetDevice(aType);
     if (!device) {
         return;
     }
+
+    ALOGI("Remove the DisplayDevice of type:%d, w:%d, h:%d", device->mType,
+          device->mWidth,  device->mHeight);
 
     device->mConnected = false;
     NotifyDisplayChange(new DisplayDevice(*device));
