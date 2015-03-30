@@ -607,16 +607,12 @@ nsWindow::IsEnabled() const
 NS_IMETHODIMP
 nsWindow::SetFocus(bool aRaise)
 {
-    // NOTE: In order to remain focus on the primary screen. However, somehow
-    // the call of BringToTop makes it focus at the wrong window
-    if (mDisplayType != GonkDisplay::DISPLAY_PRIMARY) {
-        return NS_OK;
-    }
-
     if (aRaise)
         BringToTop();
 
-    gFocusedWindow = this;
+    if (!IS_TOPLEVEL() && mDisplayType == GonkDisplay::DISPLAY_PRIMARY) {
+        gFocusedWindow = this;
+    }
 
     return NS_OK;
 }
