@@ -84,6 +84,7 @@ interface DOMApplication : EventTarget {
   void cancelDownload();
 
   DOMRequest launch(optional DOMString? url);
+  DOMRequest launchRemote(long remoteId, optional DOMString? url);
 
   DOMRequest clearBrowserData();
   DOMRequest checkForUpdate();

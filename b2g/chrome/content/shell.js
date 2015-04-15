@@ -553,6 +553,58 @@ var shell = {
     this.sendEvent(target, type, payload);
   },
 
+  topLevelWindows: {},
+
+  openTopLevelWindow: function(aDisplayDevice) {
+    debug("----- About to open a toplevel window! -----");
+
+    if (this.topLevelWindows[aDisplayDevice.type]) {
+      debug("Top level window for display type: " + aDisplayDevice.type + ' has been opened.');
+      return;
+    }
+
+    let DISPLAY_OPTION_DICT = [
+      '',                      // nsIDisplayDevice.DISPLAY_TYPE_PRIMARY  (0)
+      '-moz-external-display', // nsIDisplayDevice.DISPLAY_TYPE_EXTERNAL (1)
+      '-moz-virtual-display',  // nsIDisplayDevice.DISPLAY_TYPE_VIRTUAL  (2)
+    ];
+
+    let options = 'chrome,dialog=no,close,resizable,scrollbars,extrachrome,' +
+                  DISPLAY_OPTION_DICT[aDisplayDevice.type];
+    let shellUrl = './shell-remote.html#' + aDisplayDevice.type;
+    let win = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
+                       .getService(Components.interfaces.nsIWindowWatcher)
+                       .openWindow(null, shellUrl, 'myTopWindow' + aDisplayDevice.type, options, null);
+
+    this.topLevelWindows[aDisplayDevice.type] = win;
+  },
+
+  closeTopLevelWindow: function(aDisplayDevice) {
+    debug("----- About to close a toplevel window! -----");
+
+    let win = this.topLevelWindows[aDisplayDevice.type];
+
+    if (win) {
+      win.close();
+      delete this.topLevelWindows[aDisplayDevice.type];
+    }
+  },
+
+  handleDisplayChangeEvent: function(aSubject, aTopic, aData) {
+    let displayDevice = aSubject.QueryInterface(Ci.nsIDisplayDevice);
+
+    debug('handleDisplayChangeEvent: ' + JSON.stringify(displayDevice));
+
+    if (Ci.nsIDisplayDevice.DISPLAY_TYPE_EXTERNAL === displayDevice.type ||
+        Ci.nsIDisplayDevice.DISPLAY_TYPE_VIRTUAL === displayDevice.type) {
+      if (displayDevice.connected) {
+        this.openTopLevelWindow(displayDevice);
+      } else {
+        this.closeTopLevelWindow(displayDevice);
+      }
+    }
+  },
+
   sendChromeEvent: function shell_sendChromeEvent(details) {
     if (!this.isHomeLoaded) {
       if (!('pendingChromeEvents' in this)) {
@@ -656,6 +708,14 @@ Services.obs.addObserver(function onBluetoothVolumeChange(subject, topic, data) 
     value: data
   });
 }, 'bluetooth-volume-change', false);
+
+Services.obs.addObserver(function(subject, topic, data) {
+  shell.sendCustomEvent('mozmemorypressure');
+}, 'memory-pressure', false);
+
+Services.obs.addObserver(shell.handleDisplayChangeEvent.bind(shell),
+                         'display-change',
+                         false);
 
 Services.obs.addObserver(function(subject, topic, data) {
   shell.sendCustomEvent('mozmemorypressure');
@@ -772,7 +832,8 @@ var WebappsHelper = {
           let payload = {
             timestamp: json.timestamp,
             url: manifest.fullLaunchPath(json.startPoint),
-            manifestURL: json.manifestURL
+            manifestURL: json.manifestURL,
+            remoteId: json.remoteId
           };
           shell.sendCustomEvent("webapps-launch", payload);
         });

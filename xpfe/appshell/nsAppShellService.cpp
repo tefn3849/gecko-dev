@@ -600,6 +600,12 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
     widgetInitData.mRTL = isRTL;
   }
 
+  if (aChromeMask & nsIWebBrowserChrome::CHROME_EXTERNAL_DISPLAY) {
+    widgetInitData.mDisplayType = eDisplayType_external;
+  } else if (aChromeMask & nsIWebBrowserChrome::CHROME_VIRTUAL_DISPLAY) {
+    widgetInitData.mDisplayType = eDisplayType_virtual;
+  }
+
   nsresult rv = window->Initialize(parent, center ? aParent : nullptr,
                                    aUrl, aInitialWidth, aInitialHeight,
                                    aIsHiddenWindow, aOpeningTab, widgetInitData);

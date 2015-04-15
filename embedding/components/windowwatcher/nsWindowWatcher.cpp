@@ -556,6 +556,12 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
     chromeFlags |= nsIWebBrowserChrome::CHROME_MODAL;
   }
 
+  if (WinHasOption(features.get(), "-moz-external-display", 0, nullptr)) {
+    chromeFlags |= nsIWebBrowserChrome::CHROME_EXTERNAL_DISPLAY;
+  } else if (WinHasOption(features.get(), "-moz-virtual-display", 0, nullptr)) {
+    chromeFlags |= nsIWebBrowserChrome::CHROME_VIRTUAL_DISPLAY;
+  }
+
   SizeSpec sizeSpec;
   CalcSizeSpec(features.get(), sizeSpec);
 
