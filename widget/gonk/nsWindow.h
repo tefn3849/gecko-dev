@@ -135,6 +135,8 @@ public:
 
     void ConfigureAPZControllerThread() override;
 
+    uint32_t GetDisplayType() { return mDisplayType; }
+
 protected:
     nsWindow* mParent;
     bool mVisible;
@@ -167,6 +169,8 @@ private:
     // This is used by SynthesizeNativeTouchPoint to maintain state between
     // multiple synthesized points
     nsAutoPtr<mozilla::MultiTouchInput> mSynthesizedTouchInput;
+
+    uint32_t mDisplayType;
 };
 
 #endif /* nsWindow_h */

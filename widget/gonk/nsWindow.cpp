@@ -60,6 +60,8 @@
 #define LOGW(args...) __android_log_print(ANDROID_LOG_WARN, "Gonk", ## args)
 #define LOGE(args...) __android_log_print(ANDROID_LOG_ERROR, "Gonk", ## args)
 
+#define SLOG(args...) __android_log_print(ANDROID_LOG_ERROR, "slin", ## args)
+
 #define IS_TOPLEVEL() (mWindowType == eWindowType_toplevel || mWindowType == eWindowType_dialog)
 
 using namespace mozilla;
@@ -71,15 +73,51 @@ using namespace mozilla::layers;
 using namespace mozilla::widget;
 
 nsIntRect gScreenBounds;
+// FIXME: We should use an array of bounds.
+nsIntRect gRemoteScreenBounds;
+
 static uint32_t sScreenRotation;
 static uint32_t sPhysicalScreenRotation;
 static nsIntRect sVirtualBounds;
+// FIXME: Same here, we should use an array of bounds.
+static nsIntRect sRemoteVirtualBounds;
 
 static nsTArray<nsWindow *> sTopWindows;
 static nsWindow *gFocusedWindow = nullptr;
 static bool sScreenInitialized;
 
+static nsIntRect sScreenBoundList[3];
+
 namespace {
+
+// FIXME: Temporary solution for returning the corresponding screen bounds.
+static nsIntRect
+GetGlobalScreenBounds(int aDisplayType)
+{
+  return sScreenBoundList[aDisplayType];
+  //return aRemote ? gRemoteScreenBounds : gScreenBounds;
+}
+
+static nsIntRect
+GetVirtualBounds(int aDisplayType)
+{
+  return sScreenBoundList[aDisplayType];
+  //return aRemote ? sRemoteVirtualBounds : sVirtualBounds;
+}
+
+static uint32_t
+GetDisplayTypeFromInitData(nsWidgetInitData *aInitData)
+{
+    if (aInitData) {
+        switch (aInitData->mDisplayType) {
+            case eDisplayType_external:
+                return GonkDisplay::DISPLAY_EXTERNAL;
+            case eDisplayType_virtual:
+                return GonkDisplay::DISPLAY_VIRTUAL;
+        }
+    }
+    return GonkDisplay::DISPLAY_PRIMARY;
+}
 
 static uint32_t
 EffectiveScreenRotation()
@@ -142,6 +180,7 @@ NS_IMPL_ISUPPORTS_INHERITED0(nsWindow, nsBaseWidget)
 nsWindow::nsWindow()
 {
     mFramebuffer = nullptr;
+    mDisplayType = GonkDisplay::DISPLAY_PRIMARY;
 
     if (sScreenInitialized)
         return;
@@ -161,6 +200,7 @@ nsWindow::nsWindow()
         NS_RUNTIMEABORT("Failed to get native window size, aborting...");
     }
     gScreenBounds = nsIntRect(nsIntPoint(0, 0), screenSize);
+    sScreenBoundList[mDisplayType] = gScreenBounds;
 
     char propValue[PROPERTY_VALUE_MAX];
     property_get("ro.sf.hwrotation", propValue, "0");
@@ -186,7 +226,7 @@ nsWindow::nsWindow()
 
 nsWindow::~nsWindow()
 {
-    HwcComposer2D::GetInstance()->SetCompositorParent(nullptr);
+    HwcComposer2D::GetInstance()->SetCompositorParent(mDisplayType, nullptr);
 }
 
 void
@@ -429,8 +469,25 @@ nsWindow::Create(nsIWidget *aParent,
                  const nsIntRect &aRect,
                  nsWidgetInitData *aInitData)
 {
-    BaseCreate(aParent, IS_TOPLEVEL() ? sVirtualBounds : aRect,
-               aInitData);
+    mDisplayType = aParent ? ((nsWindow*)aParent)->mDisplayType :
+                   GetDisplayTypeFromInitData(aInitData);
+
+    // FIXME:
+    if (!aParent && mDisplayType != GonkDisplay::DISPLAY_PRIMARY) {
+        ANativeWindow *win = GetGonkDisplay()->GetNativeWindow(mDisplayType);
+        MOZ_ASSERT(win);
+
+        if (win->query(win, NATIVE_WINDOW_WIDTH, &sRemoteVirtualBounds.width) ||
+            win->query(win, NATIVE_WINDOW_HEIGHT, &sRemoteVirtualBounds.height)) {
+            NS_RUNTIMEABORT("Failed to get native window size, aborting...");
+        }
+        gRemoteScreenBounds = sRemoteVirtualBounds;
+        sScreenBoundList[mDisplayType] = sRemoteVirtualBounds;
+        SLOG("Setting up window with type(%d) w(%d) h(%d)", mDisplayType, sRemoteVirtualBounds.width, sRemoteVirtualBounds.height);
+    }
+
+
+    BaseCreate(aParent, IS_TOPLEVEL() ? GetVirtualBounds(mDisplayType) : aRect, aInitData);
 
     mBounds = aRect;
 
@@ -438,7 +495,7 @@ nsWindow::Create(nsIWidget *aParent,
     mVisible = false;
 
     if (!aParent) {
-        mBounds = sVirtualBounds;
+        mBounds = GetVirtualBounds(mDisplayType);
     }
 
     if (!IS_TOPLEVEL())
@@ -446,7 +503,9 @@ nsWindow::Create(nsIWidget *aParent,
 
     sTopWindows.AppendElement(this);
 
-    Resize(0, 0, sVirtualBounds.width, sVirtualBounds.height, false);
+    Resize(0, 0, GetVirtualBounds(mDisplayType).width,
+           GetVirtualBounds(mDisplayType).height, false);
+
     return NS_OK;
 }
 
@@ -531,8 +590,9 @@ nsWindow::Resize(double aX,
     if (mWidgetListener)
         mWidgetListener->WindowResized(this, mBounds.width, mBounds.height);
 
+    // FIXME:
     if (aRepaint)
-        Invalidate(sVirtualBounds);
+        Invalidate(GetVirtualBounds(mDisplayType));
 
     return NS_OK;
 }
@@ -555,7 +615,10 @@ nsWindow::SetFocus(bool aRaise)
     if (aRaise)
         BringToTop();
 
-    gFocusedWindow = this;
+    if (!IS_TOPLEVEL() && mDisplayType == GonkDisplay::DISPLAY_PRIMARY) {
+        gFocusedWindow = this;
+    }
+
     return NS_OK;
 }
 
@@ -576,6 +639,7 @@ nsWindow::Invalidate(const nsIntRect &aRect)
 
     gDrawRequest = true;
     mozilla::NotifyEvent();
+
     return NS_OK;
 }
 
@@ -600,7 +664,7 @@ nsWindow::GetNativeData(uint32_t aDataType)
 {
     switch (aDataType) {
     case NS_NATIVE_WINDOW:
-        return GetGonkDisplay()->GetNativeWindow();
+        return GetGonkDisplay()->GetNativeWindow(mDisplayType);
     }
     return nullptr;
 }
@@ -643,14 +707,17 @@ nsWindow::MakeFullScreen(bool aFullScreen, nsIScreen*)
         return nsBaseWidget::MakeFullScreen(aFullScreen);
     }
 
+    // FIXME
     if (aFullScreen) {
         // Fullscreen is "sticky" for toplevel widgets on gonk: we
         // must paint the entire screen, and should only have one
         // toplevel widget, so it doesn't make sense to ever "exit"
         // fullscreen.  If we do, we can leave parts of the screen
         // unpainted.
-        Resize(sVirtualBounds.x, sVirtualBounds.y,
-               sVirtualBounds.width, sVirtualBounds.height,
+        Resize(GetVirtualBounds(mDisplayType).x,
+               GetVirtualBounds(mDisplayType).y,
+               GetVirtualBounds(mDisplayType).width,
+               GetVirtualBounds(mDisplayType).height,
                /*repaint*/true);
     }
     return NS_OK;
@@ -704,8 +771,8 @@ nsWindow::StartRemoteDrawing()
         return nullptr;
     }
     int bytepp;
-    SurfaceFormat format = HalFormatToSurfaceFormat(display->surfaceformat,
-                                                    &bytepp);
+
+    SurfaceFormat format = HalFormatToSurfaceFormat(display->GetSurfaceformat(), &bytepp);
     mFramebufferTarget = Factory::CreateDrawTargetForData(
          BackendType::CAIRO, (uint8_t*)vaddr,
          IntSize(width, height), mFramebuffer->stride * bytepp, format);
@@ -741,7 +808,7 @@ nsWindow::EndRemoteDrawing()
 float
 nsWindow::GetDPI()
 {
-    return GetGonkDisplay()->xdpi;
+    return GetGonkDisplay()->GetXdpi(mDisplayType);
 }
 
 double
@@ -792,8 +859,9 @@ nsWindow::GetLayerManager(PLayerTransactionChild* aShadowManager,
     }
 
     CreateCompositor();
-    if (mCompositorParent) {
-        HwcComposer2D::GetInstance()->SetCompositorParent(mCompositorParent);
+    // FIXME
+    if (mCompositorParent && mDisplayType != GonkDisplay::DISPLAY_VIRTUAL) {
+        HwcComposer2D::GetInstance()->SetCompositorParent(mDisplayType, mCompositorParent);
     }
     MOZ_ASSERT(mLayerManager);
     return mLayerManager;
@@ -812,7 +880,9 @@ nsWindow::BringToTop()
 
     if (mWidgetListener)
         mWidgetListener->WindowActivated();
-    Invalidate(sVirtualBounds);
+
+    // FIXME
+    Invalidate(GetVirtualBounds(mDisplayType));
 }
 
 void
@@ -842,7 +912,8 @@ nsWindow::GetGLFrameBufferFormat()
 nsIntRect
 nsWindow::GetNaturalBounds()
 {
-    return gScreenBounds;
+    // FIXME
+    return GetGlobalScreenBounds(mDisplayType);
 }
 
 bool
@@ -857,6 +928,13 @@ nsWindow::NeedsPaint()
 Composer2D*
 nsWindow::GetComposer2D()
 {
+    // TODO: We are skipping hwc for rendering remote window with Wifidisplay,
+    // but probable not in the case of "external" display via HDMI?
+    // FIXME
+    if (mDisplayType == GonkDisplay::DISPLAY_VIRTUAL) {
+        return nullptr;
+    }
+
     if (HwcComposer2D* hwc = HwcComposer2D::GetInstance()) {
         return hwc->Initialized() ? hwc : nullptr;
     }
@@ -885,6 +963,8 @@ NS_IMETHODIMP
 nsScreenGonk::GetRect(int32_t *outLeft,  int32_t *outTop,
                       int32_t *outWidth, int32_t *outHeight)
 {
+    // TODO: nsScreenGonk should be able to represent itself as screen other
+    // then the primary one.
     *outLeft = sVirtualBounds.x;
     *outTop = sVirtualBounds.y;
 
@@ -904,7 +984,8 @@ nsScreenGonk::GetAvailRect(int32_t *outLeft,  int32_t *outTop,
 static uint32_t
 ColorDepth()
 {
-    switch (GetGonkDisplay()->surfaceformat) {
+    // FIXME: Surfaceformat should be returned base on screen's display type
+    switch (GetGonkDisplay()->GetSurfaceformat()) {
     case GGL_PIXEL_FORMAT_RGB_565:
         return 16;
     case GGL_PIXEL_FORMAT_RGBA_8888:
@@ -972,18 +1053,18 @@ ComputeOrientation(uint32_t aRotation, const nsIntSize& aScreenSize)
     bool naturallyPortrait = (aScreenSize.height > aScreenSize.width);
     switch (aRotation) {
     case nsIScreen::ROTATION_0_DEG:
-        return (naturallyPortrait ? eScreenOrientation_PortraitPrimary : 
+        return (naturallyPortrait ? eScreenOrientation_PortraitPrimary :
                 eScreenOrientation_LandscapePrimary);
     case nsIScreen::ROTATION_90_DEG:
         // Arbitrarily choosing 90deg to be primary "unnatural"
         // rotation.
-        return (naturallyPortrait ? eScreenOrientation_LandscapePrimary : 
+        return (naturallyPortrait ? eScreenOrientation_LandscapePrimary :
                 eScreenOrientation_PortraitPrimary);
     case nsIScreen::ROTATION_180_DEG:
-        return (naturallyPortrait ? eScreenOrientation_PortraitSecondary : 
+        return (naturallyPortrait ? eScreenOrientation_PortraitSecondary :
                 eScreenOrientation_LandscapeSecondary);
     case nsIScreen::ROTATION_270_DEG:
-        return (naturallyPortrait ? eScreenOrientation_LandscapeSecondary : 
+        return (naturallyPortrait ? eScreenOrientation_LandscapeSecondary :
                 eScreenOrientation_PortraitSecondary);
     default:
         MOZ_CRASH("Gonk screen must always have a known rotation");
@@ -1012,6 +1093,7 @@ NS_IMPL_ISUPPORTS(nsScreenManagerGonk, nsIScreenManager)
 
 nsScreenManagerGonk::nsScreenManagerGonk()
 {
+    // TODO: Should have an array of screens.
     mOneScreen = new nsScreenGonk(nullptr);
 }
 
@@ -1046,6 +1128,7 @@ nsScreenManagerGonk::ScreenForRect(int32_t inLeft,
 NS_IMETHODIMP
 nsScreenManagerGonk::ScreenForNativeWidget(void *aWidget, nsIScreen **outScreen)
 {
+    // TODO: Should return the correct screen base on aWidget.
     return GetPrimaryScreen(outScreen);
 }
 

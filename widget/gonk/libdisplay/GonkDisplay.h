@@ -18,6 +18,11 @@
 
 #include <system/window.h>
 #include "mozilla/Types.h"
+#include "DisplayDevice.h"
+
+namespace android {
+    class IGraphicBufferProducer;
+}
 
 namespace mozilla {
 
@@ -30,7 +35,14 @@ typedef void * EGLSurface;
 
 class MOZ_EXPORT GonkDisplay {
 public:
-    virtual ANativeWindow* GetNativeWindow() = 0;
+    enum {
+        DISPLAY_PRIMARY, // The default builtin display.
+        DISPLAY_EXTERNAL, // Display connected through HDMI.
+        DISPLAY_VIRTUAL, // Display connected through network.
+        NUM_DISPLAY_TYPES
+    };
+
+    virtual ANativeWindow* GetNativeWindow(const uint32_t aType = DISPLAY_PRIMARY) = 0;
 
     virtual void SetEnabled(bool enabled) = 0;
 
@@ -40,7 +52,7 @@ public:
 
     virtual void* GetHWCDevice() = 0;
 
-    virtual void* GetFBSurface() = 0;
+    virtual void* GetFBSurface(const uint32_t aType = DISPLAY_PRIMARY) = 0;
 
     virtual bool SwapBuffers(EGLDisplay dpy, EGLSurface sur) = 0;
 
@@ -51,20 +63,37 @@ public:
     virtual void UpdateFBSurface(EGLDisplay dpy, EGLSurface sur) = 0;
 
     /**
+     *
+     */
+    virtual void AddDisplay(
+        const uint32_t aType,
+        const android::sp<android::IGraphicBufferProducer>& aProducer = nullptr)
+    {}
+
+    /**
+     *
+     */
+    virtual void RemoveDisplay(const uint32_t aType) {}
+
+    virtual float GetXdpi(const uint32_t aType = DISPLAY_PRIMARY) = 0;
+
+    virtual int32_t GetSurfaceformat(const uint32_t aType = DISPLAY_PRIMARY) = 0;
+
+    /**
      * Set FramebufferSurface ReleaseFence's file descriptor.
      * ReleaseFence will be signaled after the HWC has finished reading
      * from a buffer.
      */
-    virtual void SetFBReleaseFd(int fd) = 0;
+    virtual void SetFBReleaseFd(int fd, const uint32_t aType = DISPLAY_PRIMARY) = 0;
 
     /**
      * Get FramebufferSurface AcquireFence's file descriptor
      * AcquireFence will be signaled when a buffer's content is available.
      */
-    virtual int GetPrevFBAcquireFd() = 0;
+    virtual int GetPrevFBAcquireFd(const uint32_t aType = DISPLAY_PRIMARY) = 0;
 
-    float xdpi;
-    int32_t surfaceformat;
+protected:
+    virtual DisplayDevice* GetDevice(const uint32_t aType) = 0;
 };
 
 MOZ_EXPORT __attribute__ ((weak))

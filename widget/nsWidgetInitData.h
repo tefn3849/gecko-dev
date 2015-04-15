@@ -83,6 +83,12 @@ enum nsBorderStyle {
                                   // anything
 };
 
+enum nsDisplayType {
+  eDisplayType_primary = 0,
+  eDisplayType_external,
+  eDisplayType_virtual
+};
+
 /**
  * Basic struct for widget initialization data.
  * @see Create member function of nsIWidget
@@ -94,6 +100,7 @@ struct nsWidgetInitData {
       mBorderStyle(eBorderStyle_default),
       mPopupHint(ePopupTypePanel),
       mPopupLevel(ePopupLevelTop),
+      mDisplayType(eDisplayType_primary),
       clipChildren(false), 
       clipSiblings(false), 
       mDropShadow(false),
@@ -113,6 +120,7 @@ struct nsWidgetInitData {
   nsBorderStyle mBorderStyle;
   nsPopupType   mPopupHint;
   nsPopupLevel  mPopupLevel;
+  nsDisplayType mDisplayType;
   // when painting exclude area occupied by child windows and sibling windows
   bool          clipChildren, clipSiblings, mDropShadow;
   bool          mListenForResizes;

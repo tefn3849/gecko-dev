@@ -87,17 +87,19 @@ public:
     // Returns FALSE if the container cannot be fully rendered
     // by this composer so nothing was rendered at all
     bool TryRender(layers::Layer* aRoot,
-                   bool aGeometryChanged) override;
+                   bool aGeometryChanged,
+                   int aDisplayType = 0) override;
 
-    bool Render(EGLDisplay dpy, EGLSurface sur);
+    bool Render(EGLDisplay dpy, EGLSurface sur, int aDisplayType = 0);
 
     bool EnableVsync(bool aEnable);
 #if ANDROID_VERSION >= 17
     bool RegisterHwcEventCallback();
     void Vsync(int aDisplay, int64_t aTimestamp);
     void Invalidate();
+    void Hotplug(int aDisplay, int aConnected);
 #endif
-    void SetCompositorParent(layers::CompositorParent* aCompositorParent);
+    void SetCompositorParent(int aDisplayType, layers::CompositorParent* aCompositorParent);
 
 private:
     void Reset();
@@ -110,13 +112,17 @@ private:
     void setCrop(HwcLayer* layer, hwc_rect_t srcCrop);
     void setHwcGeometry(bool aGeometryChanged);
     void SendtoLayerScope();
+    void PrepareFromPrimary();
 
     HwcDevice*              mHwc;
     HwcList*                mList;
+    HwcList*                mLists[3];
     hwc_display_t           mDpy;
     hwc_surface_t           mSur;
     gl::GLContext*          mGLContext;
     nsIntRect               mScreenRect;
+    nsIntRect               mScreenRects[3];
+    hwc_rect_t              mMirroredDisplayFrame;
     int                     mMaxLayerCount;
     bool                    mColorFill;
     bool                    mRBSwapSupport;
@@ -130,7 +136,9 @@ private:
     nsTArray<layers::LayerComposite*> mHwcLayerMap;
     bool                    mPrepared;
     bool                    mHasHWVsync;
+    bool                    mExternalConnected;
     nsRefPtr<layers::CompositorParent> mCompositorParent;
+    nsRefPtr<layers::CompositorParent> mCompositorParents[3];
     Mutex mLock;
 };
 
