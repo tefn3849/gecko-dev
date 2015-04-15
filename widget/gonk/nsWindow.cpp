@@ -271,7 +271,7 @@ nsWindow::ConfigureAPZControllerThread()
 }
 
 /*static*/ nsEventStatus
-nsWindow::DispatchInputEvent(WidgetGUIEvent& aEvent)
+nsWindow::DispatchKeyInput(WidgetGUIEvent& aEvent)
 {
     if (!gFocusedWindow) {
         return nsEventStatus_eIgnore;
