@@ -56,11 +56,11 @@ public:
 
     bool Post(buffer_handle_t buf, int fence);
 
-    virtual void AddDisplay(
+    virtual nsresult AddDisplay(
         const uint32_t aType,
         const android::sp<android::IGraphicBufferProducer>& aProducer = nullptr);
 
-    virtual void RemoveDisplay(const uint32_t aType);
+    virtual nsresult RemoveDisplay(const uint32_t aType);
 
     virtual float GetXdpi(const uint32_t aType = DISPLAY_PRIMARY);
 
@@ -71,6 +71,10 @@ protected:
 
 private:
     void NotifyDisplayChange(nsIDisplayDevice* aDisplayDevice);
+
+    void ConfigureDisplayDevice(DisplayDevice* aDevice);
+
+    void SetupNativeSurfaceAndWindow(DisplayDevice* aDevice);
 
     hw_module_t const*        mModule;
     hw_module_t const*        mFBModule;

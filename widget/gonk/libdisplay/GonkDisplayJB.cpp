@@ -90,20 +90,7 @@ GonkDisplayJB::GonkDisplayJB()
             framebuffer_close(mFBDevice);
             mFBDevice = nullptr;
         }
-
-        int32_t values[3];
-        const uint32_t attrs[] = {
-            HWC_DISPLAY_WIDTH,
-            HWC_DISPLAY_HEIGHT,
-            HWC_DISPLAY_DPI_X,
-            HWC_DISPLAY_NO_ATTRIBUTE
-        };
-        mHwc->getDisplayAttributes(mHwc, 0, 0, attrs, values);
-
-        device->mWidth = values[0];
-        device->mHeight = values[1];
-        device->mXdpi = values[2] / 1000.0f;
-        device->mSurfaceformat = HAL_PIXEL_FORMAT_RGBA_8888;
+        ConfigureDisplayDevice(device);
     }
 
     err = hw_get_module(POWER_HARDWARE_MODULE_ID,
@@ -113,37 +100,7 @@ GonkDisplayJB::GonkDisplayJB()
     ALOGW_IF(err, "Couldn't load %s module (%s)", POWER_HARDWARE_MODULE_ID, strerror(-err));
 
     mAlloc = new GraphicBufferAlloc();
-
-#if ANDROID_VERSION >= 21
-    sp<IGraphicBufferProducer> producer;
-    sp<IGraphicBufferConsumer> consumer;
-    BufferQueue::createBufferQueue(&producer, &consumer, mAlloc);
-#elif ANDROID_VERSION >= 19
-    sp<BufferQueue> consumer = new BufferQueue(mAlloc);
-    sp<IGraphicBufferProducer> producer = consumer;
-#elif ANDROID_VERSION >= 18
-    sp<BufferQueue> consumer = new BufferQueue(true, mAlloc);
-    sp<IGraphicBufferProducer> producer = consumer;
-#else
-    sp<BufferQueue> consumer = new BufferQueue(true, mAlloc);
-#endif
-
-    device->mFBSurface = new FramebufferSurface(0, device->mWidth,
-        device->mHeight, device->mSurfaceformat, consumer);
-
-#if ANDROID_VERSION == 17
-    sp<SurfaceTextureClient> stc = new SurfaceTextureClient(
-        static_cast<sp<ISurfaceTexture> >(device->mFBSurfacemFBSurface->getBufferQueue()));
-#else
-    sp<Surface> stc = new Surface(producer);
-#endif
-    device->mSTClient = stc;
-    device->mSTClient->perform(device->mSTClient.get(),
-                               NATIVE_WINDOW_SET_BUFFER_COUNT, 2);
-    device->mSTClient->perform(device->mSTClient.get(), NATIVE_WINDOW_SET_USAGE,
-                               GRALLOC_USAGE_HW_FB |
-                               GRALLOC_USAGE_HW_RENDER |
-                               GRALLOC_USAGE_HW_COMPOSER);
+    SetupNativeSurfaceAndWindow(device);
 
     mList = (hwc_display_contents_1_t *)malloc(sizeof(*mList) + (sizeof(hwc_layer_1_t)*2));
     if (mHwc) {
@@ -418,8 +375,7 @@ GonkDisplayJB::GetSurfaceformat(const uint32_t aType)
     return 0;
 }
 
-namespace
-{
+namespace {
 class NotifyTask : public nsIRunnable
 {
 public:
@@ -454,16 +410,9 @@ GonkDisplayJB::NotifyDisplayChange(nsIDisplayDevice* aDisplayDevice)
 }
 
 void
-GonkDisplayJB::AddDisplay(const uint32_t aType,
-                          const sp<IGraphicBufferProducer>& aProducer)
+GonkDisplayJB::ConfigureDisplayDevice(DisplayDevice* aDevice)
 {
-    MOZ_ASSERT(aType < NUM_DISPLAY_TYPES && mHwc);
-
-    if (GetDevice(aType)) {
-        // TODO: A device of aType is already existed, should we return an
-        // error or remove the old one, add the new one automatically?
-        return;
-    }
+    MOZ_ASSERT(mHwc);
 
     int32_t values[3];
     const uint32_t attrs[] = {
@@ -472,49 +421,92 @@ GonkDisplayJB::AddDisplay(const uint32_t aType,
         HWC_DISPLAY_DPI_X,
         HWC_DISPLAY_NO_ATTRIBUTE
     };
-    mHwc->getDisplayAttributes(mHwc, aType, 0, attrs, values);
+    mHwc->getDisplayAttributes(mHwc, aDevice->mType, 0, attrs, values);
+
+    aDevice->mWidth = values[0];
+    aDevice->mHeight = values[1];
+    aDevice->mXdpi = values[2] / 1000.0f;
+    aDevice->mSurfaceformat = HAL_PIXEL_FORMAT_RGBA_8888;
+}
+
+void
+GonkDisplayJB::SetupNativeSurfaceAndWindow(DisplayDevice* aDevice)
+{
+    MOZ_ASSERT(mAlloc);
+
+#if ANDROID_VERSION >= 21
+    sp<IGraphicBufferProducer> producer;
+    sp<IGraphicBufferConsumer> consumer;
+    BufferQueue::createBufferQueue(&producer, &consumer, mAlloc);
+#elif ANDROID_VERSION >= 19
+    sp<BufferQueue> consumer = new BufferQueue(mAlloc);
+    sp<IGraphicBufferProducer> producer = consumer;
+#elif ANDROID_VERSION >= 18
+    sp<BufferQueue> consumer = new BufferQueue(true, mAlloc);
+    sp<IGraphicBufferProducer> producer = consumer;
+#else
+    sp<BufferQueue> consumer = new BufferQueue(true, mAlloc);
+#endif
+
+    aDevice->mFBSurface = new FramebufferSurface(aDevice->mType, aDevice->mWidth,
+        aDevice->mHeight, aDevice->mSurfaceformat, consumer);
+
+#if ANDROID_VERSION == 17
+    sp<SurfaceTextureClient> stc = new SurfaceTextureClient(
+        static_cast<sp<ISurfaceTexture>>(
+        aDevice->mFBSurfacemFBSurface->getBufferQueue()));
+#else
+    sp<Surface> stc = new Surface(producer);
+#endif
+    aDevice->mSTClient = stc;
+    aDevice->mSTClient->perform(aDevice->mSTClient.get(),
+                                NATIVE_WINDOW_SET_BUFFER_COUNT, 2);
+    aDevice->mSTClient->perform(aDevice->mSTClient.get(), NATIVE_WINDOW_SET_USAGE,
+                                GRALLOC_USAGE_HW_FB |
+                                GRALLOC_USAGE_HW_RENDER |
+                                GRALLOC_USAGE_HW_COMPOSER);
+}
+
+nsresult
+GonkDisplayJB::AddDisplay(const uint32_t aType,
+                          const sp<IGraphicBufferProducer>& aProducer)
+{
+    MOZ_ASSERT(aType < NUM_DISPLAY_TYPES && mHwc);
+    MOZ_ASSERT(aType == DISPLAY_VIRTUAL && aProducer, "Virtual display must "
+               "carry a valid graphic buffer producer.");
+
+    if (GetDevice(aType)) {
+        ALOGE("Display type of %d has already connected to the primary device.");
+        return NS_ERROR_FAILURE;
+    }
 
     DisplayDevice* device = mDevices.AppendElement();
     device->mType = aType;
-    device->mWidth = values[0];
-    device->mHeight = values[1];
-    device->mXdpi = values[2] / 1000.0f;
-    device->mSurfaceformat = HAL_PIXEL_FORMAT_RGBA_8888;
+    ConfigureDisplayDevice(device);
 
     if (aType == DISPLAY_EXTERNAL) {
-        // 19 <= ANDROID_VERSION < 21
-        sp<BufferQueue> consumer = new BufferQueue(mAlloc);
-        sp<IGraphicBufferProducer> producer = consumer;
-        device->mSTClient = new Surface(producer);
-        device->mFBSurface = new FramebufferSurface(1, device->mWidth,
-            device->mHeight, device->mSurfaceformat, consumer);
+        SetupNativeSurfaceAndWindow(device);
         // FIXME: for my monitor.
         device->mXdpi = 81.5;
     } else if (aType == DISPLAY_VIRTUAL) {
-         MOZ_ASSERT(aProducer);
-         device->mSTClient = new Surface(aProducer);
-         // FIXME: for nexus 7.
-         device->mXdpi = 213;
+        device->mSTClient = new Surface(aProducer);
+        // FIXME: for nexus 7.
+        device->mXdpi = 213;
     }
-    device->mSTClient->perform(device->mSTClient.get(),
-                               NATIVE_WINDOW_SET_BUFFER_COUNT, 2);
-    device->mSTClient->perform(device->mSTClient.get(), NATIVE_WINDOW_SET_USAGE,
-                               GRALLOC_USAGE_HW_FB |
-                               GRALLOC_USAGE_HW_RENDER |
-                               GRALLOC_USAGE_HW_COMPOSER);
 
     NotifyDisplayChange(new DisplayDevice(*device));
 
     ALOGI("Add a new DisplayDevice of type:%d, w:%d, h:%d", device->mType,
           device->mWidth,  device->mHeight);
+    return NS_OK;
 }
 
-void
+nsresult
 GonkDisplayJB::RemoveDisplay(const uint32_t aType)
 {
     DisplayDevice *device = GetDevice(aType);
     if (!device) {
-        return;
+        return NS_ERROR_FAILURE;
     }
 
     ALOGI("Remove the DisplayDevice of type:%d, w:%d, h:%d", device->mType,
@@ -529,6 +521,8 @@ GonkDisplayJB::RemoveDisplay(const uint32_t aType)
             break;
         }
     }
+
+    return NS_OK;
 }
 
 __attribute__ ((visibility ("default")))

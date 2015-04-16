@@ -35,10 +35,18 @@ typedef void * EGLSurface;
 
 class MOZ_EXPORT GonkDisplay {
 public:
+    /**
+     * This enum is for types of display. DISPLAY_PRIMARY refers to the default
+     * built-in display, DISPLAY_EXTERNAL refers to displays connected with
+     * HDMI, and DISPLAY_VIRTUAL are displays which makes composited output
+     * available within the system. Currently, displays of external are detected
+     * via the hotplug detection in HWC, and displays of virtual are connected
+     * via Wifi Display.
+     */
     enum {
-        DISPLAY_PRIMARY, // The default builtin display.
-        DISPLAY_EXTERNAL, // Display connected through HDMI.
-        DISPLAY_VIRTUAL, // Display connected through network.
+        DISPLAY_PRIMARY,
+        DISPLAY_EXTERNAL,
+        DISPLAY_VIRTUAL,
         NUM_DISPLAY_TYPES
     };
 
@@ -63,17 +71,29 @@ public:
     virtual void UpdateFBSurface(EGLDisplay dpy, EGLSurface sur) = 0;
 
     /**
+     * Add a new DisplayDevice with a specific display type. Display type of
+     * DISPLAY_VIRTUAL must added with a valid graphic buffer producer.
      *
+     * TODO: Although it is possible to have multiple displays of same type
+     * connected in the same time, it is implemented as an one-on-one mapping
+     * for the reasons of 1: we don't have a use case in practice yet and
+     * 2: it doesn't sound like a huge change if we'd like to extend for this
+     * feature.
      */
-    virtual void AddDisplay(
+    virtual nsresult AddDisplay(
         const uint32_t aType,
         const android::sp<android::IGraphicBufferProducer>& aProducer = nullptr)
-    {}
+    {
+        return NS_OK;
+    }
 
     /**
-     *
+     * Remove an existed DisplayDevice from the list of connceted displays.
      */
-    virtual void RemoveDisplay(const uint32_t aType) {}
+    virtual nsresult RemoveDisplay(const uint32_t aType)
+    {
+        return NS_OK;
+    }
 
     virtual float GetXdpi(const uint32_t aType = DISPLAY_PRIMARY) = 0;
 
