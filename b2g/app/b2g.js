@@ -1125,7 +1125,7 @@ pref("dom.mozSettings.allowForceReadOnly", false);
 pref("dom.requestSync.enabled", true);
 
 // Use vsync aligned rendering
-pref("gfx.vsync.hw-vsync.enabled", true);
-pref("gfx.vsync.compositor", true);
-pref("gfx.touch.resample", true);
-pref("gfx.vsync.refreshdriver", true);
+pref("gfx.vsync.hw-vsync.enabled", false);
+pref("gfx.vsync.compositor", false);
+pref("gfx.touch.resample", false);
+pref("gfx.vsync.refreshdriver", false);
