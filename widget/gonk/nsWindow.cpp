@@ -226,7 +226,9 @@ nsWindow::nsWindow()
 
 nsWindow::~nsWindow()
 {
-    HwcComposer2D::GetInstance()->SetCompositorParent(mDisplayType, nullptr);
+    if (mDisplayType == GonkDisplay::DISPLAY_PRIMARY) {
+        HwcComposer2D::GetInstance()->SetCompositorParent(nullptr);
+    }
 }
 
 void
@@ -859,9 +861,8 @@ nsWindow::GetLayerManager(PLayerTransactionChild* aShadowManager,
     }
 
     CreateCompositor();
-    // FIXME
-    if (mCompositorParent && mDisplayType != GonkDisplay::DISPLAY_VIRTUAL) {
-        HwcComposer2D::GetInstance()->SetCompositorParent(mDisplayType, mCompositorParent);
+    if (mCompositorParent && mDisplayType == GonkDisplay::DISPLAY_PRIMARY) {
+        HwcComposer2D::GetInstance()->SetCompositorParent(mCompositorParent);
     }
     MOZ_ASSERT(mLayerManager);
     return mLayerManager;

@@ -99,7 +99,7 @@ public:
     void Invalidate();
     void Hotplug(int aDisplay, int aConnected);
 #endif
-    void SetCompositorParent(int aDisplayType, layers::CompositorParent* aCompositorParent);
+    void SetCompositorParent(layers::CompositorParent* aCompositorParent);
 
 private:
     void Reset();
@@ -112,18 +112,15 @@ private:
     void setCrop(HwcLayer* layer, hwc_rect_t srcCrop);
     void setHwcGeometry(bool aGeometryChanged);
     void SendtoLayerScope();
-    void PrepareFromPrimary();
 
     HwcDevice*              mHwc;
     HwcList*                mList;
-    HwcList*                mLists[3];
     hwc_display_t           mDpy;
     hwc_surface_t           mSur;
     gl::GLContext*          mGLContext;
-    nsIntRect               mScreenRect;
-    nsIntRect               mScreenRects[3];
-    hwc_rect_t              mMirroredDisplayFrame;
+    nsIntRect               mScreenRects[HWC_NUM_DISPLAY_TYPES];
     int                     mMaxLayerCount;
+    uint32_t                mDisplayType;
     bool                    mColorFill;
     bool                    mRBSwapSupport;
     //Holds all the dynamically allocated RectVectors needed
@@ -136,9 +133,8 @@ private:
     nsTArray<layers::LayerComposite*> mHwcLayerMap;
     bool                    mPrepared;
     bool                    mHasHWVsync;
-    bool                    mExternalConnected;
+    bool                    mBlanked;
     nsRefPtr<layers::CompositorParent> mCompositorParent;
-    nsRefPtr<layers::CompositorParent> mCompositorParents[3];
     Mutex mLock;
 };
 
