@@ -53,7 +53,7 @@ interface nsIWebBrowserChrome : nsISupports
     const unsigned long CHROME_SCROLLBARS             = 0x00000200;
     const unsigned long CHROME_TITLEBAR               = 0x00000400;
     const unsigned long CHROME_EXTRA                  = 0x00000800;
-    
+
     // createBrowserWindow specific flags
     const unsigned long CHROME_WITH_SIZE              = 0x00001000;
     const unsigned long CHROME_WITH_POSITION          = 0x00002000;
@@ -83,10 +83,12 @@ interface nsIWebBrowserChrome : nsISupports
     // Whether this window should use remote (out-of-process) tabs.
     const unsigned long CHROME_REMOTE_WINDOW          = 0x00100000;
 
-    // Whether this window should open at a external display (via HDMI).
+    // Whether this window should open at an external display (e.g. displays
+    // connected with HDMI cord).
     const unsigned long CHROME_EXTERNAL_DISPLAY       = 0x00200000;
 
-    // Whether this window should open at a virtual display (via Wifidisplay).
+    // Whether this window should open at a virtual display (e.g. displays
+    // connected through Wifi Display).
     const unsigned long CHROME_VIRTUAL_DISPLAY        = 0x00400000;
 
     // Prevents new window animations on Mac OS X Lion.  Ignored on other
@@ -107,9 +109,9 @@ interface nsIWebBrowserChrome : nsISupports
     const unsigned long CHROME_MODAL                  = 0x20000000; 
     const unsigned long CHROME_OPENAS_DIALOG          = 0x40000000;
     const unsigned long CHROME_OPENAS_CHROME          = 0x80000000;
-    
+
     const unsigned long CHROME_ALL                    = 0x00000ffe;
-    
+
     /**
      * The chrome flags for this browser chrome. The implementation should
      * reflect the value of this attribute by hiding or showing its chrome
@@ -130,14 +132,14 @@ interface nsIWebBrowserChrome : nsISupports
      * @param aCY new height of the browser
      */
     void sizeBrowserTo(in long aCX, in long aCY);
-    
+
     /**
      * Shows the window as a modal window.
      * @return (the function error code) the status value specified by
      *         in exitModalEventLoop.
      */
     void showAsModal();
-    
+
     /**
      * Is the window modal (that is, currently executing a modal loop)?
      * @return true if it's a modal window

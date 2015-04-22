@@ -600,11 +600,13 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
     widgetInitData.mRTL = isRTL;
   }
 
+#ifdef MOZ_WIDGET_GONK
   if (aChromeMask & nsIWebBrowserChrome::CHROME_EXTERNAL_DISPLAY) {
     widgetInitData.mDisplayType = eDisplayType_external;
   } else if (aChromeMask & nsIWebBrowserChrome::CHROME_VIRTUAL_DISPLAY) {
     widgetInitData.mDisplayType = eDisplayType_virtual;
   }
+#endif
 
   nsresult rv = window->Initialize(parent, center ? aParent : nullptr,
                                    aUrl, aInitialWidth, aInitialHeight,

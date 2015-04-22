@@ -556,11 +556,17 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
     chromeFlags |= nsIWebBrowserChrome::CHROME_MODAL;
   }
 
+  // These flags are for opening another top-level window on b2g. A secondary
+  // top-level window can be opened to an external display or a virtual display.
+  // Currently, external displays are displays connected to primary display with
+  // HDMI cords, and virtual displays are which connected through Wifi Display.
+#ifdef MOZ_WIDGET_GONK
   if (WinHasOption(features.get(), "-moz-external-display", 0, nullptr)) {
     chromeFlags |= nsIWebBrowserChrome::CHROME_EXTERNAL_DISPLAY;
   } else if (WinHasOption(features.get(), "-moz-virtual-display", 0, nullptr)) {
     chromeFlags |= nsIWebBrowserChrome::CHROME_VIRTUAL_DISPLAY;
   }
+#endif
 
   SizeSpec sizeSpec;
   CalcSizeSpec(features.get(), sizeSpec);
