@@ -61,6 +61,13 @@ interface nsIAppShellService : nsISupports
   void destroyHiddenWindow();
 
   /**
+   * This is for opening another top-level window on b2g, and DisplayId is
+   * for use of differentiating screens of windows.
+   */
+  [noscript]
+  void setDisplayId(in uint32_t aDisplayId);
+
+  /**
    * Return the (singleton) application hidden window, automatically created
    * and maintained by this AppShellService.
    * @param aResult the hidden window.  Do not unhide hidden window.

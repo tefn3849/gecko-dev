@@ -62,7 +62,8 @@ nsAppShellService::nsAppShellService() :
   mXPCOMWillShutDown(false),
   mXPCOMShuttingDown(false),
   mModalWindowCount(0),
-  mApplicationProvidedHiddenWindow(false)
+  mApplicationProvidedHiddenWindow(false),
+  mDisplayId(0)
 {
   nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
 
@@ -77,6 +78,7 @@ nsAppShellService::~nsAppShellService()
 }
 
 
+
 /*
  * Implement the nsISupports methods...
  */
@@ -88,6 +90,13 @@ NS_IMETHODIMP
 nsAppShellService::CreateHiddenWindow()
 {
   return CreateHiddenWindowHelper(false);
+}
+
+NS_IMETHODIMP
+nsAppShellService::SetDisplayId(uint32_t aDisplayId)
+{
+  mDisplayId = aDisplayId;
+  return NS_OK;
 }
 
 void
@@ -600,13 +609,12 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
     widgetInitData.mRTL = isRTL;
   }
 
+  // This is for opening another top-level window on b2g, and DisplayId is
+  // for use of differentiating screens of windows.
 #ifdef MOZ_WIDGET_GONK
-  if (aChromeMask & nsIWebBrowserChrome::CHROME_EXTERNAL_DISPLAY) {
-    widgetInitData.mDisplayType = eDisplayType_external;
-  } else if (aChromeMask & nsIWebBrowserChrome::CHROME_VIRTUAL_DISPLAY) {
-    widgetInitData.mDisplayType = eDisplayType_virtual;
-  }
+  widgetInitData.mDisplayId = mDisplayId;
 #endif
+
 
   nsresult rv = window->Initialize(parent, center ? aParent : nullptr,
                                    aUrl, aInitialWidth, aInitialHeight,

@@ -562,15 +562,10 @@ var shell = {
       debug("Top level window for display type: " + aDisplayDevice.type + ' has been opened.');
       return;
     }
-
-    let DISPLAY_OPTION_DICT = [
-      '',                      // nsIDisplayDevice.DISPLAY_TYPE_PRIMARY  (0)
-      '-moz-external-display', // nsIDisplayDevice.DISPLAY_TYPE_EXTERNAL (1)
-      '-moz-virtual-display',  // nsIDisplayDevice.DISPLAY_TYPE_VIRTUAL  (2)
-    ];
-
+    
+    // FIXME: Do not use display type as display Id.
     let options = 'chrome,dialog=no,close,resizable,scrollbars,extrachrome,' +
-                  DISPLAY_OPTION_DICT[aDisplayDevice.type];
+                  'mozDisplayId='+aDisplayDevice.type;
     let shellUrl = './shell-remote.html#' + aDisplayDevice.type;
     let win = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
                        .getService(Components.interfaces.nsIWindowWatcher)

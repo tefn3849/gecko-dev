@@ -59,4 +59,11 @@ interface nsIWindowCreator2 : nsIWindowCreator {
                                           in nsIURI uri,
                                           in nsITabParent aOpeningTab,
                                           out boolean cancel);
+
+  /**
+   * This is for opening another top-level window on b2g, and DisplayId is
+   * for use of differentiating screens of windows.
+   */
+  [noscript]
+  void setDisplayId(in uint32_t aDisplayId);
 };

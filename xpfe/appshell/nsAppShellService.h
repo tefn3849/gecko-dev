@@ -51,6 +51,7 @@ protected:
   bool                        mXPCOMShuttingDown;
   uint16_t                    mModalWindowCount;
   bool                        mApplicationProvidedHiddenWindow;
+  int32_t                     mDisplayId;
 };
 
 #endif

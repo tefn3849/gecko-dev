@@ -84,20 +84,6 @@ enum nsBorderStyle {
 };
 
 /**
- * Display types.
- *
- * Particular for opening another top-level window on b2g, and this secondary
- * top-level window can be opened to an external display or a virtual display.
- * Type primary refers to the default built-in display. Do not alter the enum
- * values since it follows the enum of display type defined in GonkDisplay.
- */
-enum nsDisplayType {
-  eDisplayType_primary = 0,
-  eDisplayType_external,
-  eDisplayType_virtual
-};
-
-/**
  * Basic struct for widget initialization data.
  * @see Create member function of nsIWidget
  */
@@ -108,7 +94,7 @@ struct nsWidgetInitData {
       mBorderStyle(eBorderStyle_default),
       mPopupHint(ePopupTypePanel),
       mPopupLevel(ePopupLevelTop),
-      mDisplayType(eDisplayType_primary),
+      mDisplayId(0),
       clipChildren(false), 
       clipSiblings(false), 
       mDropShadow(false),
@@ -128,7 +114,7 @@ struct nsWidgetInitData {
   nsBorderStyle mBorderStyle;
   nsPopupType   mPopupHint;
   nsPopupLevel  mPopupLevel;
-  nsDisplayType mDisplayType;
+  uint32_t      mDisplayId;
   // when painting exclude area occupied by child windows and sibling windows
   bool          clipChildren, clipSiblings, mDropShadow;
   bool          mListenForResizes;

@@ -631,6 +631,16 @@ nsAppStartup::CreateChromeWindow(nsIWebBrowserChrome *aParent,
 //
 
 NS_IMETHODIMP
+nsAppStartup::SetDisplayId(uint32_t aDisplayId)
+{
+  nsCOMPtr<nsIAppShellService> appShell(do_GetService(NS_APPSHELLSERVICE_CONTRACTID));
+  if (!appShell)
+    return NS_ERROR_FAILURE;
+
+  return appShell->SetDisplayId(aDisplayId);
+}
+
+NS_IMETHODIMP
 nsAppStartup::CreateChromeWindow2(nsIWebBrowserChrome *aParent,
                                   uint32_t aChromeFlags,
                                   uint32_t aContextFlags,

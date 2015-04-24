@@ -83,14 +83,6 @@ interface nsIWebBrowserChrome : nsISupports
     // Whether this window should use remote (out-of-process) tabs.
     const unsigned long CHROME_REMOTE_WINDOW          = 0x00100000;
 
-    // Whether this window should open at an external display (e.g. displays
-    // connected with HDMI cord).
-    const unsigned long CHROME_EXTERNAL_DISPLAY       = 0x00200000;
-
-    // Whether this window should open at a virtual display (e.g. displays
-    // connected through Wifi Display).
-    const unsigned long CHROME_VIRTUAL_DISPLAY        = 0x00400000;
-
     // Prevents new window animations on Mac OS X Lion.  Ignored on other
     // platforms.
     const unsigned long CHROME_MAC_SUPPRESS_ANIMATION = 0x01000000;

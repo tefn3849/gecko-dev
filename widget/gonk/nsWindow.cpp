@@ -109,11 +109,9 @@ static uint32_t
 GetDisplayTypeFromInitData(nsWidgetInitData *aInitData)
 {
     if (aInitData) {
-        switch (aInitData->mDisplayType) {
-            case eDisplayType_external:
-                return GonkDisplay::DISPLAY_EXTERNAL;
-            case eDisplayType_virtual:
-                return GonkDisplay::DISPLAY_VIRTUAL;
+        // TODO: Implement a mapping of Id to type
+        if (aInitData->mDisplayId < GonkDisplay::NUM_DISPLAY_TYPES) {
+            return aInitData->mDisplayId;
         }
     }
     return GonkDisplay::DISPLAY_PRIMARY;
