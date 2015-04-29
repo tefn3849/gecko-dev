@@ -15,22 +15,41 @@
 #include "DisplayDevice.h"
 #include "GonkDisplay.h"
 #include "FramebufferSurface.h"
+#include "BootAnimation.h"
 
 using namespace android;
 
 namespace mozilla {
 
-NS_IMPL_ISUPPORTS(DisplayDevice, nsIDisplayDevice, nsISupports)
+NS_IMPL_ISUPPORTS(DisplayInfo, nsIDisplayInfo, nsISupports)
 
-DisplayDevice::DisplayDevice()
-  : mType(GonkDisplay::DISPLAY_PRIMARY)
-  , mConnected(true)
+DisplayInfo::DisplayInfo(uint32_t aId, int aFlags)
+  : mId(aId)
+  , mFlags(aFlags)
 {
+}
+
+DisplayInfo::~DisplayInfo()
+{
+}
+
+//
+// nsIDisplayInfo implementation.
+//
+NS_IMETHODIMP DisplayInfo::GetId(int32_t *aId)
+{
+  *aId = mId;
+  return NS_OK;
+}
+
+NS_IMETHODIMP DisplayInfo::GetConnected(bool *aConnected)
+{
+	*aConnected = mFlags & DisplayInfo::ADDED;
+	return NS_OK;
 }
 
 DisplayDevice::DisplayDevice(uint32_t aType)
   : mType(aType)
-  , mConnected(true)
 {
 }
 
@@ -38,41 +57,32 @@ DisplayDevice::~DisplayDevice()
 {
 }
 
-DisplayDevice::DisplayDevice(const DisplayDevice& aDisplayDevice)
-	: mType(aDisplayDevice.mType)
-	, mConnected(aDisplayDevice.mConnected)
-	, mWidth(aDisplayDevice.mWidth)
-	, mHeight(aDisplayDevice.mHeight)
-	, mXdpi(aDisplayDevice.mXdpi)
-	, mSurfaceformat(aDisplayDevice.mSurfaceformat)
+ANativeWindow*
+DisplayDevice::GetNativeWindow()
 {
+  if (mType == GonkDisplay::DISPLAY_PRIMARY) {
+    StopBootAnimation();
+  }
+
+  return mSTClient.get();
 }
 
-//
-// nsIDisplayDevice implementation.
-//
-NS_IMETHODIMP DisplayDevice::GetConnected(bool *aConnected)
+void*
+DisplayDevice::GetFBSurface()
 {
-	*aConnected = mConnected;
-	return NS_OK;
+    return mFBSurface.get();
 }
 
-NS_IMETHODIMP DisplayDevice::GetType(int32_t *aType)
+void
+DisplayDevice::SetFBReleaseFd(int fd)
 {
-	*aType = mType;
-	return NS_OK;
+    mFBSurface->setReleaseFenceFd(fd);
 }
 
-NS_IMETHODIMP DisplayDevice::GetHeight(int32_t *aHeight)
+int
+DisplayDevice::GetPrevFBAcquireFd()
 {
-	*aHeight = mHeight;
-	return NS_OK;
-}
-
-NS_IMETHODIMP DisplayDevice::GetWidth(int32_t *aWidth)
-{
-	*aWidth = mWidth;
-	return NS_OK;
+    return mFBSurface->GetPrevFBAcquireFd();
 }
 
 }

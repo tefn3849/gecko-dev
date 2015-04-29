@@ -555,48 +555,45 @@ var shell = {
 
   topLevelWindows: {},
 
-  openTopLevelWindow: function(aDisplayDevice) {
+  openTopLevelWindow: function(aDisplay) {
     debug("----- About to open a toplevel window! -----");
 
-    if (this.topLevelWindows[aDisplayDevice.type]) {
-      debug("Top level window for display type: " + aDisplayDevice.type + ' has been opened.');
+    if (this.topLevelWindows[aDisplay.id]) {
+      debug("Top level window for display id: " + aDisplay.id + ' has been opened.');
       return;
     }
     
     // FIXME: Do not use display type as display Id.
     let options = 'chrome,dialog=no,close,resizable,scrollbars,extrachrome,' +
-                  'mozDisplayId='+aDisplayDevice.type;
-    let shellUrl = './shell-remote.html#' + aDisplayDevice.type;
+                  'mozDisplayId='+aDisplay.id;
+    let shellUrl = './shell-remote.html#' + aDisplay.id;
     let win = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
                        .getService(Components.interfaces.nsIWindowWatcher)
-                       .openWindow(null, shellUrl, 'myTopWindow' + aDisplayDevice.type, options, null);
+                       .openWindow(null, shellUrl, 'myTopWindow' + aDisplay.id, options, null);
 
-    this.topLevelWindows[aDisplayDevice.type] = win;
+    this.topLevelWindows[aDisplay.id] = win;
   },
 
-  closeTopLevelWindow: function(aDisplayDevice) {
+  closeTopLevelWindow: function(aDisplay) {
     debug("----- About to close a toplevel window! -----");
 
-    let win = this.topLevelWindows[aDisplayDevice.type];
+    let win = this.topLevelWindows[aDisplay.id];
 
     if (win) {
       win.close();
-      delete this.topLevelWindows[aDisplayDevice.type];
+      delete this.topLevelWindows[aDisplay.id];
     }
   },
 
   handleDisplayChangeEvent: function(aSubject, aTopic, aData) {
-    let displayDevice = aSubject.QueryInterface(Ci.nsIDisplayDevice);
+    let display = aSubject.QueryInterface(Ci.nsIDisplayInfo);
 
-    debug('handleDisplayChangeEvent: ' + JSON.stringify(displayDevice));
+    debug('handleDisplayChangeEvent: ' + JSON.stringify(display));
 
-    if (Ci.nsIDisplayDevice.DISPLAY_TYPE_EXTERNAL === displayDevice.type ||
-        Ci.nsIDisplayDevice.DISPLAY_TYPE_VIRTUAL === displayDevice.type) {
-      if (displayDevice.connected) {
-        this.openTopLevelWindow(displayDevice);
-      } else {
-        this.closeTopLevelWindow(displayDevice);
-      }
+    if (display.connected) {
+      this.openTopLevelWindow(display);
+    } else {
+      this.closeTopLevelWindow(display);
     }
   },
 
@@ -709,7 +706,7 @@ Services.obs.addObserver(function(subject, topic, data) {
 }, 'memory-pressure', false);
 
 Services.obs.addObserver(shell.handleDisplayChangeEvent.bind(shell),
-                         'display-change',
+                         'display-changed',
                          false);
 
 Services.obs.addObserver(function(subject, topic, data) {

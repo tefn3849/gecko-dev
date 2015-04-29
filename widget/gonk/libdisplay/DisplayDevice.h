@@ -19,7 +19,9 @@
 #include <system/window.h>
 #include <utils/StrongPointer.h>
 #include "mozilla/Types.h"
-#include "nsIDisplayDevice.h"
+#include "nsIDisplayInfo.h"
+
+#define EXPORT MOZ_EXPORT __attribute__ ((weak))
 
 class nsWindow;
 
@@ -30,28 +32,60 @@ class FramebufferSurface;
 namespace mozilla {
 class GonkDisplayJB;
 
-class DisplayDevice : public nsIDisplayDevice {
+class DisplayInfo : public nsIDisplayInfo {
+public:
+  enum {
+    ADDED = 1 << 0,
+    REMOVED = 1 << 1
+  };
+
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIDISPLAYINFO
+
+  DisplayInfo(uint32_t aId, int aFlags);
+
+private:
+  ~DisplayInfo();
+
+  uint32_t mId;
+  int mFlags;
+};
+
+class DisplayDevice {
   friend class GonkDisplayJB;
   friend class nsWindow;
 public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIDISPLAYDEVICE
-
-  DisplayDevice();
+  NS_INLINE_DECL_REFCOUNTING(DisplayDevice)
   DisplayDevice(uint32_t aType);
-  DisplayDevice(const DisplayDevice& aDisplayDevice);
-  ~DisplayDevice();
+
+  EXPORT ANativeWindow* GetNativeWindow();
+  EXPORT void* GetFBSurface();
+
+  /**
+   * Set FramebufferSurface ReleaseFence's file descriptor.
+   * ReleaseFence will be signaled after the HWC has finished reading
+   * from a buffer.
+   */
+  EXPORT void SetFBReleaseFd(int fd);
+
+  /**
+   * Get FramebufferSurface AcquireFence's file descriptor
+   * AcquireFence will be signaled when a buffer's content is available.
+   */
+  EXPORT int GetPrevFBAcquireFd();
+
+  float xdpi;
+  int32_t surfaceformat;
 
 private:
+  ~DisplayDevice();
+
   uint32_t mType;
   uint32_t mWidth;
   uint32_t mHeight;
   int32_t mFence;
-  int32_t mSurfaceformat;
-  float mXdpi;
   android::sp<android::FramebufferSurface> mFBSurface;
   android::sp<ANativeWindow> mSTClient;
-  bool mConnected;
 };
 
 }

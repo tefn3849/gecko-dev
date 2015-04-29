@@ -52,8 +52,8 @@ GonkDisplayJB::GonkDisplayJB()
     if (GetDevice(DISPLAY_PRIMARY)) {
         ALOGE("Primary display already exists!");
     }
-    DisplayDevice* device = mDevices.AppendElement();
-    device->mType = DISPLAY_PRIMARY;
+    nsRefPtr<DisplayDevice> device = new DisplayDevice(DISPLAY_PRIMARY);
+    mDevices.AppendElement(device);
 
     int err = hw_get_module(GRALLOC_HARDWARE_MODULE_ID, &mFBModule);
     ALOGW_IF(err, "%s module not found", GRALLOC_HARDWARE_MODULE_ID);
@@ -65,10 +65,10 @@ GonkDisplayJB::GonkDisplayJB()
     if (!err && mFBDevice) {
         device->mWidth = mFBDevice->width;
         device->mHeight = mFBDevice->height;
-        device->mXdpi = mFBDevice->xdpi;
+        device->xdpi = mFBDevice->xdpi;
         /* The emulator actually reports RGBA_8888, but EGL doesn't return
          * any matching configuration. We force RGBX here to fix it. */
-        device->mSurfaceformat = HAL_PIXEL_FORMAT_RGBX_8888;
+        device->surfaceformat = HAL_PIXEL_FORMAT_RGBX_8888;
     }
 
     err = hw_get_module(HWC_HARDWARE_MODULE_ID, &mModule);
@@ -115,7 +115,7 @@ GonkDisplayJB::GonkDisplayJB()
 #endif
     }
 
-    ALOGI("Starting bootanimation with (%d) format framebuffer", device->mSurfaceformat);
+    ALOGI("Starting bootanimation with (%d) format framebuffer", device->surfaceformat);
     StartBootAnimation();
 }
 
@@ -126,18 +126,6 @@ GonkDisplayJB::~GonkDisplayJB()
     if (mFBDevice)
         framebuffer_close(mFBDevice);
     free(mList);
-}
-
-ANativeWindow*
-GonkDisplayJB::GetNativeWindow(const uint32_t aType)
-{
-    if (aType == DISPLAY_PRIMARY) {
-        StopBootAnimation();
-    }
-
-    DisplayDevice* device = GetDevice(aType);
-    MOZ_ASSERT(device);
-    return device->mSTClient.get();
 }
 
 void
@@ -193,14 +181,6 @@ GonkDisplayJB::GetHWCDevice()
     return mHwc;
 }
 
-void*
-GonkDisplayJB::GetFBSurface(const uint32_t aType)
-{
-    DisplayDevice* device = GetDevice(aType);
-    MOZ_ASSERT(device);
-    return device->mFBSurface.get();
-}
-
 bool
 GonkDisplayJB::SwapBuffers(EGLDisplay dpy, EGLSurface sur)
 {
@@ -214,7 +194,6 @@ GonkDisplayJB::SwapBuffers(EGLDisplay dpy, EGLSurface sur)
 
     // This call is for rendering on primary display only.
     DisplayDevice* device = GetDevice(DISPLAY_PRIMARY);
-    MOZ_ASSERT(device);
 
 #if ANDROID_VERSION == 17
     mList->dpy = dpy;
@@ -237,7 +216,6 @@ GonkDisplayJB::Post(buffer_handle_t buf, int fence)
 
     // This call is for rendering on primary display only.
     DisplayDevice* device = GetDevice(DISPLAY_PRIMARY);
-    MOZ_ASSERT(device);
 
     hwc_display_contents_1_t *displays[HWC_NUM_DISPLAY_TYPES] = {NULL};
     const hwc_rect_t r = { 0, 0,
@@ -302,7 +280,6 @@ GonkDisplayJB::DequeueBuffer()
     ANativeWindowBuffer *buf;
 
     DisplayDevice* device = GetDevice(DISPLAY_PRIMARY);
-    MOZ_ASSERT(device);
     device->mSTClient->dequeueBuffer(device->mSTClient.get(), &buf, &device->mFence);
     return buf;
 }
@@ -312,7 +289,6 @@ GonkDisplayJB::QueueBuffer(ANativeWindowBuffer* buf)
 {
     bool success = Post(buf->handle, -1);
     DisplayDevice* device = GetDevice(DISPLAY_PRIMARY);
-    MOZ_ASSERT(device);
     int error = device->mSTClient->queueBuffer(device->mSTClient.get(), buf, device->mFence);
 
     return error == 0 && success;
@@ -324,55 +300,16 @@ GonkDisplayJB::UpdateFBSurface(EGLDisplay dpy, EGLSurface sur)
     eglSwapBuffers(dpy, sur);
 }
 
-void
-GonkDisplayJB::SetFBReleaseFd(int fd, const uint32_t aType)
-{
-    DisplayDevice* device = GetDevice(aType);
-    if (device) {
-        device->mFBSurface->setReleaseFenceFd(fd);
-    }
-}
-
-int
-GonkDisplayJB::GetPrevFBAcquireFd(const uint32_t aType)
-{
-    DisplayDevice* device = GetDevice(aType);
-    if (device) {
-        return device->mFBSurface->GetPrevFBAcquireFd();
-    }
-    return -1;
-}
-
 DisplayDevice*
 GonkDisplayJB::GetDevice(const uint32_t aType)
 {
     for (uint32_t i = 0; i < mDevices.Length(); ++i) {
-        if (mDevices[i].mType == aType) {
-            return &mDevices[i];
+        if (mDevices[i]->mType == aType) {
+            return mDevices[i];
         }
     }
 
     return nullptr;
-}
-
-float
-GonkDisplayJB::GetXdpi(const uint32_t aType)
-{
-    DisplayDevice* device = GetDevice(aType);
-    if (device) {
-        return device->mXdpi;
-    }
-    return 0.0;
-}
-
-int32_t
-GonkDisplayJB::GetSurfaceformat(const uint32_t aType)
-{
-    DisplayDevice* device = GetDevice(aType);
-    if (device) {
-      return device->mSurfaceformat;
-    }
-    return 0;
 }
 
 namespace {
@@ -382,8 +319,8 @@ public:
     NS_DECL_ISUPPORTS
 
 public:
-    NotifyTask(nsIDisplayDevice* aDisplayDevice)
-        : mDisplayDevice(aDisplayDevice)
+    NotifyTask(already_AddRefed<nsIDisplayInfo> aDisplayInfo)
+        : mDisplayInfo(aDisplayInfo)
     {
     }
 
@@ -394,19 +331,20 @@ public:
             return NS_ERROR_FAILURE;
         }
 
-        return os->NotifyObservers(mDisplayDevice, "display-change", nullptr);
+        return os->NotifyObservers(mDisplayInfo, "display-changed", nullptr);
     }
 private:
-    nsCOMPtr<nsIDisplayDevice> mDisplayDevice;
+    nsCOMPtr<nsIDisplayInfo> mDisplayInfo;
 };
 
 NS_IMPL_ISUPPORTS(NotifyTask, nsIRunnable)
 } // end of unnamed namespace
 
 void
-GonkDisplayJB::NotifyDisplayChange(nsIDisplayDevice* aDisplayDevice)
+GonkDisplayJB::NotifyDisplayChange(nsIDisplayInfo* aDisplayInfo)
 {
-    NS_DispatchToMainThread(new NotifyTask(aDisplayDevice));
+    nsCOMPtr<nsIDisplayInfo> info = aDisplayInfo;
+    NS_DispatchToMainThread(new NotifyTask(info.forget()));
 }
 
 void
@@ -425,8 +363,8 @@ GonkDisplayJB::ConfigureDisplayDevice(DisplayDevice* aDevice)
 
     aDevice->mWidth = values[0];
     aDevice->mHeight = values[1];
-    aDevice->mXdpi = values[2] / 1000.0f;
-    aDevice->mSurfaceformat = HAL_PIXEL_FORMAT_RGBA_8888;
+    aDevice->xdpi = values[2] / 1000.0f;
+    aDevice->surfaceformat = HAL_PIXEL_FORMAT_RGBA_8888;
 }
 
 void
@@ -449,7 +387,7 @@ GonkDisplayJB::SetupNativeSurfaceAndWindow(DisplayDevice* aDevice)
 #endif
 
     aDevice->mFBSurface = new FramebufferSurface(aDevice->mType, aDevice->mWidth,
-        aDevice->mHeight, aDevice->mSurfaceformat, consumer);
+        aDevice->mHeight, aDevice->surfaceformat, consumer);
 
 #if ANDROID_VERSION == 17
     sp<SurfaceTextureClient> stc = new SurfaceTextureClient(
@@ -480,30 +418,34 @@ GonkDisplayJB::AddDisplay(const uint32_t aType,
         return NS_ERROR_FAILURE;
     }
 
-    DisplayDevice* device = mDevices.AppendElement();
-    device->mType = aType;
+    nsRefPtr<DisplayDevice> device = new DisplayDevice(aType);
+    mDevices.AppendElement(device);
     ConfigureDisplayDevice(device);
 
     if (aType == DISPLAY_EXTERNAL) {
         SetupNativeSurfaceAndWindow(device);
         // FIXME: for my monitor.
-        device->mXdpi = 81.5;
+        device->xdpi = 81.5;
     } else if (aType == DISPLAY_VIRTUAL) {
         device->mSTClient = new Surface(aProducer);
         // FIXME: for nexus 7.
-        device->mXdpi = 213;
+        device->xdpi = 213;
     }
 
-    NotifyDisplayChange(new DisplayDevice(*device));
+    nsCOMPtr<nsIDisplayInfo> info = new DisplayInfo(device->mType,
+                                                    DisplayInfo::ADDED);
+    NotifyDisplayChange(info);
 
     ALOGI("Add a new DisplayDevice of type:%d, w:%d, h:%d", device->mType,
-          device->mWidth,  device->mHeight);
+          device->mWidth, device->mHeight);
     return NS_OK;
 }
 
 nsresult
 GonkDisplayJB::RemoveDisplay(const uint32_t aType)
 {
+    MOZ_ASSERT(aType != DISPLAY_PRIMARY, "Cannot remove the primary display!");
+
     DisplayDevice *device = GetDevice(aType);
     if (!device) {
         return NS_ERROR_FAILURE;
@@ -512,11 +454,12 @@ GonkDisplayJB::RemoveDisplay(const uint32_t aType)
     ALOGI("Remove the DisplayDevice of type:%d, w:%d, h:%d", device->mType,
           device->mWidth,  device->mHeight);
 
-    device->mConnected = false;
-    NotifyDisplayChange(new DisplayDevice(*device));
+    nsCOMPtr<nsIDisplayInfo> info = new DisplayInfo(device->mType,
+                                                    DisplayInfo::REMOVED);
+    NotifyDisplayChange(info);
 
     for (int i = 0; i < mDevices.Length(); ++i) {
-        if (aType == mDevices[i].mType) {
+        if (aType == mDevices[i]->mType) {
             mDevices.RemoveElementAt(i);
             break;
         }

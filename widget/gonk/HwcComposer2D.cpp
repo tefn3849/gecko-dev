@@ -146,7 +146,8 @@ HwcComposer2D::Init(hwc_display_t dpy, hwc_surface_t sur, gl::GLContext* aGLCont
 
     nsIntSize screenSize;
 
-    ANativeWindow *win = GetGonkDisplay()->GetNativeWindow();
+    DisplayDevice* device = GetGonkDisplay()->GetDevice(GonkDisplay::DISPLAY_PRIMARY);
+    ANativeWindow *win = device->GetNativeWindow();
     win->query(win, NATIVE_WINDOW_WIDTH, &screenSize.width);
     win->query(win, NATIVE_WINDOW_HEIGHT, &screenSize.height);
     mScreenRects[mDisplayType] = nsIntRect(nsIntPoint(0, 0), screenSize);
@@ -261,7 +262,8 @@ HwcComposer2D::Hotplug(int aDisplay, int aConnected)
     if (aConnected) {
         GetGonkDisplay()->AddDisplay(GonkDisplay::DISPLAY_EXTERNAL);
         nsIntSize screenSize;
-        ANativeWindow *win = GetGonkDisplay()->GetNativeWindow(GonkDisplay::DISPLAY_EXTERNAL);
+        DisplayDevice* device = GetGonkDisplay()->GetDevice(GonkDisplay::DISPLAY_EXTERNAL);
+        ANativeWindow *win = device->GetNativeWindow();
         if (win) {
             win->query(win, NATIVE_WINDOW_WIDTH, &screenSize.width);
             win->query(win, NATIVE_WINDOW_HEIGHT, &screenSize.height);
@@ -694,7 +696,11 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
 bool
 HwcComposer2D::TryHwComposition()
 {
-    FramebufferSurface* fbsurface = (FramebufferSurface*)(GetGonkDisplay()->GetFBSurface(mDisplayType));
+    DisplayDevice* device = GetGonkDisplay()->GetDevice(mDisplayType);
+    if (!device) {
+        return false;
+    }
+    FramebufferSurface* fbsurface = (FramebufferSurface*)(device->GetFBSurface());
 
     if (!(fbsurface && fbsurface->lastHandle)) {
         LOGD("H/W Composition failed. FBSurface not initialized.");
@@ -766,7 +772,7 @@ HwcComposer2D::TryHwComposition()
         } else if (blitComposite) {
             // BLIT Composition, flip FB target
             GetGonkDisplay()->UpdateFBSurface(mDpy, mSur);
-            FramebufferSurface* fbsurface = (FramebufferSurface*)(GetGonkDisplay()->GetFBSurface(mDisplayType));
+            FramebufferSurface* fbsurface = (FramebufferSurface*)(device->GetFBSurface());
             if (!fbsurface) {
                 LOGE("H/W Composition failed. NULL FBSurface.");
                 return false;
@@ -779,7 +785,7 @@ HwcComposer2D::TryHwComposition()
     // BLIT or full OVERLAY Composition
     Commit();
 
-    GetGonkDisplay()->SetFBReleaseFd(mDisplayType, mList->hwLayers[idx].releaseFenceFd);
+    device->SetFBReleaseFd(mList->hwLayers[idx].releaseFenceFd);
     mList->hwLayers[idx].releaseFenceFd = -1;
     return true;
 }
@@ -796,7 +802,12 @@ HwcComposer2D::Render(EGLDisplay dpy, EGLSurface sur, int aDisplayType)
 
     GetGonkDisplay()->UpdateFBSurface(dpy, sur);
 
-    FramebufferSurface* fbsurface = (FramebufferSurface*)(GetGonkDisplay()->GetFBSurface(mDisplayType));
+    DisplayDevice* device = GetGonkDisplay()->GetDevice(mDisplayType);
+    if (!device) {
+        return false;
+    }
+
+    FramebufferSurface* fbsurface = (FramebufferSurface*)(device->GetFBSurface());
     if (!fbsurface) {
         LOGE("H/W Composition failed. FBSurface not initialized.");
         return false;
@@ -822,7 +833,7 @@ HwcComposer2D::Render(EGLDisplay dpy, EGLSurface sur, int aDisplayType)
     // GPU or partial HWC Composition
     Commit();
 
-    GetGonkDisplay()->SetFBReleaseFd(mDisplayType, mList->hwLayers[mList->numHwLayers - 1].releaseFenceFd);
+    device->SetFBReleaseFd(mList->hwLayers[mList->numHwLayers - 1].releaseFenceFd);
     mList->hwLayers[mList->numHwLayers - 1].releaseFenceFd = -1;
     return true;
 }

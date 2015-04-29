@@ -701,7 +701,9 @@ CreateConfig(EGLConfig* aConfig, int32_t depth)
         EGLint format;
         if (sEGLLibrary.fGetConfigAttrib(EGL_DISPLAY(), config,
                                          LOCAL_EGL_NATIVE_VISUAL_ID, &format) &&
-            format == GetGonkDisplay()->GetSurfaceformat())
+            // TODO: Should pass in the correct display type.
+            format == GetGonkDisplay()->GetDevice(
+                      GonkDisplay::DISPLAY_PRIMARY)->surfaceformat)
         {
             *aConfig = config;
             return true;

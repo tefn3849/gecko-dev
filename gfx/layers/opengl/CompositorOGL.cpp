@@ -1292,12 +1292,17 @@ CompositorOGL::SetFBAcquireFence(Layer* aLayer)
     return;
   }
 
+  // FIXME: mWidget is the interface we want to use here, we should not use
+  // mWidget->GetDisplayType() and GetGonkDisplay()->GetDevice(type),
+  // instead, use something like mWidget->IsFenceAcquired() and
+  // mWidget->GetPrevFBAcquireFd().
   uint32_t displaytype = (static_cast<nsWindow*>(mWidget))->GetDisplayType();
   if (displaytype == GonkDisplay::DISPLAY_VIRTUAL) {
     // Don't bother with fence for virtual dispaly
     return;
   }
-  android::sp<android::Fence> fence = new android::Fence(GetGonkDisplay()->GetPrevFBAcquireFd(displaytype));
+  DisplayDevice* device = GetGonkDisplay()->GetDevice(displaytype);
+  android::sp<android::Fence> fence = new android::Fence(device->GetPrevFBAcquireFd());
   if (fence.get() && fence->isValid()) {
     FenceHandle handle = FenceHandle(fence);
     mReleaseFenceHandle.Merge(handle);

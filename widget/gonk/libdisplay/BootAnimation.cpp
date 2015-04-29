@@ -471,7 +471,7 @@ AnimationThread(void *)
     }
 
     GonkDisplay *display = GetGonkDisplay();
-    int format = display->GetSurfaceformat();
+    int format = display->GetDevice(GonkDisplay::DISPLAY_PRIMARY)->surfaceformat;
 
     hw_module_t const *module;
     if (hw_get_module(GRALLOC_HARDWARE_MODULE_ID, &module)) {

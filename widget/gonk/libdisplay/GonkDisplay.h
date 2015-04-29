@@ -50,8 +50,6 @@ public:
         NUM_DISPLAY_TYPES
     };
 
-    virtual ANativeWindow* GetNativeWindow(const uint32_t aType = DISPLAY_PRIMARY) = 0;
-
     virtual void SetEnabled(bool enabled) = 0;
 
     typedef void (*OnEnabledCallbackType)(bool enabled);
@@ -59,8 +57,6 @@ public:
     virtual void OnEnabled(OnEnabledCallbackType callback) = 0;
 
     virtual void* GetHWCDevice() = 0;
-
-    virtual void* GetFBSurface(const uint32_t aType = DISPLAY_PRIMARY) = 0;
 
     virtual bool SwapBuffers(EGLDisplay dpy, EGLSurface sur) = 0;
 
@@ -95,24 +91,6 @@ public:
         return NS_OK;
     }
 
-    virtual float GetXdpi(const uint32_t aType = DISPLAY_PRIMARY) = 0;
-
-    virtual int32_t GetSurfaceformat(const uint32_t aType = DISPLAY_PRIMARY) = 0;
-
-    /**
-     * Set FramebufferSurface ReleaseFence's file descriptor.
-     * ReleaseFence will be signaled after the HWC has finished reading
-     * from a buffer.
-     */
-    virtual void SetFBReleaseFd(int fd, const uint32_t aType = DISPLAY_PRIMARY) = 0;
-
-    /**
-     * Get FramebufferSurface AcquireFence's file descriptor
-     * AcquireFence will be signaled when a buffer's content is available.
-     */
-    virtual int GetPrevFBAcquireFd(const uint32_t aType = DISPLAY_PRIMARY) = 0;
-
-protected:
     virtual DisplayDevice* GetDevice(const uint32_t aType) = 0;
 };
 

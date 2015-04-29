@@ -191,7 +191,8 @@ nsWindow::nsWindow()
 
     nsIntSize screenSize;
 
-    ANativeWindow *win = GetGonkDisplay()->GetNativeWindow();
+    DisplayDevice* device = GetGonkDisplay()->GetDevice(mDisplayType);
+    ANativeWindow *win = device->GetNativeWindow();
 
     if (win->query(win, NATIVE_WINDOW_WIDTH, &screenSize.width) ||
         win->query(win, NATIVE_WINDOW_HEIGHT, &screenSize.height)) {
@@ -474,7 +475,8 @@ nsWindow::Create(nsIWidget *aParent,
 
     // FIXME:
     if (!aParent && mDisplayType != GonkDisplay::DISPLAY_PRIMARY) {
-        ANativeWindow *win = GetGonkDisplay()->GetNativeWindow(mDisplayType);
+        DisplayDevice* device = GetGonkDisplay()->GetDevice(mDisplayType);
+        ANativeWindow *win = device->GetNativeWindow();
         MOZ_ASSERT(win);
 
         if (win->query(win, NATIVE_WINDOW_WIDTH, &sRemoteVirtualBounds.width) ||
@@ -662,9 +664,12 @@ nsWindow::WidgetToScreenOffset()
 void*
 nsWindow::GetNativeData(uint32_t aDataType)
 {
+    DisplayDevice* device = GetGonkDisplay()->GetDevice(mDisplayType);
+    NS_ENSURE_TRUE(device, nullptr);
+
     switch (aDataType) {
     case NS_NATIVE_WINDOW:
-        return GetGonkDisplay()->GetNativeWindow(mDisplayType);
+        return device->GetNativeWindow();
     }
     return nullptr;
 }
@@ -772,7 +777,8 @@ nsWindow::StartRemoteDrawing()
     }
     int bytepp;
 
-    SurfaceFormat format = HalFormatToSurfaceFormat(display->GetSurfaceformat(), &bytepp);
+    DisplayDevice* device = display->GetDevice(GonkDisplay::DISPLAY_PRIMARY);
+    SurfaceFormat format = HalFormatToSurfaceFormat(device->surfaceformat, &bytepp);
     mFramebufferTarget = Factory::CreateDrawTargetForData(
          BackendType::CAIRO, (uint8_t*)vaddr,
          IntSize(width, height), mFramebuffer->stride * bytepp, format);
@@ -808,7 +814,9 @@ nsWindow::EndRemoteDrawing()
 float
 nsWindow::GetDPI()
 {
-    return GetGonkDisplay()->GetXdpi(mDisplayType);
+    DisplayDevice* device = GetGonkDisplay()->GetDevice(mDisplayType);
+    MOZ_ASSERT(device);
+    return device->xdpi;
 }
 
 double
@@ -984,7 +992,8 @@ static uint32_t
 ColorDepth()
 {
     // FIXME: Surfaceformat should be returned base on screen's display type
-    switch (GetGonkDisplay()->GetSurfaceformat()) {
+    DisplayDevice* device = GetGonkDisplay()->GetDevice(GonkDisplay::DISPLAY_PRIMARY);
+    switch (device->surfaceformat) {
     case GGL_PIXEL_FORMAT_RGB_565:
         return 16;
     case GGL_PIXEL_FORMAT_RGBA_8888:

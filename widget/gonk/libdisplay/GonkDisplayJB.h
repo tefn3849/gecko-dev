@@ -22,7 +22,6 @@
 #include "hardware/power.h"
 #include "ui/Fence.h"
 #include "utils/RefBase.h"
-#include "nsIDisplayDevice.h"
 #include "nsTArray.h"
 
 namespace mozilla {
@@ -32,15 +31,11 @@ public:
     GonkDisplayJB();
     ~GonkDisplayJB();
 
-    virtual ANativeWindow* GetNativeWindow(const uint32_t aType = DISPLAY_PRIMARY);
-
     virtual void SetEnabled(bool enabled);
 
     virtual void OnEnabled(OnEnabledCallbackType callback);
 
     virtual void* GetHWCDevice();
-
-    virtual void* GetFBSurface(const uint32_t aType = DISPLAY_PRIMARY);
 
     virtual bool SwapBuffers(EGLDisplay dpy, EGLSurface sur);
 
@@ -50,10 +45,6 @@ public:
 
     virtual void UpdateFBSurface(EGLDisplay dpy, EGLSurface sur);
 
-    virtual void SetFBReleaseFd(int fd, const uint32_t aType = DISPLAY_PRIMARY);
-
-    virtual int GetPrevFBAcquireFd(const uint32_t aType = DISPLAY_PRIMARY);
-
     bool Post(buffer_handle_t buf, int fence);
 
     virtual nsresult AddDisplay(
@@ -62,15 +53,10 @@ public:
 
     virtual nsresult RemoveDisplay(const uint32_t aType);
 
-    virtual float GetXdpi(const uint32_t aType = DISPLAY_PRIMARY);
-
-    virtual int32_t GetSurfaceformat(const uint32_t aType = DISPLAY_PRIMARY);
-
-protected:
     virtual DisplayDevice* GetDevice(const uint32_t aType);
 
 private:
-    void NotifyDisplayChange(nsIDisplayDevice* aDisplayDevice);
+    void NotifyDisplayChange(nsIDisplayInfo* aDisplayInfo);
 
     void ConfigureDisplayDevice(DisplayDevice* aDevice);
 
@@ -84,7 +70,7 @@ private:
     power_module_t*           mPowerModule;
     android::sp<android::IGraphicBufferAlloc> mAlloc;
     OnEnabledCallbackType mEnabledCallback;
-    nsTArray<DisplayDevice> mDevices;
+    nsTArray<nsRefPtr<DisplayDevice>> mDevices;
 };
 
 }
