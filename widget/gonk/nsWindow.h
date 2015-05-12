@@ -123,6 +123,15 @@ public:
 
     void ConfigureAPZControllerThread() override;
 
+    bool IsOffScreen();
+    void* GetDispSurface();
+    void SetDispReleaseFd(int fd);
+    int GetPrevDispAcquireFd();
+    uint32_t GetDisplayType();
+
+    float xdpi;
+    int32_t surfaceformat;
+
 protected:
     nsWindow* mParent;
     bool mVisible;

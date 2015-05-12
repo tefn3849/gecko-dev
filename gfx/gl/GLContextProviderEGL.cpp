@@ -19,6 +19,7 @@
 #define GET_NATIVE_WINDOW(aWidget) ((EGLNativeWindowType)aWidget->GetNativeData(NS_NATIVE_WINDOW))
 #include "HwcComposer2D.h"
 #include "libdisplay/GonkDisplay.h"
+#include "nsWindow.h"
 #endif
 
 #if defined(ANDROID)
@@ -128,7 +129,7 @@ namespace gl {
 } while (0)
 
 static bool
-CreateConfig(EGLConfig* aConfig);
+CreateConfig(EGLConfig* aConfig, nsIWidget* aWidget);
 
 // append three zeros at the end of attribs list to work around
 // EGL implementation bugs that iterate until they find 0, instead of
@@ -483,7 +484,7 @@ GLContextEGL::CreateSurfaceForWindow(nsIWidget* aWidget)
     }
 
     EGLConfig config;
-    if (!CreateConfig(&config)) {
+    if (!CreateConfig(&config, aWidget)) {
         MOZ_CRASH("Failed to create EGLConfig!\n");
         return nullptr;
     }
@@ -637,7 +638,7 @@ static const EGLint kEGLConfigAttribsRGBA32[] = {
 };
 
 static bool
-CreateConfig(EGLConfig* aConfig, int32_t depth)
+CreateConfig(EGLConfig* aConfig, int32_t depth, nsIWidget* aWidget)
 {
     EGLConfig configs[64];
     const EGLint* attribs;
@@ -673,12 +674,13 @@ CreateConfig(EGLConfig* aConfig, int32_t depth)
     //  HAL_PIXEL_FORMAT_RGBX_8888
     //  HAL_PIXEL_FORMAT_BGRA_8888
     //  HAL_PIXEL_FORMAT_RGB_565
+    nsWindow* window = static_cast<nsWindow*>(aWidget);
     for (int j = 0; j < ncfg; ++j) {
         EGLConfig config = configs[j];
         EGLint format;
         if (sEGLLibrary.fGetConfigAttrib(EGL_DISPLAY(), config,
                                          LOCAL_EGL_NATIVE_VISUAL_ID, &format) &&
-            format == GetGonkDisplay()->surfaceformat)
+            format == window->surfaceformat)
         {
             *aConfig = config;
             return true;
@@ -714,20 +716,20 @@ CreateConfig(EGLConfig* aConfig, int32_t depth)
 // NB: It's entirely legal for the returned EGLConfig to be valid yet
 // have the value null.
 static bool
-CreateConfig(EGLConfig* aConfig)
+CreateConfig(EGLConfig* aConfig, nsIWidget* aWidget)
 {
     int32_t depth = gfxPlatform::GetPlatform()->GetScreenDepth();
-    if (!CreateConfig(aConfig, depth)) {
+    if (!CreateConfig(aConfig, depth, aWidget)) {
 #ifdef MOZ_WIDGET_ANDROID
         // Bug 736005
         // Android doesn't always support 16 bit so also try 24 bit
         if (depth == 16) {
-            return CreateConfig(aConfig, 24);
+            return CreateConfig(aConfig, 24, aWidget);
         }
         // Bug 970096
         // Some devices that have 24 bit screens only support 16 bit OpenGL?
         if (depth == 24) {
-            return CreateConfig(aConfig, 16);
+            return CreateConfig(aConfig, 16, aWidget);
         }
 #endif
         return false;
@@ -772,7 +774,7 @@ GLContextProviderEGL::CreateForWindow(nsIWidget *aWidget)
     bool doubleBuffered = true;
 
     EGLConfig config;
-    if (!CreateConfig(&config)) {
+    if (!CreateConfig(&config, aWidget)) {
         MOZ_CRASH("Failed to create EGLConfig!\n");
         return nullptr;
     }
@@ -785,9 +787,10 @@ GLContextProviderEGL::CreateForWindow(nsIWidget *aWidget)
     }
 
     SurfaceCaps caps = SurfaceCaps::Any();
+    bool isoffscreen = (static_cast<nsWindow*>(aWidget))->IsOffScreen();
     nsRefPtr<GLContextEGL> glContext =
         GLContextEGL::CreateGLContext(caps,
-                                      nullptr, false,
+                                      nullptr, isoffscreen,
                                       config, surface);
 
     if (!glContext) {
@@ -811,7 +814,7 @@ GLContextProviderEGL::CreateEGLSurface(void* aWindow)
     }
 
     EGLConfig config;
-    if (!CreateConfig(&config)) {
+    if (!CreateConfig(&config, static_cast<nsIWidget*>(aWindow))) {
         MOZ_CRASH("Failed to create EGLConfig!\n");
     }
 

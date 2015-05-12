@@ -57,6 +57,7 @@
 #if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
 #include "libdisplay/GonkDisplay.h"     // for GonkDisplay
 #include <ui/Fence.h>
+#include "nsWindow.h"
 #endif
 
 namespace mozilla {
@@ -1297,7 +1298,12 @@ CompositorOGL::SetDispAcquireFence(Layer* aLayer)
     return;
   }
 
-  android::sp<android::Fence> fence = new android::Fence(GetGonkDisplay()->GetPrevDispAcquireFd());
+  nsWindow* window = static_cast<nsWindow*>(mWidget);
+  if (window->IsOffScreen()) {
+    return;
+  }
+
+  android::sp<android::Fence> fence = new android::Fence(window->GetPrevDispAcquireFd());
   if (fence.get() && fence->isValid()) {
     FenceHandle handle = FenceHandle(fence);
     mReleaseFenceHandle.Merge(handle);

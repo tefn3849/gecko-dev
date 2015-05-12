@@ -870,6 +870,36 @@ nsWindow::GetNaturalBounds()
 }
 
 bool
+nsWindow::IsOffScreen()
+{
+    return false;
+}
+
+void*
+nsWindow::GetDispSurface()
+{
+    //return mScreen->mDispSurface.get();
+    return nullptr;
+}
+void
+nsWindow::SetDispReleaseFd(int fd)
+{
+    //mScreen->mDispSurface->setReleaseFenceFd(fd);
+}
+int
+nsWindow::GetPrevDispAcquireFd()
+{
+    //mScreen->mDispSurface->GetPrevDispAcquireFd();
+    return -1;
+}
+uint32_t
+nsWindow::GetDisplayType()
+{
+    //mScreen->mDisplayType;
+    return 0;
+}
+
+bool
 nsWindow::NeedsPaint()
 {
   if (!mLayerManager) {

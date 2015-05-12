@@ -30,6 +30,8 @@
 #include <utils/Timers.h>
 #endif
 
+class nsWindow;
+
 namespace mozilla {
 
 namespace gl {
@@ -82,9 +84,10 @@ public:
     // Returns FALSE if the container cannot be fully rendered
     // by this composer so nothing was rendered at all
     virtual bool TryRenderWithHwc(layers::Layer* aRoot,
+                                  nsIWidget* aWidget,
                                   bool aGeometryChanged) override;
 
-    virtual bool Render() override;
+    virtual bool Render(nsIWidget* aWidget) override;
 
     virtual bool HasHwc() override { return mHwc; }
 
@@ -93,6 +96,7 @@ public:
     bool RegisterHwcEventCallback();
     void Vsync(int aDisplay, int64_t aTimestamp);
     void Invalidate();
+    void Hotplug(int aDisplay, int aConnected);
 #endif
     void SetCompositorParent(layers::CompositorParent* aCompositorParent);
 
@@ -102,9 +106,9 @@ public:
 
 private:
     void Reset();
-    void Prepare(buffer_handle_t dispHandle, int fence);
-    bool Commit();
-    bool TryHwComposition();
+    void Prepare(buffer_handle_t dispHandle, int fence, nsWindow* aWindow);
+    bool Commit(nsWindow* aWindow);
+    bool TryHwComposition(nsWindow* aWindow);
     bool ReallocLayerList();
     bool PrepareLayerList(layers::Layer* aContainer, const nsIntRect& aClip,
           const gfx::Matrix& aParentTransform);
@@ -112,6 +116,7 @@ private:
     void setHwcGeometry(bool aGeometryChanged);
     void SendtoLayerScope();
 
+    nsWindow*               mWindow;
     HwcDevice*              mHwc;
     HwcList*                mList;
     hwc_display_t           mDpy; // Store for BLIT Composition and GonkDisplayICS
