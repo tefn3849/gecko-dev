@@ -359,7 +359,7 @@ GonkDisplayJB::StopBootAnim()
     }
 }
 
-void*
+GonkDisplay::NativeData
 GonkDisplayJB::GetNativeData(uint32_t aDisplayType,
                              android::IGraphicBufferProducer* aProducer)
 {
@@ -367,9 +367,14 @@ GonkDisplayJB::GetNativeData(uint32_t aDisplayType,
 //    MOZ_ASSERT(aDisplayType == DISPLAY_VIRTUAL && aProducer, "Virtual display must "
 //               "carry a valid graphic buffer producer.");
 
-    NativeData* data = new NativeData();
+    NativeData data;
 
-    if (aDisplayType == DISPLAY_EXTERNAL) {
+    if (aDisplayType == DISPLAY_PRIMARY) {
+        data.mSTClient = mSTClient.get();
+        data.mDisplaySurface = mDispSurface.get();
+        data.mXdpi = xdpi;
+    }
+    else if (aDisplayType == DISPLAY_EXTERNAL) {
         int32_t values[3];
         const uint32_t attrs[] = {
             HWC_DISPLAY_WIDTH,
@@ -395,7 +400,7 @@ GonkDisplayJB::GetNativeData(uint32_t aDisplayType,
 #else
         sp<BufferQueue> consumer = new BufferQueue(true, mAlloc);
 #endif
-        data->mDispSurface = new FramebufferSurface(aDisplayType, width, height,
+        data.mDisplaySurface = new FramebufferSurface(aDisplayType, width, height,
             surfaceformat, consumer);
 #if ANDROID_VERSION == 17
         sp<SurfaceTextureClient> stc = new SurfaceTextureClient(
@@ -404,15 +409,19 @@ static_cast<sp<ISurfaceTexture>>(
 #else
         sp<Surface> stc = new Surface(producer);
 #endif
-        data->mSTClient = stc;
-        data->mSTClient->perform(data->mSTClient.get(),
-                                 NATIVE_WINDOW_SET_BUFFER_COUNT, 2);
-        data->mSTClient->perform(data->mSTClient.get(), NATIVE_WINDOW_SET_USAGE,
-                                 GRALLOC_USAGE_HW_FB |
-                                 GRALLOC_USAGE_HW_RENDER |
-                                 GRALLOC_USAGE_HW_COMPOSER);
+        ANativeWindow* win = stc.get();
+        win->perform(win,
+                     NATIVE_WINDOW_SET_BUFFER_COUNT, 2);
+        win->perform(win, NATIVE_WINDOW_SET_USAGE,
+                     GRALLOC_USAGE_HW_FB |
+                     GRALLOC_USAGE_HW_RENDER |
+                     GRALLOC_USAGE_HW_COMPOSER);
+
+        data.mSTClient = win;
+        data.mXdpi = values[2] / 1000.f;
     } else if (aDisplayType == DISPLAY_VIRTUAL) {
-        data->mSTClient = new Surface(aProducer);
+        data.mSTClient = new Surface(aProducer);
+        data.mDisplaySurface = nullptr;
     }
 
     return data;

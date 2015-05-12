@@ -31,11 +31,6 @@ public:
     GonkDisplayJB();
     ~GonkDisplayJB();
 
-    struct NativeData {
-        android::sp<ANativeWindow> mSTClient;
-        android::sp<android::DisplaySurface> mDispSurface;
-    };
-
     virtual ANativeWindow* GetNativeWindow();
 
     virtual void SetEnabled(bool enabled);
@@ -60,8 +55,8 @@ public:
 
     bool Post(buffer_handle_t buf, int fence);
 
-    virtual void* GetNativeData(uint32_t aDisplayType,
-        android::IGraphicBufferProducer* aProducer = nullptr);
+    virtual NativeData GetNativeData(uint32_t aDisplayType,
+                                     android::IGraphicBufferProducer* aProducer = nullptr);
 
 private:
     void StopBootAnim();

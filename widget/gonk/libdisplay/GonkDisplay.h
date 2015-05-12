@@ -45,6 +45,12 @@ public:
         NUM_DISPLAY_TYPES
     };
 
+    struct NativeData {
+        void* mSTClient;
+        void* mDisplaySurface;
+        float mXdpi;
+    };
+
     virtual ANativeWindow* GetNativeWindow() = 0;
 
     virtual void SetEnabled(bool enabled) = 0;
@@ -81,8 +87,8 @@ public:
      */
     virtual int GetPrevDispAcquireFd() = 0;
 
-    virtual void* GetNativeData(uint32_t aDisplayType,
-        android::IGraphicBufferProducer* aProducer = nullptr) = 0;
+    virtual NativeData GetNativeData(uint32_t aDisplayType,
+                                     android::IGraphicBufferProducer* aProducer = nullptr) = 0;
 
     float xdpi;
     int32_t surfaceformat;

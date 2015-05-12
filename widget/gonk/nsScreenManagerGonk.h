@@ -20,18 +20,25 @@
 #include "mozilla/Hal.h"
 #include "nsCOMPtr.h"
 
+#include "cutils/properties.h"
 #include "nsBaseScreen.h"
 #include "nsIScreenManager.h"
+#include "libdisplay/GonkDisplay.h"
 
 class nsRunnable;
 class nsWindow;
+
+namespace android {
+    class DisplaySurface;
+};
 
 class nsScreenGonk : public nsBaseScreen
 {
     typedef mozilla::hal::ScreenConfiguration ScreenConfiguration;
 
 public:
-    nsScreenGonk(uint32_t aId, ANativeWindow* aNativeWindow);
+    nsScreenGonk(uint32_t aId,
+                 const mozilla::GonkDisplay::NativeData& aNativeData);
 
     ~nsScreenGonk();
 
@@ -71,6 +78,7 @@ protected:
     uint32_t mScreenRotation;
     uint32_t mPhysicalScreenRotation;
     nsTArray<nsWindow*> mTopWindows;
+    android::sp<android::DisplaySurface> mDisplaySurface;
 };
 
 class nsScreenManagerGonk final : public nsIScreenManager
