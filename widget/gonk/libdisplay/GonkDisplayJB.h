@@ -22,6 +22,7 @@
 #include "hardware/power.h"
 #include "ui/Fence.h"
 #include "utils/RefBase.h"
+#include <utils/StrongPointer.h>
 
 namespace mozilla {
 
@@ -29,6 +30,11 @@ class MOZ_EXPORT GonkDisplayJB : public GonkDisplay {
 public:
     GonkDisplayJB();
     ~GonkDisplayJB();
+
+    struct NativeData {
+        android::sp<ANativeWindow> mSTClient;
+        android::sp<android::DisplaySurface> mDispSurface;
+    };
 
     virtual ANativeWindow* GetNativeWindow();
 
@@ -53,6 +59,9 @@ public:
     virtual int GetPrevDispAcquireFd();
 
     bool Post(buffer_handle_t buf, int fence);
+
+    virtual void* GetNativeData(uint32_t aDisplayType,
+        android::IGraphicBufferProducer* aProducer = nullptr);
 
 private:
     void StopBootAnim();

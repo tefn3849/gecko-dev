@@ -19,6 +19,10 @@
 #include <system/window.h>
 #include "mozilla/Types.h"
 
+namespace android {
+class IGraphicBufferProducer;
+}
+
 namespace mozilla {
 
 typedef void * EGLDisplay;
@@ -26,6 +30,21 @@ typedef void * EGLSurface;
 
 class MOZ_EXPORT GonkDisplay {
 public:
+   /**
+    * This enum is for types of display. DISPLAY_PRIMARY refers to the default
+    * built-in display, DISPLAY_EXTERNAL refers to displays connected with
+    * HDMI, and DISPLAY_VIRTUAL are displays which makes composited output
+    * available within the system. Currently, displays of external are detected
+    * via the hotplug detection in HWC, and displays of virtual are connected
+    * via Wifi Display.
+    */
+    enum {
+        DISPLAY_PRIMARY,
+        DISPLAY_EXTERNAL,
+        DISPLAY_VIRTUAL,
+        NUM_DISPLAY_TYPES
+    };
+
     virtual ANativeWindow* GetNativeWindow() = 0;
 
     virtual void SetEnabled(bool enabled) = 0;
@@ -61,6 +80,9 @@ public:
      * AcquireFence will be signaled when a buffer's content is available.
      */
     virtual int GetPrevDispAcquireFd() = 0;
+
+    virtual void* GetNativeData(uint32_t aDisplayType,
+        android::IGraphicBufferProducer* aProducer = nullptr) = 0;
 
     float xdpi;
     int32_t surfaceformat;

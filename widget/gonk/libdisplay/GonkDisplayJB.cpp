@@ -359,6 +359,65 @@ GonkDisplayJB::StopBootAnim()
     }
 }
 
+void*
+GonkDisplayJB::GetNativeData(uint32_t aDisplayType,
+                             android::IGraphicBufferProducer* aProducer)
+{
+//    MOZ_ASSERT(aDisplayType < NUM_DISPLAY_TYPES && mHwc);
+//    MOZ_ASSERT(aDisplayType == DISPLAY_VIRTUAL && aProducer, "Virtual display must "
+//               "carry a valid graphic buffer producer.");
+
+    NativeData* data = new NativeData();
+
+    if (aDisplayType == DISPLAY_EXTERNAL) {
+        int32_t values[3];
+        const uint32_t attrs[] = {
+            HWC_DISPLAY_WIDTH,
+            HWC_DISPLAY_HEIGHT,
+            HWC_DISPLAY_DPI_X,
+            HWC_DISPLAY_NO_ATTRIBUTE
+        };
+        mHwc->getDisplayAttributes(mHwc, aDisplayType, 0, attrs, values);
+        int width = values[0];
+        int height = values[1];
+        int surfaceformat = HAL_PIXEL_FORMAT_RGBA_8888;
+
+#if ANDROID_VERSION >= 21
+        sp<IGraphicBufferProducer> producer;
+        sp<IGraphicBufferConsumer> consumer;
+        BufferQueue::createBufferQueue(&producer, &consumer, mAlloc);
+#elif ANDROID_VERSION >= 19
+        sp<BufferQueue> consumer = new BufferQueue(mAlloc);
+        sp<IGraphicBufferProducer> producer = consumer;
+#elif ANDROID_VERSION >= 18
+        sp<BufferQueue> consumer = new BufferQueue(true, mAlloc);
+        sp<IGraphicBufferProducer> producer = consumer;
+#else
+        sp<BufferQueue> consumer = new BufferQueue(true, mAlloc);
+#endif
+        data->mDispSurface = new FramebufferSurface(aDisplayType, width, height,
+            surfaceformat, consumer);
+#if ANDROID_VERSION == 17
+        sp<SurfaceTextureClient> stc = new SurfaceTextureClient(
+static_cast<sp<ISurfaceTexture>>(
+        aDevice->mFBSurfacemFBSurface->getBufferQueue()));
+#else
+        sp<Surface> stc = new Surface(producer);
+#endif
+        data->mSTClient = stc;
+        data->mSTClient->perform(data->mSTClient.get(),
+                                 NATIVE_WINDOW_SET_BUFFER_COUNT, 2);
+        data->mSTClient->perform(data->mSTClient.get(), NATIVE_WINDOW_SET_USAGE,
+                                 GRALLOC_USAGE_HW_FB |
+                                 GRALLOC_USAGE_HW_RENDER |
+                                 GRALLOC_USAGE_HW_COMPOSER);
+    } else if (aDisplayType == DISPLAY_VIRTUAL) {
+        data->mSTClient = new Surface(aProducer);
+    }
+
+    return data;
+}
+
 __attribute__ ((visibility ("default")))
 GonkDisplay*
 GetGonkDisplay()
