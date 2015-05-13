@@ -594,10 +594,10 @@ var shell = {
     debug('handleDisplayChangeEvent: ' + JSON.stringify(display));
 
     if (display.connected) {
-      displayList.push(display);
+      this.displayList.push(display);
       this.openTopLevelWindow(display);
     } else {
-      displayList = displayList.filter(function(d) {
+      this.displayList = this.displayList.filter(function(d) {
         return d.id != display.id;
       });
       this.closeTopLevelWindow(display);
@@ -610,7 +610,7 @@ var shell = {
         try {
           this.sendChromeEvent({
             type: 'get-display-list-success',
-            display: displayList.map(function(d) {
+            display: this.displayList.map(function(d) {
               return {
                 id: d.id,
                 name: d.name || ('External Display #' + d.id)
