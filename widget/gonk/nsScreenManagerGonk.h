@@ -35,10 +35,12 @@ namespace android {
 class nsScreenGonk : public nsBaseScreen
 {
     typedef mozilla::hal::ScreenConfiguration ScreenConfiguration;
+    typedef mozilla::GonkDisplay GonkDisplay;
 
 public:
     nsScreenGonk(uint32_t aId,
-                 const mozilla::GonkDisplay::NativeData& aNativeData);
+                 GonkDisplay::DisplayType aDisplayType,
+                 const GonkDisplay::NativeData& aNativeData);
 
     ~nsScreenGonk();
 
@@ -58,6 +60,9 @@ public:
     uint32_t EffectiveScreenRotation();
     ScreenConfiguration GetConfiguration();
     bool IsPrimaryScreen();
+    android::DisplaySurface* GetDisplaySurface();
+    GonkDisplay::DisplayType GetDisplayType();
+    int GetPrevDispAcquireFd();
 
     void RegisterWindow(nsWindow* aWindow);
     void UnregisterWindow(nsWindow* aWindow);
@@ -79,18 +84,13 @@ protected:
     uint32_t mPhysicalScreenRotation;
     nsTArray<nsWindow*> mTopWindows;
     android::sp<android::DisplaySurface> mDisplaySurface;
+    GonkDisplay::DisplayType mDisplayType;
 };
 
 class nsScreenManagerGonk final : public nsIScreenManager
 {
 public:
-    enum {
-        // TODO: Bug 1138287 will define more screen/display types.
-        PRIMARY_SCREEN_TYPE = 0,
-
-        // TODO: Maintain a mapping from type to id dynamically.
-        PRIMARY_SCREEN_ID = 0,
-    };
+    typedef mozilla::GonkDisplay GonkDisplay;
 
 public:
     nsScreenManagerGonk();
@@ -104,13 +104,13 @@ public:
     void Initialize();
     void DisplayEnabled(bool aEnabled);
 
-    void AddScreen(uint32_t aDisplayType);
-    void RemoveScreen(uint32_t aDisplayType);
+    void AddScreen(GonkDisplay::DisplayType aDisplayType);
+    void RemoveScreen(GonkDisplay::DisplayType aDisplayType);
 
 protected:
     ~nsScreenManagerGonk();
     void VsyncControl(bool aEnabled);
-    uint32_t GetIdFromType(uint32_t aDisplayType);
+    uint32_t GetIdFromType(GonkDisplay::DisplayType aDisplayType);
 
     bool mInitialized;
     nsTArray<nsRefPtr<nsScreenGonk>> mScreens;

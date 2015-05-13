@@ -38,7 +38,7 @@ public:
     * via the hotplug detection in HWC, and displays of virtual are connected
     * via Wifi Display.
     */
-    enum {
+    enum DisplayType {
         DISPLAY_PRIMARY,
         DISPLAY_EXTERNAL,
         DISPLAY_VIRTUAL,

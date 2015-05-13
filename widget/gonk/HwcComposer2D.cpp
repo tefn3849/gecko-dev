@@ -774,7 +774,9 @@ HwcComposer2D::TryHwComposition(nsWindow* aWindow)
     // BLIT or full OVERLAY Composition
     Commit(aWindow);
 
-    aWindow->SetDispReleaseFd(mList->hwLayers[idx].releaseFenceFd);
+    android::DisplaySurface* displaySurface =
+        static_cast<android::DisplaySurface*>(aWindow->GetDispSurface());
+    displaySurface->setReleaseFenceFd(mList->hwLayers[idx].releaseFenceFd);
     mList->hwLayers[idx].releaseFenceFd = -1;
     return true;
 }
@@ -814,7 +816,7 @@ HwcComposer2D::Render(nsIWidget* aWidget)
     // GPU or partial HWC Composition
     Commit(window);
 
-    window->SetDispReleaseFd(mList->hwLayers[mList->numHwLayers - 1].releaseFenceFd);
+    dispSurface->setReleaseFenceFd(mList->hwLayers[mList->numHwLayers - 1].releaseFenceFd);
     mList->hwLayers[mList->numHwLayers - 1].releaseFenceFd = -1;
     return true;
 }

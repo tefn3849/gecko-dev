@@ -125,7 +125,6 @@ public:
 
     bool IsOffScreen();
     void* GetDispSurface();
-    void SetDispReleaseFd(int fd);
     int GetPrevDispAcquireFd();
     uint32_t GetDisplayType();
 

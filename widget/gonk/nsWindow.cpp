@@ -818,31 +818,25 @@ nsWindow::GetNaturalBounds()
 bool
 nsWindow::IsOffScreen()
 {
-    return false;
+    return GonkDisplay::DISPLAY_VIRTUAL == mScreen->GetDisplayType();
 }
 
 void*
 nsWindow::GetDispSurface()
 {
-    //return mScreen->mDispSurface.get();
-    return nullptr;
+    return mScreen->GetDisplaySurface();
 }
-void
-nsWindow::SetDispReleaseFd(int fd)
-{
-    //mScreen->mDispSurface->setReleaseFenceFd(fd);
-}
-int
-nsWindow::GetPrevDispAcquireFd()
-{
-    //mScreen->mDispSurface->GetPrevDispAcquireFd();
-    return -1;
-}
+
 uint32_t
 nsWindow::GetDisplayType()
 {
-    //mScreen->mDisplayType;
-    return 0;
+    return mScreen->GetDisplayType();
+}
+
+int
+nsWindow::GetPrevDispAcquireFd()
+{
+    return mScreen->GetPrevDispAcquireFd();
 }
 
 bool

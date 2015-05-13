@@ -110,6 +110,7 @@ SurfaceFormatToColorDepth(int32_t aSurfaceFormat)
 // nsScreenGonk.cpp
 
 nsScreenGonk::nsScreenGonk(uint32_t aId,
+                           GonkDisplay::DisplayType aDisplayType,
                            const GonkDisplay::NativeData& aNativeData)
     : mId(aId)
     , mNativeWindow(static_cast<ANativeWindow*>(aNativeData.mSTClient))
@@ -117,6 +118,7 @@ nsScreenGonk::nsScreenGonk(uint32_t aId,
     , mScreenRotation(nsIScreen::ROTATION_0_DEG)
     , mPhysicalScreenRotation(nsIScreen::ROTATION_0_DEG)
     , mDisplaySurface(static_cast<android::DisplaySurface*>(aNativeData.mDisplaySurface))
+    , mDisplayType(aDisplayType)
 {
     int surfaceFormat;
     if (mNativeWindow->query(mNativeWindow.get(), NATIVE_WINDOW_WIDTH, &mVirtualBounds.width) ||
@@ -143,7 +145,7 @@ nsScreenGonk::~nsScreenGonk()
 bool
 nsScreenGonk::IsPrimaryScreen()
 {
-    return nsScreenManagerGonk::PRIMARY_SCREEN_ID == mId;
+    return GonkDisplay::DISPLAY_PRIMARY == mDisplayType;
 }
 
 NS_IMETHODIMP
@@ -322,6 +324,24 @@ nsScreenGonk::BringToTop(nsWindow* aWindow)
     mTopWindows.InsertElementAt(0, aWindow);
 }
 
+android::DisplaySurface*
+nsScreenGonk::GetDisplaySurface()
+{
+    return mDisplaySurface.get();
+}
+
+GonkDisplay::DisplayType
+nsScreenGonk::GetDisplayType()
+{
+    return mDisplayType;
+}
+
+int
+nsScreenGonk::GetPrevDispAcquireFd()
+{
+    return mDisplaySurface->GetPrevDispAcquireFd();
+}
+
 NS_IMPL_ISUPPORTS(nsScreenManagerGonk, nsIScreenManager)
 
 nsScreenManagerGonk::nsScreenManagerGonk()
@@ -365,7 +385,7 @@ nsScreenManagerGonk::Initialize()
     mScreenOffEvent = new ScreenOnOffEvent(false);
     GetGonkDisplay()->OnEnabled(displayEnabledCallback);
 
-    AddScreen(PRIMARY_SCREEN_TYPE);
+    AddScreen(GonkDisplay::DISPLAY_PRIMARY);
 
     nsAppShell::NotifyScreenInitialized();
     mInitialized = true;
@@ -466,7 +486,7 @@ nsScreenManagerGonk::VsyncControl(bool aEnabled)
 }
 
 uint32_t
-nsScreenManagerGonk::GetIdFromType(uint32_t aDisplayType)
+nsScreenManagerGonk::GetIdFromType(GonkDisplay::DisplayType aDisplayType)
 {
     // This is the only place where we make the assumption that
     // display type is equivalent to screen id.
@@ -476,18 +496,18 @@ nsScreenManagerGonk::GetIdFromType(uint32_t aDisplayType)
 }
 
 void
-nsScreenManagerGonk::AddScreen(uint32_t aDisplayType)
+nsScreenManagerGonk::AddScreen(GonkDisplay::DisplayType aDisplayType)
 {
     uint32_t id = GetIdFromType(aDisplayType);
 
     GonkDisplay::NativeData nativeData = GetGonkDisplay()->GetNativeData(aDisplayType);
-    nsScreenGonk* screen = new nsScreenGonk(id, nativeData);
+    nsScreenGonk* screen = new nsScreenGonk(id, aDisplayType, nativeData);
 
     mScreens.AppendElement(screen);
 }
 
 void
-nsScreenManagerGonk::RemoveScreen(uint32_t aDisplayType)
+nsScreenManagerGonk::RemoveScreen(GonkDisplay::DisplayType aDisplayType)
 {
     uint32_t screenId = GetIdFromType(aDisplayType);
     for (size_t i = 0; i < mScreens.Length(); i++) {
