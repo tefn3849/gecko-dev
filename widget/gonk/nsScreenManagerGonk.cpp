@@ -572,11 +572,12 @@ NotifyDisplayChange(nsIDisplayInfo* aDisplayInfo)
 } // end of unnamed namespace.
 
 void
-nsScreenManagerGonk::AddScreen(GonkDisplay::DisplayType aDisplayType)
+nsScreenManagerGonk::AddScreen(GonkDisplay::DisplayType aDisplayType,
+                               android::IGraphicBufferProducer* aProducer)
 {
     uint32_t id = GetIdFromType(aDisplayType);
 
-    GonkDisplay::NativeData nativeData = GetGonkDisplay()->GetNativeData(aDisplayType);
+    GonkDisplay::NativeData nativeData = GetGonkDisplay()->GetNativeData(aDisplayType, aProducer);
     nsScreenGonk* screen = new nsScreenGonk(id, aDisplayType, nativeData);
 
     mScreens.AppendElement(screen);

@@ -11,6 +11,7 @@
 #include <media/IAudioPolicyService.h>
 #include <utils/String8.h>
 #include <gui/IGraphicBufferProducer.h>
+#include "nsScreenManagerGonk.h"
 
 using namespace android;
 
@@ -45,13 +46,16 @@ public:
     virtual void onDisplayConnected(const sp<IGraphicBufferProducer>& bufferProducer,
             uint32_t width, uint32_t height, uint32_t flags, uint32_t session) {
         ALOGI("Callback onDisplayConnected");
-        //mozilla::GetGonkDisplay()->AddDisplay(GonkDisplay::DISPLAY_VIRTUAL, bufferProducer);
+
+        nsRefPtr<nsScreenManagerGonk> screenManager = nsScreenManagerGonk::GetInstance();
+        screenManager->AddScreen(GonkDisplay::DISPLAY_VIRTUAL, bufferProducer.get());
     }
 
     virtual void onDisplayDisconnected() {
         ALOGI("Callback onDisplayDisconnected");
         enableAudioSubmix(false);
-        //mozilla::GetGonkDisplay()->RemoveDisplay(GonkDisplay::DISPLAY_VIRTUAL);
+        nsRefPtr<nsScreenManagerGonk> screenManager = nsScreenManagerGonk::GetInstance();
+        screenManager->RemoveScreen(GonkDisplay::DISPLAY_VIRTUAL);
     }
 
     virtual void onDisplayError(int32_t error) {

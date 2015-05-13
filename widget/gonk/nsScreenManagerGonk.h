@@ -30,6 +30,7 @@ class nsWindow;
 
 namespace android {
     class DisplaySurface;
+    class IGraphicBufferProducer;
 };
 
 class nsScreenGonk : public nsBaseScreen
@@ -104,7 +105,9 @@ public:
     void Initialize();
     void DisplayEnabled(bool aEnabled);
 
-    void AddScreen(GonkDisplay::DisplayType aDisplayType);
+    void AddScreen(GonkDisplay::DisplayType aDisplayType,
+                   android::IGraphicBufferProducer* aProducer = nullptr);
+
     void RemoveScreen(GonkDisplay::DisplayType aDisplayType);
 
 protected:
