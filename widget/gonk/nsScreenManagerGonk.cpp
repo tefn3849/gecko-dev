@@ -32,6 +32,7 @@
 #include "nsAppShell.h"
 #include "nsTArray.h"
 #include "pixelflinger/format.h"
+#include "nsIDisplayInfo.h"
 
 #define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "nsScreenGonk" , ## args)
 #define LOGW(args...) __android_log_print(ANDROID_LOG_WARN, "nsScreenGonk", ## args)
@@ -495,6 +496,81 @@ nsScreenManagerGonk::GetIdFromType(GonkDisplay::DisplayType aDisplayType)
     return aDisplayType;
 }
 
+namespace
+{
+
+// A concrete class as a subject for 'display-changed' observer event.
+class DisplayInfo : public nsIDisplayInfo {
+public:
+    enum {
+        ADDED = 1 << 0,
+        REMOVED = 1 << 1
+    };
+
+    NS_DECL_ISUPPORTS
+
+    DisplayInfo(uint32_t aId, int aFlags)
+        : mId(aId)
+        , mFlags(aFlags)
+    {
+    }
+
+    NS_IMETHODIMP GetId(int32_t *aId)
+    {
+        *aId = mId;
+        return NS_OK;
+    }
+
+    NS_IMETHODIMP GetConnected(bool *aConnected)
+    {
+        *aConnected = mFlags & DisplayInfo::ADDED;
+        return NS_OK;
+    }
+
+private:
+    virtual ~DisplayInfo() {}
+
+    uint32_t mId;
+    int mFlags;
+};
+
+NS_IMPL_ISUPPORTS(DisplayInfo, nsIDisplayInfo, nsISupports)
+
+class NotifyTask : public nsIRunnable
+{
+public:
+    NS_DECL_ISUPPORTS
+
+public:
+    NotifyTask(nsIDisplayInfo* aDisplayInfo)
+        : mDisplayInfo(aDisplayInfo)
+    {
+    }
+
+    virtual ~NotifyTask() {}
+
+    NS_IMETHOD Run()
+    {
+        nsCOMPtr<nsIObserverService> os(do_GetService("@mozilla.org/observer-service;1"));
+        if (!os) {
+            return NS_ERROR_FAILURE;
+        }
+        return os->NotifyObservers(mDisplayInfo, "display-changed", nullptr);
+    }
+private:
+    nsCOMPtr<nsIDisplayInfo> mDisplayInfo;
+};
+
+NS_IMPL_ISUPPORTS(NotifyTask, nsIRunnable)
+
+void
+NotifyDisplayChange(nsIDisplayInfo* aDisplayInfo)
+{
+    NS_DispatchToMainThread(new NotifyTask(aDisplayInfo));
+}
+
+} // end of unnamed namespace.
+
 void
 nsScreenManagerGonk::AddScreen(GonkDisplay::DisplayType aDisplayType)
 {
@@ -504,6 +580,9 @@ nsScreenManagerGonk::AddScreen(GonkDisplay::DisplayType aDisplayType)
     nsScreenGonk* screen = new nsScreenGonk(id, aDisplayType, nativeData);
 
     mScreens.AppendElement(screen);
+
+    nsIDisplayInfo* info = new DisplayInfo(id, DisplayInfo::ADDED);
+    NotifyDisplayChange(info);
 }
 
 void
@@ -516,4 +595,7 @@ nsScreenManagerGonk::RemoveScreen(GonkDisplay::DisplayType aDisplayType)
             break;
         }
     }
+
+    nsIDisplayInfo* info = new DisplayInfo(screenId, DisplayInfo::REMOVED);
+    NotifyDisplayChange(info);
 }
