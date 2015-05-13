@@ -725,6 +725,14 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
         if (popupConditions)
           contextFlags |= nsIWindowCreator2::PARENT_IS_LOADING_OR_RUNNING_TIMEOUT;
 
+        // This is for opening another top-level window on b2g, and DisplayId is
+        // for use of differentiating screens of windows.
+      #ifdef MOZ_WIDGET_GONK
+        int retval = WinHasOption(features.get(), "mozDisplayId", 0, nullptr);
+        windowCreator2->SetScreenId(retval);
+      #endif
+
+
         bool cancel = false;
         rv = windowCreator2->CreateChromeWindow2(parentChrome, chromeFlags,
                                                  contextFlags, uriToLoad,

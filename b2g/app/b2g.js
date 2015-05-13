@@ -1140,3 +1140,12 @@ pref("dom.activities.developer_mode_only", "import-app");
 // mulet apparently loads firefox.js as well as b2g.js, so we have to explicitly
 // disable serviceworkers here to get them disabled in mulet.
 pref("dom.serviceWorkers.enabled", false);
+
+// Following vsync prefs are not present in the latest b2g.js.
+// Keep them until we know how to disable vsync.
+
+// Use vsync aligned rendering
+pref("gfx.vsync.hw-vsync.enabled", false);
+pref("gfx.vsync.compositor", false);
+pref("gfx.touch.resample", false);
+pref("gfx.vsync.refreshdriver", false);

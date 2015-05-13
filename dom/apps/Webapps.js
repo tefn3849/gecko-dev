@@ -573,11 +573,12 @@ WebappsApplication.prototype = {
     return request;
   },
 
-  launch: function(aStartPoint) {
+  _launchHelper: function(aRemoteId, aStartPoint) {
     let request = this.createRequest();
     this.addMessageListeners(["Webapps:Launch:Return:OK",
                               "Webapps:Launch:Return:KO"]);
     cpmm.sendAsyncMessage("Webapps:Launch", { origin: this.origin,
+                                              remoteId: aRemoteId,
                                               manifestURL: this.manifestURL,
                                               startPoint: aStartPoint || "",
                                               oid: this._id,
@@ -585,6 +586,14 @@ WebappsApplication.prototype = {
                                               timestamp: Date.now(),
                                               requestID: this.getRequestId(request) });
     return request;
+  },
+
+  launch: function(aStartPoint) {
+    return this._launchHelper(0, aStartPoint);
+  },
+
+  launchRemote: function(aRemoteId, aStartPoint) {
+    return this._launchHelper(aRemoteId, aStartPoint);
   },
 
   clearBrowserData: function() {

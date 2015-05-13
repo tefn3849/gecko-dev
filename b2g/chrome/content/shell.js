@@ -554,6 +554,50 @@ var shell = {
     this.sendEvent(target, type, payload);
   },
 
+  topLevelWindows: {},
+
+  openTopLevelWindow: function(aDisplay) {
+    debug("----- About to open a toplevel window! -----");
+
+    if (this.topLevelWindows[aDisplay.id]) {
+      debug("Top level window for display id: " + aDisplay.id + ' has been opened.');
+      return;
+    }
+    
+    // FIXME: Do not use display type as display Id.
+    let options = 'chrome,dialog=no,close,resizable,scrollbars,extrachrome,' +
+                  'mozDisplayId='+aDisplay.id;
+    let shellUrl = './shell-remote.html#' + aDisplay.id;
+    let win = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
+                       .getService(Components.interfaces.nsIWindowWatcher)
+                       .openWindow(null, shellUrl, 'myTopWindow' + aDisplay.id, options, null);
+
+    this.topLevelWindows[aDisplay.id] = win;
+  },
+
+  closeTopLevelWindow: function(aDisplay) {
+    debug("----- About to close a toplevel window! -----");
+
+    let win = this.topLevelWindows[aDisplay.id];
+
+    if (win) {
+      win.close();
+      delete this.topLevelWindows[aDisplay.id];
+    }
+  },
+
+  handleDisplayChangeEvent: function(aSubject, aTopic, aData) {
+    let display = aSubject.QueryInterface(Ci.nsIDisplayInfo);
+
+    debug('handleDisplayChangeEvent: ' + JSON.stringify(display));
+
+    if (display.connected) {
+      this.openTopLevelWindow(display);
+    } else {
+      this.closeTopLevelWindow(display);
+    }
+  },
+
   sendChromeEvent: function shell_sendChromeEvent(details) {
     if (!this.isHomeLoaded) {
       if (!('pendingChromeEvents' in this)) {
@@ -657,6 +701,14 @@ Services.obs.addObserver(function onBluetoothVolumeChange(subject, topic, data) 
     value: data
   });
 }, 'bluetooth-volume-change', false);
+
+Services.obs.addObserver(function(subject, topic, data) {
+  shell.sendCustomEvent('mozmemorypressure');
+}, 'memory-pressure', false);
+
+Services.obs.addObserver(shell.handleDisplayChangeEvent.bind(shell),
+                         'display-changed',
+                         false);
 
 Services.obs.addObserver(function(subject, topic, data) {
   shell.sendCustomEvent('mozmemorypressure');
@@ -773,7 +825,8 @@ var WebappsHelper = {
           let payload = {
             timestamp: json.timestamp,
             url: manifest.fullLaunchPath(json.startPoint),
-            manifestURL: json.manifestURL
+            manifestURL: json.manifestURL,
+            remoteId: json.remoteId
           };
           shell.sendCustomEvent("webapps-launch", payload);
         });

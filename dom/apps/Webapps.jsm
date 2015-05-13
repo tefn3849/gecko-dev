@@ -1671,6 +1671,7 @@ this.DOMApplicationRegistry = {
     this.launch(
       aData.manifestURL,
       aData.startPoint,
+      aData.remoteId,
       aData.timestamp,
       () => {
         aMm.sendAsyncMessage("Webapps:Launch:Return:OK", this.formatMessage(aData));
@@ -1682,7 +1683,7 @@ this.DOMApplicationRegistry = {
     );
   },
 
-  launch: function launch(aManifestURL, aStartPoint, aTimeStamp, aOnSuccess, aOnFailure) {
+  launch: function launch(aManifestURL, aStartPoint, aRemoteId, aTimeStamp, aOnSuccess, aOnFailure) {
     let app = this.getAppByManifestURL(aManifestURL);
     if (!app) {
       aOnFailure("NO_SUCH_APP");
@@ -1719,6 +1720,7 @@ this.DOMApplicationRegistry = {
     let appClone = AppsUtils.cloneAppObject(app);
     appClone.startPoint = aStartPoint;
     appClone.timestamp = aTimeStamp;
+    appClone.remoteId = aRemoteId;
     Services.obs.notifyObservers(null, "webapps-launch", JSON.stringify(appClone));
     aOnSuccess();
   },
