@@ -361,6 +361,8 @@ nsWindow::Create(nsIWidget *aParent,
     mParent = (nsWindow *)aParent;
     mVisible = false;
 
+    surfaceformat = mScreen->GetSurfaceFormat();
+
     if (!aParent) {
         mBounds = mScreen->GetRect();
     }

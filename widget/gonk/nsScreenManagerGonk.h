@@ -56,6 +56,7 @@ public:
     uint32_t GetId();
     nsIntRect GetRect();
     float GetDpi();
+    int32_t GetSurfaceFormat();
     ANativeWindow* GetNativeWindow();
     nsIntRect GetNaturalBounds();
     uint32_t EffectiveScreenRotation();
@@ -81,6 +82,7 @@ protected:
     int32_t mColorDepth;
     android::sp<ANativeWindow> mNativeWindow;
     float mDpi;
+    int32_t mSurfaceFormat;
     nsIntRect mNaturalBounds; // Screen bounds w/o rotation taken into account.
     nsIntRect mVirtualBounds; // Screen bounds w/ rotation taken into account.
     uint32_t mScreenRotation;

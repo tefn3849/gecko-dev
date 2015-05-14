@@ -121,10 +121,9 @@ nsScreenGonk::nsScreenGonk(uint32_t aId,
     , mDisplaySurface(static_cast<android::DisplaySurface*>(aNativeData.mDisplaySurface))
     , mDisplayType(aDisplayType)
 {
-    int surfaceFormat;
     if (mNativeWindow->query(mNativeWindow.get(), NATIVE_WINDOW_WIDTH, &mVirtualBounds.width) ||
         mNativeWindow->query(mNativeWindow.get(), NATIVE_WINDOW_HEIGHT, &mVirtualBounds.height) ||
-        mNativeWindow->query(mNativeWindow.get(), NATIVE_WINDOW_FORMAT, &surfaceFormat)) {
+        mNativeWindow->query(mNativeWindow.get(), NATIVE_WINDOW_FORMAT, &mSurfaceFormat)) {
         NS_RUNTIMEABORT("Failed to get native window size, aborting...");
     }
 
@@ -136,7 +135,7 @@ nsScreenGonk::nsScreenGonk(uint32_t aId,
         mPhysicalScreenRotation = atoi(propValue) / 90;
     }
 
-    mColorDepth = SurfaceFormatToColorDepth(surfaceFormat);
+    mColorDepth = SurfaceFormatToColorDepth(mSurfaceFormat);
     mIsBlanked = aDisplayType == GonkDisplay::DISPLAY_PRIMARY;
 }
 
@@ -216,6 +215,12 @@ float
 nsScreenGonk::GetDpi()
 {
     return mDpi;
+}
+
+int32_t
+nsScreenGonk::GetSurfaceFormat()
+{
+    return mSurfaceFormat;
 }
 
 ANativeWindow*
