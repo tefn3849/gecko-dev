@@ -818,19 +818,13 @@ nsWindow::GetNaturalBounds()
 bool
 nsWindow::IsOffScreen()
 {
-    return GonkDisplay::DISPLAY_VIRTUAL == mScreen->GetDisplayType();
+    return mScreen->GetDisplayType() == GonkDisplay::DISPLAY_VIRTUAL;
 }
 
-void*
-nsWindow::GetDispSurface()
+nsScreenGonk*
+nsWindow::GetScreen()
 {
-    return mScreen->GetDisplaySurface();
-}
-
-uint32_t
-nsWindow::GetDisplayType()
-{
-    return mScreen->GetDisplayType();
+    return mScreen;
 }
 
 int

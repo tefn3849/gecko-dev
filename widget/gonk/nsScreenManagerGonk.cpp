@@ -137,6 +137,7 @@ nsScreenGonk::nsScreenGonk(uint32_t aId,
     }
 
     mColorDepth = SurfaceFormatToColorDepth(surfaceFormat);
+    mIsBlanked = aDisplayType == GonkDisplay::DISPLAY_PRIMARY;
 }
 
 nsScreenGonk::~nsScreenGonk()
@@ -335,6 +336,17 @@ GonkDisplay::DisplayType
 nsScreenGonk::GetDisplayType()
 {
     return mDisplayType;
+}
+
+bool
+nsScreenGonk::IsBlanked()
+{
+    return mIsBlanked;
+}
+void
+nsScreenGonk::SetIsBlanked()
+{
+    mIsBlanked = true;
 }
 
 int

@@ -373,8 +373,7 @@ GonkDisplayJB::GetNativeData(uint32_t aDisplayType,
         data.mSTClient = mSTClient.get();
         data.mDisplaySurface = mDispSurface.get();
         data.mXdpi = xdpi;
-    }
-    else if (aDisplayType == DISPLAY_EXTERNAL) {
+    } else if (aDisplayType == DISPLAY_EXTERNAL) {
         int32_t values[3];
         const uint32_t attrs[] = {
             HWC_DISPLAY_WIDTH,
@@ -418,10 +417,14 @@ static_cast<sp<ISurfaceTexture>>(
                      GRALLOC_USAGE_HW_COMPOSER);
 
         data.mSTClient = win;
-        data.mXdpi = values[2] / 1000.f;
+        //FIXME!!
+        //data.mXdpi = values[2] / 1000.f;
+        data.mXdpi = 81.5;
     } else if (aDisplayType == DISPLAY_VIRTUAL) {
         data.mSTClient = new Surface(aProducer);
         data.mDisplaySurface = nullptr;
+        //FIXME!!
+        data.mXdpi = 213;
     }
 
     return data;

@@ -686,9 +686,9 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
 
 #if ANDROID_VERSION >= 17
 bool
-HwcComposer2D::TryHwComposition(nsWindow* aWindow)
+HwcComposer2D::TryHwComposition()
 {
-    DisplaySurface* dispSurface = (DisplaySurface*)(aWindow->GetDispSurface());
+    DisplaySurface* dispSurface = mScreen->GetDisplaySurface();
 
     if (!(dispSurface && dispSurface->lastHandle)) {
         LOGD("H/W Composition failed. DispSurface not initialized.");
@@ -704,7 +704,7 @@ HwcComposer2D::TryHwComposition(nsWindow* aWindow)
         }
     }
 
-    Prepare(dispSurface->lastHandle, -1, aWindow);
+    Prepare(dispSurface->lastHandle, -1);
 
     /* Possible composition paths, after hwc prepare:
     1. GPU Composition
@@ -761,7 +761,7 @@ HwcComposer2D::TryHwComposition(nsWindow* aWindow)
             // BLIT Composition, flip DispSurface target
             // TODO: Primary display only
             GetGonkDisplay()->UpdateDispSurface(mDpy, mSur);
-            DisplaySurface* dispSurface = (DisplaySurface*)(aWindow->GetDispSurface());
+            DisplaySurface* dispSurface = mScreen->GetDisplaySurface();
             if (!dispSurface) {
                 LOGE("H/W Composition failed. NULL DispSurface.");
                 return false;
@@ -772,10 +772,9 @@ HwcComposer2D::TryHwComposition(nsWindow* aWindow)
     }
 
     // BLIT or full OVERLAY Composition
-    Commit(aWindow);
+    Commit();
 
-    android::DisplaySurface* displaySurface =
-        static_cast<android::DisplaySurface*>(aWindow->GetDispSurface());
+    DisplaySurface* displaySurface = mScreen->GetDisplaySurface();
     displaySurface->setReleaseFenceFd(mList->hwLayers[idx].releaseFenceFd);
     mList->hwLayers[idx].releaseFenceFd = -1;
     return true;
@@ -789,8 +788,8 @@ HwcComposer2D::Render(nsIWidget* aWidget)
         return GetGonkDisplay()->SwapBuffers(mDpy, mSur);
     }
 
-    nsWindow* window = static_cast<nsWindow*>(aWidget);
-    DisplaySurface* dispSurface = (DisplaySurface*)(window->GetDispSurface());
+    mScreen = (static_cast<nsWindow*>(aWidget))->GetScreen();
+    DisplaySurface* dispSurface = mScreen->GetDisplaySurface();
     if (!dispSurface) {
         LOGE("H/W Composition failed. DispSurface not initialized.");
         return false;
@@ -810,11 +809,11 @@ HwcComposer2D::Render(nsIWidget* aWidget)
         mList->hwLayers[0].acquireFenceFd = -1;
         mList->hwLayers[0].releaseFenceFd = -1;
         mList->hwLayers[0].displayFrame = {0, 0, mScreenRect.width, mScreenRect.height};
-        Prepare(dispSurface->lastHandle, dispSurface->GetPrevDispAcquireFd(), window);
+        Prepare(dispSurface->lastHandle, dispSurface->GetPrevDispAcquireFd());
     }
 
     // GPU or partial HWC Composition
-    Commit(window);
+    Commit();
 
     dispSurface->setReleaseFenceFd(mList->hwLayers[mList->numHwLayers - 1].releaseFenceFd);
     mList->hwLayers[mList->numHwLayers - 1].releaseFenceFd = -1;
@@ -822,13 +821,13 @@ HwcComposer2D::Render(nsIWidget* aWidget)
 }
 
 void
-HwcComposer2D::Prepare(buffer_handle_t dispHandle, int fence, nsWindow* aWindow)
+HwcComposer2D::Prepare(buffer_handle_t dispHandle, int fence)
 {
     int idx = mList->numHwLayers - 1;
     const hwc_rect_t r = {0, 0, mScreenRect.width, mScreenRect.height};
     hwc_display_contents_1_t *displays[HWC_NUM_DISPLAY_TYPES] = { nullptr };
 
-    uint32_t displaytype = aWindow->GetDisplayType();
+    uint32_t displaytype = mScreen->GetDisplayType();
     displays[displaytype] = mList;
     mList->outbufAcquireFenceFd = -1;
     mList->outbuf = nullptr;
@@ -852,15 +851,21 @@ HwcComposer2D::Prepare(buffer_handle_t dispHandle, int fence, nsWindow* aWindow)
     if (mPrepared) {
         LOGE("Multiple hwc prepare calls!");
     }
+
+    if (!mScreen->IsBlanked()) {
+        mHwc->blank(mHwc, displaytype, 0);
+        mScreen->SetIsBlanked();
+    }
+
     mHwc->prepare(mHwc, HWC_NUM_DISPLAY_TYPES, displays);
     mPrepared = true;
 }
 
 bool
-HwcComposer2D::Commit(nsWindow* aWindow)
+HwcComposer2D::Commit()
 {
     hwc_display_contents_1_t *displays[HWC_NUM_DISPLAY_TYPES] = { nullptr };
-    uint32_t displaytype = aWindow->GetDisplayType();
+    uint32_t displaytype = mScreen->GetDisplayType();
     displays[displaytype] = mList;
 
     for (uint32_t j=0; j < (mList->numHwLayers - 1); j++) {
@@ -924,7 +929,7 @@ HwcComposer2D::Reset()
 }
 #else
 bool
-HwcComposer2D::TryHwComposition(nsWindow* aWindow)
+HwcComposer2D::TryHwComposition()
 {
     return !mHwc->set(mHwc, mDpy, mSur, mList);
 }
@@ -951,6 +956,8 @@ HwcComposer2D::TryRenderWithHwc(Layer* aRoot,
         return false;
     }
 
+    mScreen = (static_cast<nsWindow*>(aWidget))->GetScreen();
+
     if (mList) {
         setHwcGeometry(aGeometryChanged);
         mList->numHwLayers = 0;
@@ -965,8 +972,7 @@ HwcComposer2D::TryRenderWithHwc(Layer* aRoot,
     // reallocated. We may want to avoid this if possible
     mVisibleRegions.clear();
 
-    nsWindow* window = static_cast<nsWindow*>(aWidget);
-    mScreenRect = window->GetNaturalBounds();
+    mScreenRect = mScreen->GetNaturalBounds();
     MOZ_ASSERT(mHwcLayerMap.IsEmpty());
     if (!PrepareLayerList(aRoot,
                           mScreenRect,
@@ -980,7 +986,7 @@ HwcComposer2D::TryRenderWithHwc(Layer* aRoot,
     // Send data to LayerScope for debugging
     SendtoLayerScope();
 
-    if (!TryHwComposition(window)) {
+    if (!TryHwComposition()) {
         LOGD("Full HWC Composition failed. Fallback to GPU Composition or partial OVERLAY Composition");
         LayerScope::CleanLayer();
         return false;

@@ -30,7 +30,7 @@
 #include <utils/Timers.h>
 #endif
 
-class nsWindow;
+class nsScreenGonk;
 
 namespace mozilla {
 
@@ -106,9 +106,9 @@ public:
 
 private:
     void Reset();
-    void Prepare(buffer_handle_t dispHandle, int fence, nsWindow* aWindow);
-    bool Commit(nsWindow* aWindow);
-    bool TryHwComposition(nsWindow* aWindow);
+    void Prepare(buffer_handle_t dispHandle, int fence);
+    bool Commit();
+    bool TryHwComposition();
     bool ReallocLayerList();
     bool PrepareLayerList(layers::Layer* aContainer, const nsIntRect& aClip,
           const gfx::Matrix& aParentTransform);
@@ -116,7 +116,6 @@ private:
     void setHwcGeometry(bool aGeometryChanged);
     void SendtoLayerScope();
 
-    nsWindow*               mWindow;
     HwcDevice*              mHwc;
     HwcList*                mList;
     hwc_display_t           mDpy; // Store for BLIT Composition and GonkDisplayICS
@@ -137,6 +136,7 @@ private:
     bool                    mPrepared;
     bool                    mHasHWVsync;
     nsRefPtr<layers::CompositorParent> mCompositorParent;
+    nsRefPtr<nsScreenGonk> mScreen;
     Mutex mLock;
 };
 
