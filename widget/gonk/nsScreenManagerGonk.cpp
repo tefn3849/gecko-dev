@@ -114,7 +114,7 @@ nsScreenGonk::nsScreenGonk(uint32_t aId,
                            GonkDisplay::DisplayType aDisplayType,
                            const GonkDisplay::NativeData& aNativeData)
     : mId(aId)
-    , mNativeWindow(static_cast<ANativeWindow*>(aNativeData.mSTClient))
+    , mNativeWindow(static_cast<ANativeWindow*>(aNativeData.mNativeWindow))
     , mDpi(aNativeData.mXdpi)
     , mScreenRotation(nsIScreen::ROTATION_0_DEG)
     , mPhysicalScreenRotation(nsIScreen::ROTATION_0_DEG)

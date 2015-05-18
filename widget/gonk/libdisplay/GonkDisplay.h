@@ -46,7 +46,7 @@ public:
     };
 
     struct NativeData {
-        void* mSTClient;
+        ANativeWindow* mNativeWindow;
         void* mDisplaySurface;
         float mXdpi;
     };

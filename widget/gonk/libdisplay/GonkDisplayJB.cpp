@@ -370,7 +370,7 @@ GonkDisplayJB::GetNativeData(uint32_t aDisplayType,
     NativeData data;
 
     if (aDisplayType == DISPLAY_PRIMARY) {
-        data.mSTClient = mSTClient.get();
+        data.mNativeWindow = mSTClient.get();
         data.mDisplaySurface = mDispSurface.get();
         data.mXdpi = xdpi;
     } else if (aDisplayType == DISPLAY_EXTERNAL) {
@@ -416,12 +416,12 @@ static_cast<sp<ISurfaceTexture>>(
                      GRALLOC_USAGE_HW_RENDER |
                      GRALLOC_USAGE_HW_COMPOSER);
 
-        data.mSTClient = win;
+        data.mNativeWindow = win;
         //FIXME!!
         //data.mXdpi = values[2] / 1000.f;
         data.mXdpi = 81.5;
     } else if (aDisplayType == DISPLAY_VIRTUAL) {
-        data.mSTClient = new Surface(aProducer);
+        data.mNativeWindow = new Surface(aProducer);
         data.mDisplaySurface = nullptr;
         //FIXME!!
         data.mXdpi = 213;
