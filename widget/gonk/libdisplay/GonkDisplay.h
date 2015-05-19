@@ -21,6 +21,7 @@
 
 namespace android {
 class IGraphicBufferProducer;
+class DisplaySurface;
 }
 
 namespace mozilla {
@@ -47,7 +48,7 @@ public:
 
     struct NativeData {
         ANativeWindow* mNativeWindow;
-        void* mDisplaySurface;
+        android::DisplaySurface* mDisplaySurface;
         float mXdpi;
     };
 

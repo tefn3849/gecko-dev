@@ -399,16 +399,16 @@ GonkDisplayJB::GetNativeData(uint32_t aDisplayType,
 #else
         sp<BufferQueue> consumer = new BufferQueue(true, mAlloc);
 #endif
-        data.mDisplaySurface = new FramebufferSurface(aDisplayType, width, height,
-            surfaceformat, consumer);
+
 #if ANDROID_VERSION == 17
         sp<SurfaceTextureClient> stc = new SurfaceTextureClient(
 static_cast<sp<ISurfaceTexture>>(
         aDevice->mFBSurfacemFBSurface->getBufferQueue()));
 #else
-        sp<Surface> stc = new Surface(producer);
+        Surface* stc = new Surface(producer);
 #endif
-        ANativeWindow* win = stc.get();
+
+        ANativeWindow* win = stc;
         win->perform(win,
                      NATIVE_WINDOW_SET_BUFFER_COUNT, 2);
         win->perform(win, NATIVE_WINDOW_SET_USAGE,
@@ -420,6 +420,9 @@ static_cast<sp<ISurfaceTexture>>(
         //FIXME!!
         //data.mXdpi = values[2] / 1000.f;
         data.mXdpi = 81.5;
+        data.mDisplaySurface = new FramebufferSurface(aDisplayType, width, height,
+                                                      surfaceformat, consumer);
+
     } else if (aDisplayType == DISPLAY_VIRTUAL) {
         data.mNativeWindow = new Surface(aProducer);
         data.mDisplaySurface = nullptr;

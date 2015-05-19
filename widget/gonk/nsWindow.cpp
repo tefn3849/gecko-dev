@@ -847,7 +847,7 @@ nsWindow::NeedsPaint()
 Composer2D*
 nsWindow::GetComposer2D()
 {
-    if (!mScreen->IsPrimaryScreen()) {
+    if (GonkDisplay::DISPLAY_VIRTUAL == mScreen->GetDisplayType()) {
         return nullptr;
     }
 

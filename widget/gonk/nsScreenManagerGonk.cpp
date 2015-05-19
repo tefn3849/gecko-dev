@@ -114,11 +114,11 @@ nsScreenGonk::nsScreenGonk(uint32_t aId,
                            GonkDisplay::DisplayType aDisplayType,
                            const GonkDisplay::NativeData& aNativeData)
     : mId(aId)
-    , mNativeWindow(static_cast<ANativeWindow*>(aNativeData.mNativeWindow))
+    , mNativeWindow(aNativeData.mNativeWindow)
     , mDpi(aNativeData.mXdpi)
     , mScreenRotation(nsIScreen::ROTATION_0_DEG)
     , mPhysicalScreenRotation(nsIScreen::ROTATION_0_DEG)
-    , mDisplaySurface(static_cast<android::DisplaySurface*>(aNativeData.mDisplaySurface))
+    , mDisplaySurface(aNativeData.mDisplaySurface)
     , mDisplayType(aDisplayType)
 {
     if (mNativeWindow->query(mNativeWindow.get(), NATIVE_WINDOW_WIDTH, &mVirtualBounds.width) ||
