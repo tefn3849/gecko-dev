@@ -22,7 +22,6 @@
 #include "hardware/power.h"
 #include "ui/Fence.h"
 #include "utils/RefBase.h"
-#include <utils/StrongPointer.h>
 
 namespace mozilla {
 

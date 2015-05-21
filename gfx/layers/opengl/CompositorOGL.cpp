@@ -1299,10 +1299,6 @@ CompositorOGL::SetDispAcquireFence(Layer* aLayer)
   }
 
   nsWindow* window = static_cast<nsWindow*>(mWidget);
-  if (window->IsOffScreen()) {
-    return;
-  }
-
   android::sp<android::Fence> fence = new android::Fence(window->GetPrevDispAcquireFd());
   if (fence.get() && fence->isValid()) {
     FenceHandle handle = FenceHandle(fence);

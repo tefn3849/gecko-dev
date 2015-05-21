@@ -123,11 +123,9 @@ public:
 
     void ConfigureAPZControllerThread() override;
 
-    bool IsOffScreen();
     nsScreenGonk* GetScreen();
     int GetPrevDispAcquireFd();
 
-    float xdpi;
     int32_t surfaceformat;
 
 protected:

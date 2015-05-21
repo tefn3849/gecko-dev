@@ -357,6 +357,9 @@ nsScreenGonk::SetIsBlanked()
 int
 nsScreenGonk::GetPrevDispAcquireFd()
 {
+    if (!mDisplaySurface.get()) {
+        return -1;
+    }
     return mDisplaySurface->GetPrevDispAcquireFd();
 }
 

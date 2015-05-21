@@ -787,10 +787,9 @@ GLContextProviderEGL::CreateForWindow(nsIWidget *aWidget)
     }
 
     SurfaceCaps caps = SurfaceCaps::Any();
-    bool isoffscreen = (static_cast<nsWindow*>(aWidget))->IsOffScreen();
     nsRefPtr<GLContextEGL> glContext =
         GLContextEGL::CreateGLContext(caps,
-                                      nullptr, isoffscreen,
+                                      nullptr, false,
                                       config, surface);
 
     if (!glContext) {
