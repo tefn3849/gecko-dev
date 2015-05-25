@@ -106,7 +106,7 @@ GonkDisplayJB::GonkDisplayJB()
 
     mAlloc = new GraphicBufferAlloc();
 
-    CreateSurface(mSTClient, mDispSurface);
+    CreateSurface(mSTClient, mDispSurface, mWidth, mHeight);
 
     mList = (hwc_display_contents_1_t *)malloc(sizeof(*mList) + (sizeof(hwc_layer_1_t)*2));
 
@@ -127,7 +127,7 @@ GonkDisplayJB::GonkDisplayJB()
 #endif
         // For devices w/ hwc v1.0 or no hwc, this buffer can not be created,
         // only create this buffer for devices w/ hwc version > 1.0.
-        CreateSurface(mBootAnimSTClient, mBootAnimDispSurface);
+        CreateSurface(mBootAnimSTClient, mBootAnimDispSurface, mWidth, mHeight);
     }
 
     ALOGI("Starting bootanimation with (%d) format framebuffer", surfaceformat);
@@ -145,7 +145,8 @@ GonkDisplayJB::~GonkDisplayJB()
 
 void
 GonkDisplayJB::CreateSurface(android::sp<ANativeWindow>& aNativeWindow,
-                             android::sp<android::DisplaySurface>& aDisplaySurface)
+                             android::sp<android::DisplaySurface>& aDisplaySurface,
+                             uint32_t aWidth, uint32_t aHeight)
 {
 #if ANDROID_VERSION >= 21
     sp<IGraphicBufferProducer> producer;
@@ -161,7 +162,7 @@ GonkDisplayJB::CreateSurface(android::sp<ANativeWindow>& aNativeWindow,
     sp<BufferQueue> consumer = new BufferQueue(true, mAlloc);
 #endif
 
-    aDisplaySurface = new FramebufferSurface(0, mWidth, mHeight, surfaceformat, consumer);
+    aDisplaySurface = new FramebufferSurface(0, aWidth, aHeight, surfaceformat, consumer);
 
 #if ANDROID_VERSION == 17
     aNativeWindow = new SurfaceTextureClient(
@@ -169,14 +170,6 @@ GonkDisplayJB::CreateSurface(android::sp<ANativeWindow>& aNativeWindow,
 #else
     aNativeWindow = new Surface(producer);
 #endif
-}
-
-ANativeWindow*
-GonkDisplayJB::GetNativeWindow()
-{
-    StopBootAnim();
-
-    return mSTClient.get();
 }
 
 void
@@ -372,8 +365,8 @@ GonkDisplayJB::GetNativeData(uint32_t aDisplayType,
     NativeData data;
 
     if (aDisplayType == DISPLAY_PRIMARY) {
-        data.mNativeWindow = mSTClient.get();
-        data.mDisplaySurface = mDispSurface.get();
+        data.mNativeWindow = mSTClient;
+        data.mDisplaySurface = mDispSurface;
         data.mXdpi = xdpi;
     } else if (aDisplayType == DISPLAY_EXTERNAL) {
         int32_t values[3];
@@ -386,49 +379,14 @@ GonkDisplayJB::GetNativeData(uint32_t aDisplayType,
         mHwc->getDisplayAttributes(mHwc, aDisplayType, 0, attrs, values);
         int width = values[0];
         int height = values[1];
-        int surfaceformat = HAL_PIXEL_FORMAT_RGBA_8888;
-
-#if ANDROID_VERSION >= 21
-        sp<IGraphicBufferProducer> producer;
-        sp<IGraphicBufferConsumer> consumer;
-        BufferQueue::createBufferQueue(&producer, &consumer, mAlloc);
-#elif ANDROID_VERSION >= 19
-        sp<BufferQueue> consumer = new BufferQueue(mAlloc);
-        sp<IGraphicBufferProducer> producer = consumer;
-#elif ANDROID_VERSION >= 18
-        sp<BufferQueue> consumer = new BufferQueue(true, mAlloc);
-        sp<IGraphicBufferProducer> producer = consumer;
-#else
-        sp<BufferQueue> consumer = new BufferQueue(true, mAlloc);
-#endif
-
-#if ANDROID_VERSION == 17
-        sp<SurfaceTextureClient> stc = new SurfaceTextureClient(
-static_cast<sp<ISurfaceTexture>>(
-        aDevice->mFBSurfacemFBSurface->getBufferQueue()));
-#else
-        Surface* stc = new Surface(producer);
-#endif
-
-        ANativeWindow* win = stc;
-        win->perform(win,
-                     NATIVE_WINDOW_SET_BUFFER_COUNT, 2);
-        win->perform(win, NATIVE_WINDOW_SET_USAGE,
-                     GRALLOC_USAGE_HW_FB |
-                     GRALLOC_USAGE_HW_RENDER |
-                     GRALLOC_USAGE_HW_COMPOSER);
-
-        data.mNativeWindow = win;
-        //FIXME!!
-        //data.mXdpi = values[2] / 1000.f;
+        // FIXME!! values[2] returns 0 for display type of external.
+        //int xdpi = values[2] / 1000.f;
         data.mXdpi = 81.5;
-        data.mDisplaySurface = new FramebufferSurface(aDisplayType, width, height,
-                                                      surfaceformat, consumer);
-
+        CreateSurface(data.mNativeWindow, data.mDisplaySurface, width, height);
     } else if (aDisplayType == DISPLAY_VIRTUAL) {
         data.mNativeWindow = new Surface(aProducer);
         data.mDisplaySurface = nullptr;
-        //FIXME!!
+        // FIXME!! How should we handle dpi of devices with type virtual?
         data.mXdpi = 213;
     }
 

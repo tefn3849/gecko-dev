@@ -126,8 +126,6 @@ public:
     nsScreenGonk* GetScreen();
     int GetPrevDispAcquireFd();
 
-    int32_t surfaceformat;
-
 protected:
     nsWindow* mParent;
     bool mVisible;

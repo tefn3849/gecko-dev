@@ -20,6 +20,7 @@
 #include "HwcComposer2D.h"
 #include "libdisplay/GonkDisplay.h"
 #include "nsWindow.h"
+#include "nsScreenManagerGonk.h"
 #endif
 
 #if defined(ANDROID)
@@ -680,7 +681,7 @@ CreateConfig(EGLConfig* aConfig, int32_t depth, nsIWidget* aWidget)
         EGLint format;
         if (sEGLLibrary.fGetConfigAttrib(EGL_DISPLAY(), config,
                                          LOCAL_EGL_NATIVE_VISUAL_ID, &format) &&
-            format == window->surfaceformat)
+            format == window->GetScreen()->GetSurfaceFormat())
         {
             *aConfig = config;
             return true;

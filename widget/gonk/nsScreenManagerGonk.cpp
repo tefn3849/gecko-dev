@@ -53,11 +53,13 @@ public:
     {}
 
     NS_IMETHOD Run() {
-        // When the screen is off prevent priority changes.
-        if (mIsOn) {
-          ProcessPriorityManager::Unfreeze();
-        } else {
-          ProcessPriorityManager::Freeze();
+        // Notify observers that the screen state has just changed.
+        nsCOMPtr<nsIObserverService> observerService = mozilla::services::GetObserverService();
+        if (observerService) {
+          observerService->NotifyObservers(
+            nullptr, "screen-state-changed",
+            mIsOn ? MOZ_UTF16("on") : MOZ_UTF16("off")
+          );
         }
 
         nsRefPtr<nsScreenGonk> screen = nsScreenManagerGonk::GetPrimaryScreen();
@@ -69,15 +71,6 @@ public:
             if (nsIWidgetListener* listener = win->GetWidgetListener()) {
                 listener->SizeModeChanged(mIsOn ? nsSizeMode_Fullscreen : nsSizeMode_Minimized);
             }
-        }
-
-        // Notify observers that the screen state has just changed.
-        nsCOMPtr<nsIObserverService> observerService = mozilla::services::GetObserverService();
-        if (observerService) {
-          observerService->NotifyObservers(
-            nullptr, "screen-state-changed",
-            mIsOn ? MOZ_UTF16("on") : MOZ_UTF16("off")
-          );
         }
 
         return NS_OK;
@@ -95,6 +88,7 @@ displayEnabledCallback(bool enabled)
 }
 
 } // anonymous namespace
+
 
 static uint32_t
 SurfaceFormatToColorDepth(int32_t aSurfaceFormat)
@@ -516,22 +510,16 @@ nsScreenManagerGonk::GetIdFromType(GonkDisplay::DisplayType aDisplayType)
     return aDisplayType;
 }
 
-namespace
-{
+namespace {
 
 // A concrete class as a subject for 'display-changed' observer event.
 class DisplayInfo : public nsIDisplayInfo {
 public:
-    enum {
-        ADDED = 1 << 0,
-        REMOVED = 1 << 1
-    };
-
     NS_DECL_ISUPPORTS
 
-    DisplayInfo(uint32_t aId, int aFlags)
+    DisplayInfo(uint32_t aId, bool aConnected)
         : mId(aId)
-        , mFlags(aFlags)
+        , mConnected(aConnected)
     {
     }
 
@@ -543,7 +531,7 @@ public:
 
     NS_IMETHODIMP GetConnected(bool *aConnected)
     {
-        *aConnected = mFlags & DisplayInfo::ADDED;
+        *aConnected = mConnected;
         return NS_OK;
     }
 
@@ -551,19 +539,18 @@ private:
     virtual ~DisplayInfo() {}
 
     uint32_t mId;
-    int mFlags;
+    bool mConnected;
 };
 
 NS_IMPL_ISUPPORTS(DisplayInfo, nsIDisplayInfo, nsISupports)
 
-class NotifyTask : public nsIRunnable
-{
+class NotifyTask : public nsRunnable {
 public:
     NS_DECL_ISUPPORTS
 
 public:
-    NotifyTask(nsIDisplayInfo* aDisplayInfo)
-        : mDisplayInfo(aDisplayInfo)
+    NotifyTask(uint32_t aId, bool aConnected)
+        : mDisplayInfo(new DisplayInfo(aId, aConnected))
     {
     }
 
@@ -571,22 +558,22 @@ public:
 
     NS_IMETHOD Run()
     {
-        nsCOMPtr<nsIObserverService> os(do_GetService("@mozilla.org/observer-service;1"));
+        nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
         if (!os) {
             return NS_ERROR_FAILURE;
         }
         return os->NotifyObservers(mDisplayInfo, "display-changed", nullptr);
     }
 private:
-    nsCOMPtr<nsIDisplayInfo> mDisplayInfo;
+    nsRefPtr<DisplayInfo> mDisplayInfo;
 };
 
 NS_IMPL_ISUPPORTS(NotifyTask, nsIRunnable)
 
 void
-NotifyDisplayChange(nsIDisplayInfo* aDisplayInfo)
+NotifyDisplayChange(uint32_t aId, bool aConnected)
 {
-    NS_DispatchToMainThread(new NotifyTask(aDisplayInfo));
+    NS_DispatchToMainThread(new NotifyTask(aId, aConnected));
 }
 
 } // end of unnamed namespace.
@@ -602,8 +589,7 @@ nsScreenManagerGonk::AddScreen(GonkDisplay::DisplayType aDisplayType,
 
     mScreens.AppendElement(screen);
 
-    nsIDisplayInfo* info = new DisplayInfo(id, DisplayInfo::ADDED);
-    NotifyDisplayChange(info);
+    NotifyDisplayChange(id, true);
 }
 
 void
@@ -617,6 +603,5 @@ nsScreenManagerGonk::RemoveScreen(GonkDisplay::DisplayType aDisplayType)
         }
     }
 
-    nsIDisplayInfo* info = new DisplayInfo(screenId, DisplayInfo::REMOVED);
-    NotifyDisplayChange(info);
+    NotifyDisplayChange(screenId, false);
 }

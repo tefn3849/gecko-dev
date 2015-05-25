@@ -30,8 +30,6 @@ public:
     GonkDisplayJB();
     ~GonkDisplayJB();
 
-    virtual ANativeWindow* GetNativeWindow();
-
     virtual void SetEnabled(bool enabled);
 
     virtual void OnEnabled(OnEnabledCallbackType callback);
@@ -54,7 +52,8 @@ public:
 private:
     void StopBootAnim();
     void CreateSurface(android::sp<ANativeWindow>& aNativeWindow,
-                       android::sp<android::DisplaySurface>& aDisplaySurface);
+                       android::sp<android::DisplaySurface>& aDisplaySurface,
+                       uint32_t aWidth, uint32_t aHeight);
 
     hw_module_t const*        mModule;
     hw_module_t const*        mFBModule;

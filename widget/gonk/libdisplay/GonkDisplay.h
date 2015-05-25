@@ -17,6 +17,7 @@
 #define GONKDISPLAY_H
 
 #include <system/window.h>
+#include <utils/StrongPointer.h>
 #include "mozilla/Types.h"
 
 namespace android {
@@ -47,12 +48,10 @@ public:
     };
 
     struct NativeData {
-        ANativeWindow* mNativeWindow;
-        android::DisplaySurface* mDisplaySurface;
+        android::sp<ANativeWindow> mNativeWindow;
+        android::sp<android::DisplaySurface> mDisplaySurface;
         float mXdpi;
     };
-
-    virtual ANativeWindow* GetNativeWindow() = 0;
 
     virtual void SetEnabled(bool enabled) = 0;
 
