@@ -225,12 +225,6 @@ GonkDisplayJB::GetHWCDevice()
     return mHwc;
 }
 
-void*
-GonkDisplayJB::GetDispSurface()
-{
-    return mDispSurface.get();
-}
-
 bool
 GonkDisplayJB::SwapBuffers(EGLDisplay dpy, EGLSurface sur)
 {
@@ -339,18 +333,6 @@ GonkDisplayJB::UpdateDispSurface(EGLDisplay dpy, EGLSurface sur)
 }
 
 void
-GonkDisplayJB::SetDispReleaseFd(int fd)
-{
-    mDispSurface->setReleaseFenceFd(fd);
-}
-
-int
-GonkDisplayJB::GetPrevDispAcquireFd()
-{
-    return mDispSurface->GetPrevDispAcquireFd();
-}
-
-void
 GonkDisplayJB::StopBootAnim()
 {
     StopBootAnimation();
@@ -363,10 +345,6 @@ GonkDisplay::NativeData
 GonkDisplayJB::GetNativeData(uint32_t aDisplayType,
                              android::IGraphicBufferProducer* aProducer)
 {
-//    MOZ_ASSERT(aDisplayType < NUM_DISPLAY_TYPES && mHwc);
-//    MOZ_ASSERT(aDisplayType == DISPLAY_VIRTUAL && aProducer, "Virtual display must "
-//               "carry a valid graphic buffer producer.");
-
     NativeData data;
 
     if (aDisplayType == DISPLAY_PRIMARY) {

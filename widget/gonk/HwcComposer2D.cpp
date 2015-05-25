@@ -139,8 +139,8 @@ HwcComposer2D::HwcComposer2D()
 
     nsIntSize screenSize;
 
-    // TODO: Primary display only
-    ANativeWindow *win = GetGonkDisplay()->GetNativeWindow();
+    GonkDisplay::NativeData data = GetGonkDisplay()->GetNativeData(GonkDisplay::DISPLAY_PRIMARY);
+    ANativeWindow *win = data.mNativeWindow;
     win->query(win, NATIVE_WINDOW_WIDTH, &screenSize.width);
     win->query(win, NATIVE_WINDOW_HEIGHT, &screenSize.height);
     mScreenRect = gfx::IntRect(gfx::IntPoint(0, 0), screenSize);
