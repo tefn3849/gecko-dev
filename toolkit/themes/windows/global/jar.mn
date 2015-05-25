@@ -31,7 +31,6 @@ toolkit.jar:
 *       skin/classic/global/global.css
         skin/classic/global/globalBindings.xml
         skin/classic/global/groupbox.css
-*       skin/classic/global/inContentUI.css
         skin/classic/global/linkTree.css
 *       skin/classic/global/listbox.css
 *       skin/classic/global/menu.css
@@ -138,7 +137,6 @@ toolkit.jar:
         skin/classic/global/icons/windowControls.png             (icons/windowControls.png)
         skin/classic/global/icons/webapps-16.png                 (icons/webapps-16.png)
         skin/classic/global/icons/webapps-64.png                 (icons/webapps-64.png)
-        skin/classic/global/inContentUI/background-texture.png   (inContentUI/background-texture.png)
         skin/classic/global/media/TopLevelImageDocument.css      (media/TopLevelImageDocument.css)
         skin/classic/global/media/TopLevelVideoDocument.css      (media/TopLevelVideoDocument.css)
         skin/classic/global/media/imagedoc-lightnoise.png        (media/imagedoc-lightnoise.png)
@@ -176,6 +174,7 @@ toolkit.jar:
         skin/classic/global/printpreview/arrow-right-end.png     (printpreview/arrow-right-end.png)
         skin/classic/global/radio/radio-check.gif                (radio/radio-check.gif)
         skin/classic/global/radio/radio-check-dis.gif            (radio/radio-check-dis.gif)
+        skin/classic/global/reader/pocket.svg                    (../../shared/reader/pocket.svg)
         skin/classic/global/reader/RM-Add-24x24.svg              (../../shared/reader/RM-Add-24x24.svg)
         skin/classic/global/reader/RM-Close-24x24.svg            (../../shared/reader/RM-Close-24x24.svg)
         skin/classic/global/reader/RM-Delete-24x24.svg           (../../shared/reader/RM-Delete-24x24.svg)

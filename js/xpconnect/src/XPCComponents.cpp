@@ -28,7 +28,6 @@
 #include "mozilla/dom/StructuredCloneTags.h"
 #include "mozilla/dom/WindowBinding.h"
 #include "nsZipArchive.h"
-#include "nsIDOMFile.h"
 #include "nsIDOMFileList.h"
 #include "nsWindowMemoryReporter.h"
 #include "nsDOMClassInfo.h"
@@ -2855,7 +2854,7 @@ nsXPCComponents_Utils::CallFunctionWithAsyncStack(HandleValue function,
 
     JS::AutoSetAsyncStackForNewCalls sas(cx, asyncStackObj, asyncCauseString);
 
-    if (!JS_CallFunctionValue(cx, JS::NullPtr(), function,
+    if (!JS_CallFunctionValue(cx, nullptr, function,
                               JS::HandleValueArray::empty(), retval))
     {
         return NS_ERROR_XPC_JAVASCRIPT_ERROR;
@@ -3300,7 +3299,7 @@ nsXPCComponents_Utils::GetIncumbentGlobal(HandleValue aCallback,
     // Invoke the callback, if passed.
     if (aCallback.isObject()) {
         RootedValue ignored(aCx);
-        if (!JS_CallFunctionValue(aCx, JS::NullPtr(), aCallback, JS::HandleValueArray(globalVal), &ignored))
+        if (!JS_CallFunctionValue(aCx, nullptr, aCallback, JS::HandleValueArray(globalVal), &ignored))
             return NS_ERROR_FAILURE;
     }
 

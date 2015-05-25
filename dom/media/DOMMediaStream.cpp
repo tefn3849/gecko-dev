@@ -14,6 +14,7 @@
 #include "mozilla/dom/AudioTrackList.h"
 #include "mozilla/dom/VideoTrack.h"
 #include "mozilla/dom/VideoTrackList.h"
+#include "mozilla/dom/HTMLCanvasElement.h"
 #include "MediaStreamGraph.h"
 #include "AudioStreamTrack.h"
 #include "VideoStreamTrack.h"
@@ -470,11 +471,10 @@ DOMMediaStream::NotifyMediaStreamGraphShutdown()
 }
 
 void
-DOMMediaStream::NotifyStreamStateChanged()
+DOMMediaStream::NotifyStreamFinished()
 {
-  if (IsFinished()) {
-    mConsumersToKeepAlive.Clear();
-  }
+  MOZ_ASSERT(IsFinished());
+  mConsumersToKeepAlive.Clear();
 }
 
 void
@@ -667,3 +667,4 @@ DOMAudioNodeMediaStream::CreateTrackUnionStream(nsIDOMWindow* aWindow,
   stream->InitTrackUnionStream(aWindow, aGraph);
   return stream.forget();
 }
+

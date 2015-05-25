@@ -1061,6 +1061,7 @@ class JSScript : public js::gc::TenuredCell
     inline JSPrincipals* principals();
 
     JSCompartment* compartment() const { return compartment_; }
+    JSCompartment* maybeCompartment() const { return compartment(); }
 
     void setVersion(JSVersion v) { version = v; }
 
@@ -1733,7 +1734,7 @@ class JSScript : public js::gc::TenuredCell
         JSContext* cx_;
         bool oldDoNotRelazify_;
       public:
-        explicit AutoDelazify(JSContext* cx, JS::HandleFunction fun = JS::NullPtr())
+        explicit AutoDelazify(JSContext* cx, JS::HandleFunction fun = nullptr)
             : script_(cx)
             , cx_(cx)
         {

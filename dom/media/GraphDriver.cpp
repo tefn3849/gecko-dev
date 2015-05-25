@@ -10,12 +10,8 @@
 #include <sys/sysctl.h>
 #endif
 
-#ifdef PR_LOGGING
 extern PRLogModuleInfo* gMediaStreamGraphLog;
-#define STREAM_LOG(type, msg) PR_LOG(gMediaStreamGraphLog, type, msg)
-#else
-#define STREAM_LOG(type, msg)
-#endif
+#define STREAM_LOG(type, msg) MOZ_LOG(gMediaStreamGraphLog, type, msg)
 
 // We don't use NSPR log here because we want this interleaved with adb logcat
 // on Android/B2G
@@ -323,7 +319,7 @@ SystemClockDriver::GetIntervalForIteration(GraphTime& aFrom, GraphTime& aTo)
 
   mCurrentTimeStamp = now;
 
-  PR_LOG(gMediaStreamGraphLog, PR_LOG_DEBUG+1, ("Updating current time to %f (real %f, mStateComputedTime %f)",
+  MOZ_LOG(gMediaStreamGraphLog, PR_LOG_DEBUG+1, ("Updating current time to %f (real %f, mStateComputedTime %f)",
          mGraphImpl->MediaTimeToSeconds(aTo),
          (now - mInitialTimeStamp).ToSeconds(),
          mGraphImpl->MediaTimeToSeconds(StateComputedTime())));
@@ -1085,9 +1081,9 @@ void AudioCallbackDriver::CompleteAudioContextOperations(AsyncCubebOperation aOp
   for (uint32_t i = 0; i < array.Length(); i++) {
     StreamAndPromiseForOperation& s = array[i];
     if ((aOperation == AsyncCubebOperation::INIT &&
-         s.mOperation == AudioContextOperation::Resume) ||
+         s.mOperation == dom::AudioContextOperation::Resume) ||
         (aOperation == AsyncCubebOperation::SHUTDOWN &&
-         s.mOperation != AudioContextOperation::Resume)) {
+         s.mOperation != dom::AudioContextOperation::Resume)) {
 
       GraphImpl()->AudioContextOperationCompleted(s.mStream,
                                                   s.mPromise,

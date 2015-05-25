@@ -282,6 +282,13 @@ this.ReaderMode = {
       dump("Reader: " + msg);
   },
 
+  _blockedHosts: [
+    "twitter.com",
+    "mail.google.com",
+    "github.com",
+    "reddit.com",
+  ],
+
   _shouldCheckUri: function (uri) {
     if (!(uri.schemeIs("http") || uri.schemeIs("https") || uri.schemeIs("file"))) {
       this.log("Not parsing URI scheme: " + uri.scheme);
@@ -294,6 +301,12 @@ this.ReaderMode = {
       // If this doesn't work, presumably the URL is not well-formed or something
       return false;
     }
+    // Sadly, some high-profile pages have false positives, so bail early for those:
+    let asciiHost = uri.asciiHost;
+    if (this._blockedHosts.some(blockedHost => asciiHost.endsWith(blockedHost))) {
+      return false;
+    }
+
     if (!uri.filePath || uri.filePath == "/") {
       this.log("Not parsing home page: " + uri.spec);
       return false;
@@ -334,7 +347,7 @@ this.ReaderMode = {
     let serializer = Cc["@mozilla.org/xmlextras/xmlserializer;1"].
                      createInstance(Ci.nsIDOMSerializer);
     let serializedDoc = serializer.serializeToString(doc);
-    TelemetryStopwatch.finish("READER_MOD_SERIALIZE_DOM_MS");
+    TelemetryStopwatch.finish("READER_MODE_SERIALIZE_DOM_MS");
 
     TelemetryStopwatch.start("READER_MODE_WORKER_PARSE_MS");
     let article = null;

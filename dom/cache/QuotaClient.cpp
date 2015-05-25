@@ -110,7 +110,13 @@ public:
   InitOrigin(PersistenceType aPersistenceType, const nsACString& aGroup,
              const nsACString& aOrigin, UsageInfo* aUsageInfo) override
   {
-    return NS_OK;
+    // The QuotaManager passes a nullptr UsageInfo if there is no quota being
+    // enforced against the origin.
+    if (!aUsageInfo) {
+      return NS_OK;
+    }
+
+    return GetUsageForOrigin(aPersistenceType, aGroup, aOrigin, aUsageInfo);
   }
 
   virtual nsresult
@@ -118,6 +124,8 @@ public:
                     const nsACString& aOrigin,
                     UsageInfo* aUsageInfo) override
   {
+    MOZ_ASSERT(aUsageInfo);
+
     QuotaManager* qm = QuotaManager::Get();
     MOZ_ASSERT(qm);
 
@@ -218,6 +226,9 @@ public:
     }
   }
 
+  virtual void
+  PerformIdleMaintenance() override
+  { }
 
   virtual void
   ShutdownWorkThreads() override

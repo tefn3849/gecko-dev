@@ -6,13 +6,15 @@
  * creates the correct DOM nodes in the correct order.
  */
 
-let { CATEGORY_MASK } = devtools.require("devtools/shared/profiler/global");
+let { CATEGORY_MASK } = devtools.require("devtools/performance/global");
 
 function test() {
-  let { ThreadNode } = devtools.require("devtools/shared/profiler/tree-model");
-  let { CallView } = devtools.require("devtools/shared/profiler/tree-view");
+  let { ThreadNode } = devtools.require("devtools/performance/tree-model");
+  let { CallView } = devtools.require("devtools/performance/tree-view");
 
-  let threadNode = new ThreadNode(gSamples);
+  let threadNode = new ThreadNode(gThread);
+  // Don't display the synthesized (root) and the real (root) node twice.
+  threadNode.calls = threadNode.calls[0].calls;
   let treeRoot = new CallView({ frame: threadNode });
 
   let container = document.createElement("vbox");
@@ -24,7 +26,7 @@ function test() {
     "The root node's 'category' attribute is correct.");
   is(treeRoot.target.getAttribute("tooltiptext"), "",
     "The root node's 'tooltiptext' attribute is correct.");
-  ok(treeRoot.target.querySelector(".call-tree-category").hidden,
+  is(treeRoot.target.querySelector(".call-tree-category"), null,
     "The root node's category label cell should be hidden.");
 
   let A = treeRoot.getChild();
@@ -35,7 +37,7 @@ function test() {
     "The .A.B.D node's 'origin' attribute is correct.");
   is(D.target.getAttribute("category"), "gc",
     "The .A.B.D node's 'category' attribute is correct.");
-  is(D.target.getAttribute("tooltiptext"), "D (http://foo/bar/baz:78)",
+  is(D.target.getAttribute("tooltiptext"), "D (http://foo/bar/baz:78:1337)",
     "The .A.B.D node's 'tooltiptext' attribute is correct.");
   ok(!A.target.querySelector(".call-tree-category").hidden,
     "The .A.B.D node's category label cell should not be hidden.");
@@ -70,7 +72,7 @@ function test() {
   is(functionCell.childNodes[4].className, "plain call-tree-column",
     "The fifth node displayed for function cells is correct.");
   is(functionCell.childNodes[5].className, "plain call-tree-host",
-    "The fifth node displayed for function cells is correct.");
+    "The sixth node displayed for function cells is correct.");
   is(functionCell.childNodes[6].tagName, "spacer",
     "The seventh node displayed for function cells is correct.");
   is(functionCell.childNodes[7].className, "plain call-tree-category",
@@ -79,7 +81,7 @@ function test() {
   finish();
 }
 
-let gSamples = [{
+let gThread = synthesizeProfileForTest([{
   time: 5,
   frames: [
     { category: CATEGORY_MASK('other'),  location: "(root)" },
@@ -93,7 +95,7 @@ let gSamples = [{
     { category: CATEGORY_MASK('other'),  location: "(root)" },
     { category: CATEGORY_MASK('other'),  location: "A (http://foo/bar/baz:12)" },
     { category: CATEGORY_MASK('css'),    location: "B (http://foo/bar/baz:34)" },
-    { category: CATEGORY_MASK('gc', 1),  location: "D (http://foo/bar/baz:78)" }
+    { category: CATEGORY_MASK('gc', 1),  location: "D (http://foo/bar/baz:78:1337)" }
   ]
 }, {
   time: 5 + 1 + 2,
@@ -101,7 +103,7 @@ let gSamples = [{
     { category: CATEGORY_MASK('other'),  location: "(root)" },
     { category: CATEGORY_MASK('other'),  location: "A (http://foo/bar/baz:12)" },
     { category: CATEGORY_MASK('css'),    location: "B (http://foo/bar/baz:34)" },
-    { category: CATEGORY_MASK('gc', 1),  location: "D (http://foo/bar/baz:78)" }
+    { category: CATEGORY_MASK('gc', 1),  location: "D (http://foo/bar/baz:78:1337)" }
   ]
 }, {
   time: 5 + 1 + 2 + 7,
@@ -111,4 +113,4 @@ let gSamples = [{
     { category: CATEGORY_MASK('gc', 2),   location: "E (http://foo/bar/baz:90)" },
     { category: CATEGORY_MASK('network'), location: "F (http://foo/bar/baz:99)" }
   ]
-}];
+}]);

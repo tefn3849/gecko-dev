@@ -8,7 +8,6 @@
 
 #include "MediaDecoderStateMachine.h"
 #include "mozilla/TimeStamp.h"
-#include "mozilla/dom/TimeRanges.h"
 #include "MediaResource.h"
 #include "VideoUtils.h"
 #include "MediaOmxDecoder.h"
@@ -28,12 +27,8 @@ using namespace android;
 
 namespace mozilla {
 
-#ifdef PR_LOGGING
 extern PRLogModuleInfo* gMediaDecoderLog;
-#define DECODER_LOG(type, msg) PR_LOG(gMediaDecoderLog, type, msg)
-#else
-#define DECODER_LOG(type, msg)
-#endif
+#define DECODER_LOG(type, msg) MOZ_LOG(gMediaDecoderLog, type, msg)
 
 class MediaOmxReader::ProcessCachedDataTask : public Task
 {
@@ -141,11 +136,9 @@ MediaOmxReader::MediaOmxReader(AbstractMediaDecoder *aDecoder)
   , mMP3FrameParser(-1)
   , mIsWaitingResources(false)
 {
-#ifdef PR_LOGGING
   if (!gMediaDecoderLog) {
     gMediaDecoderLog = PR_NewLogModule("MediaDecoder");
   }
-#endif
 
   mAudioChannel = dom::AudioChannelService::GetDefaultAudioChannel();
 }

@@ -24,7 +24,7 @@
 #include "nsIURI.h"
 #include "nsCOMPtr.h"
 #include "nsString.h"
-#include "prlog.h"
+#include "mozilla/Logging.h"
 
 class nsJARInputThunk;
 
@@ -69,9 +69,7 @@ private:
                                     mozilla::net::MemoryDownloader::Data aData)
         override;
 
-#if defined(PR_LOGGING)
     nsCString                       mSpec;
-#endif
 
     bool                            mOpened;
 

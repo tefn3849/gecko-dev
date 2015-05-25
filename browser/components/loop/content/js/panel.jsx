@@ -1,11 +1,6 @@
-/** @jsx React.DOM */
-
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-/*jshint newcap:false*/
-/*global loop:true, React */
 
 var loop = loop || {};
 loop.panel = (function(_, mozL10n) {
@@ -18,6 +13,7 @@ loop.panel = (function(_, mozL10n) {
   var sharedUtils = loop.shared.utils;
   var Button = sharedViews.Button;
   var ButtonGroup = sharedViews.ButtonGroup;
+  var Checkbox = sharedViews.Checkbox;
   var ContactsList = loop.contacts.ContactsList;
   var ContactDetailsForm = loop.contacts.ContactDetailsForm;
 
@@ -132,11 +128,11 @@ loop.panel = (function(_, mozL10n) {
       return function(event) {
         // Note: side effect!
         switch (newAvailabilty) {
-          case 'available':
+          case "available":
             this.setState({doNotDisturb: false});
             navigator.mozLoop.doNotDisturb = false;
             break;
-          case 'do-not-disturb':
+          case "do-not-disturb":
             this.setState({doNotDisturb: true});
             navigator.mozLoop.doNotDisturb = true;
             break;
@@ -149,13 +145,13 @@ loop.panel = (function(_, mozL10n) {
       // XXX https://github.com/facebook/react/issues/310 for === htmlFor
       var cx = React.addons.classSet;
       var availabilityStatus = cx({
-        'status': true,
-        'status-dnd': this.state.doNotDisturb,
-        'status-available': !this.state.doNotDisturb
+        "status": true,
+        "status-dnd": this.state.doNotDisturb,
+        "status-available": !this.state.doNotDisturb
       });
       var availabilityDropdown = cx({
-        'dropdown-menu': true,
-        'hide': !this.state.showMenu
+        "dropdown-menu": true,
+        "hide": !this.state.showMenu
       });
       var availabilityText = this.state.doNotDisturb ?
                               mozL10n.get("display_name_dnd_status") :
@@ -293,7 +289,7 @@ loop.panel = (function(_, mozL10n) {
       }
 
       var locale = mozL10n.getLanguage();
-      navigator.mozLoop.setLoopPref('showPartnerLogo', false);
+      navigator.mozLoop.setLoopPref("showPartnerLogo", false);
       return (
         <p id="powered-by" className="powered-by">
           {mozL10n.get("powered_by_beforeLogo")}
@@ -305,8 +301,8 @@ loop.panel = (function(_, mozL10n) {
 
     render: function() {
       if (!this.state.gettingStartedSeen || this.state.seenToS == "unseen") {
-        var terms_of_use_url = navigator.mozLoop.getLoopPref('legal.ToS_url');
-        var privacy_notice_url = navigator.mozLoop.getLoopPref('legal.privacy_url');
+        var terms_of_use_url = navigator.mozLoop.getLoopPref("legal.ToS_url");
+        var privacy_notice_url = navigator.mozLoop.getLoopPref("legal.privacy_url");
         var tosHTML = mozL10n.get("legal_text_and_links3", {
           "clientShortname": mozL10n.get("clientShortname2"),
           "terms_of_use": React.renderToStaticMarkup(
@@ -704,7 +700,10 @@ loop.panel = (function(_, mozL10n) {
       userDisplayName: React.PropTypes.string.isRequired
     },
 
-    mixins: [sharedMixins.DocumentVisibilityMixin],
+    mixins: [
+      sharedMixins.DocumentVisibilityMixin,
+      React.addons.PureRenderMixin
+    ],
 
     getInitialState: function() {
       return {
@@ -716,24 +715,25 @@ loop.panel = (function(_, mozL10n) {
     },
 
     onDocumentVisible: function() {
+      // We would use onDocumentHidden to null out the data ready for the next
+      // opening. However, this seems to cause an awkward glitch in the display
+      // when opening the panel, and it seems cleaner just to update the data
+      // even if there's a small delay.
+
       this.props.mozLoop.getSelectedTabMetadata(function callback(metadata) {
-        var previewImage = metadata.previews.length ? metadata.previews[0] : "";
-        var description = metadata.description || metadata.title;
+        var previewImage = metadata.favicon || "";
+        var description = metadata.title || metadata.description;
         var url = metadata.url;
-        this.setState({previewImage: previewImage,
-                       description: description,
-                       url: url});
+        this.setState({
+          previewImage: previewImage,
+          description: description,
+          url: url
+        });
       }.bind(this));
     },
 
-    onDocumentHidden: function() {
-      this.setState({previewImage: "",
-                     description: "",
-                     url: ""});
-    },
-
-    onCheckboxChange: function(event) {
-      this.setState({checked: event.target.checked});
+    onCheckboxChange: function(newState) {
+      this.setState({checked: newState.checked});
     },
 
     handleCreateButtonClick: function() {
@@ -770,14 +770,15 @@ loop.panel = (function(_, mozL10n) {
       return (
         <div className="new-room-view">
           <div className={contextClasses}>
-            <label className="context-enabled">
-              <input className="context-checkbox"
-                     type="checkbox" onChange={this.onCheckboxChange}/>
-              {mozL10n.get("context_offer_label")}
-            </label>
-            <img className="context-preview" src={this.state.previewImage}/>
-            <span className="context-description">{this.state.description}</span>
-            <span className="context-url">{hostname}</span>
+            <Checkbox label={mozL10n.get("context_inroom_label")}
+                      onChange={this.onCheckboxChange} />
+            <div className="context-content">
+              <img className="context-preview" src={this.state.previewImage}/>
+              <span className="context-description">
+                {this.state.description}
+                <span className="context-url">{hostname}</span>
+              </span>
+            </div>
           </div>
           <button className="btn btn-info new-room-button"
                   onClick={this.handleCreateButtonClick}
@@ -1005,8 +1006,8 @@ loop.panel = (function(_, mozL10n) {
     document.body.setAttribute("platform", loop.shared.utils.getPlatform());
 
     // Notify the window that we've finished initalization and initial layout
-    var evtObject = document.createEvent('Event');
-    evtObject.initEvent('loopPanelInitialized', true, false);
+    var evtObject = document.createEvent("Event");
+    evtObject.initEvent("loopPanelInitialized", true, false);
     window.dispatchEvent(evtObject);
   }
 
@@ -1026,4 +1027,4 @@ loop.panel = (function(_, mozL10n) {
   };
 })(_, document.mozL10n);
 
-document.addEventListener('DOMContentLoaded', loop.panel.init);
+document.addEventListener("DOMContentLoaded", loop.panel.init);

@@ -276,7 +276,7 @@ protected:
     int64_t mCurrentTotalProgress;
     int64_t mMaxTotalProgress;
 
-    PLDHashTable mRequestInfoHash;
+    PLDHashTable2 mRequestInfoHash;
     int64_t mCompletedTotalProgress;
 
     mozilla::LinkedList<nsStatusInfo> mStatusInfoList;

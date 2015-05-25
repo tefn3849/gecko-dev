@@ -75,9 +75,12 @@ NS_IMPL_ISUPPORTS_INHERITED0(PuppetWidget, nsBaseWidget)
 
 PuppetWidget::PuppetWidget(TabChild* aTabChild)
   : mTabChild(aTabChild)
+  , mMemoryPressureObserver(nullptr)
   , mDPI(-1)
   , mDefaultScale(-1)
   , mNativeKeyCommandsValid(false)
+  , mCursorHotspotX(0)
+  , mCursorHotspotY(0)
 {
   MOZ_COUNT_CTOR(PuppetWidget);
 
@@ -89,6 +92,8 @@ PuppetWidget::PuppetWidget(TabChild* aTabChild)
 PuppetWidget::~PuppetWidget()
 {
   MOZ_COUNT_DTOR(PuppetWidget);
+
+  Destroy();
 }
 
 NS_IMETHODIMP
@@ -117,6 +122,11 @@ PuppetWidget::Create(nsIWidget        *aParent,
   }
   else {
     Resize(mBounds.x, mBounds.y, mBounds.width, mBounds.height, false);
+  }
+  nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
+  if (obs) {
+    mMemoryPressureObserver = new MemoryPressureObserver(this);
+    obs->AddObserver(mMemoryPressureObserver, "memory-pressure", false);
   }
 
   return NS_OK;
@@ -153,6 +163,10 @@ PuppetWidget::Destroy()
   Base::OnDestroy();
   Base::Destroy();
   mPaintTask.Revoke();
+  if (mMemoryPressureObserver) {
+    mMemoryPressureObserver->Remove();
+  }
+  mMemoryPressureObserver = nullptr;
   mChild = nullptr;
   if (mLayerManager) {
     mLayerManager->Destroy();
@@ -173,10 +187,6 @@ PuppetWidget::Show(bool aState)
 
   if (mChild) {
     mChild->mVisible = aState;
-  }
-
-  if (!mVisible && mLayerManager) {
-    mLayerManager->ClearCachedResources();
   }
 
   if (!wasVisible && mVisible) {
@@ -886,19 +896,12 @@ PuppetWidget::NotifyIMEOfSelectionChange(
   if (!mTabChild)
     return NS_ERROR_FAILURE;
 
-  nsEventStatus status;
-  WidgetQueryContentEvent queryEvent(true, NS_QUERY_SELECTED_TEXT, this);
-  InitEvent(queryEvent, nullptr);
-  DispatchEvent(&queryEvent, status);
-
-  if (queryEvent.mSucceeded) {
-    mTabChild->SendNotifyIMESelection(
-      mIMELastReceivedSeqno,
-      queryEvent.GetSelectionStart(),
-      queryEvent.GetSelectionEnd(),
-      queryEvent.GetWritingMode(),
-      aIMENotification.mSelectionChangeData.mCausedByComposition);
-  }
+  mTabChild->SendNotifyIMESelection(
+    mIMELastReceivedSeqno,
+    aIMENotification.mSelectionChangeData.StartOffset(),
+    aIMENotification.mSelectionChangeData.EndOffset(),
+    aIMENotification.mSelectionChangeData.GetWritingMode(),
+    aIMENotification.mSelectionChangeData.mCausedByComposition);
   return NS_OK;
 }
 
@@ -956,9 +959,11 @@ PuppetWidget::NotifyIMEOfPositionChange()
 NS_IMETHODIMP
 PuppetWidget::SetCursor(nsCursor aCursor)
 {
-  if (mCursor == aCursor && !mUpdateCursor) {
+  if (mCursor == aCursor && !mCustomCursor && !mUpdateCursor) {
     return NS_OK;
   }
+
+  mCustomCursor = nullptr;
 
   if (mTabChild &&
       !mTabChild->SendSetCursor(aCursor, mUpdateCursor)) {
@@ -969,6 +974,59 @@ PuppetWidget::SetCursor(nsCursor aCursor)
   mUpdateCursor = false;
 
   return NS_OK;
+}
+
+NS_IMETHODIMP
+PuppetWidget::SetCursor(imgIContainer* aCursor,
+                        uint32_t aHotspotX, uint32_t aHotspotY)
+{
+  if (!aCursor || !mTabChild) {
+    return NS_OK;
+  }
+
+  if (mCustomCursor == aCursor &&
+      mCursorHotspotX == aHotspotX &&
+      mCursorHotspotY == aHotspotY &&
+      !mUpdateCursor) {
+    return NS_OK;
+  }
+
+  RefPtr<mozilla::gfx::SourceSurface> surface =
+    aCursor->GetFrame(imgIContainer::FRAME_CURRENT,
+                      imgIContainer::FLAG_SYNC_DECODE);
+  if (!surface) {
+    return NS_ERROR_FAILURE;
+  }
+
+  mozilla::RefPtr<mozilla::gfx::DataSourceSurface> dataSurface =
+    surface->GetDataSurface();
+  size_t length;
+  int32_t stride;
+  mozilla::UniquePtr<char[]> surfaceData =
+    nsContentUtils::GetSurfaceData(dataSurface, &length, &stride);
+
+  nsCString cursorData = nsCString(surfaceData.get(), length);
+  mozilla::gfx::IntSize size = dataSurface->GetSize();
+  if (!mTabChild->SendSetCustomCursor(cursorData, size.width, size.height, stride,
+                                      static_cast<uint8_t>(dataSurface->GetFormat()),
+                                      aHotspotX, aHotspotY, mUpdateCursor)) {
+    return NS_ERROR_FAILURE;
+  }
+
+  mCursor = nsCursor(-1);
+  mCustomCursor = aCursor;
+  mCursorHotspotX = aHotspotX;
+  mCursorHotspotY = aHotspotY;
+  mUpdateCursor = false;
+
+  return NS_OK;
+}
+
+void
+PuppetWidget::ClearCachedCursor()
+{
+  nsBaseWidget::ClearCachedCursor();
+  mCustomCursor = nullptr;
 }
 
 nsresult
@@ -993,9 +1051,7 @@ PuppetWidget::Paint()
                          nsAutoCString("PuppetWidget"), 0);
 #endif
 
-    if (mozilla::layers::LayersBackend::LAYERS_D3D10 == mLayerManager->GetBackendType()) {
-      mAttachedWidgetListener->PaintWindow(this, region);
-    } else if (mozilla::layers::LayersBackend::LAYERS_CLIENT == mLayerManager->GetBackendType()) {
+    if (mozilla::layers::LayersBackend::LAYERS_CLIENT == mLayerManager->GetBackendType()) {
       // Do nothing, the compositor will handle drawing
       if (mTabChild) {
         mTabChild->NotifyPainted();
@@ -1037,6 +1093,36 @@ PuppetWidget::PaintTask::Run()
     mWidget->Paint();
   }
   return NS_OK;
+}
+
+NS_IMPL_ISUPPORTS(PuppetWidget::MemoryPressureObserver, nsIObserver)
+
+NS_IMETHODIMP
+PuppetWidget::MemoryPressureObserver::Observe(nsISupports* aSubject,
+                                              const char* aTopic,
+                                              const char16_t* aData)
+{
+  if (!mWidget) {
+    return NS_OK;
+  }
+
+  if (strcmp("memory-pressure", aTopic) == 0) {
+    if (!mWidget->mVisible && mWidget->mLayerManager &&
+        XRE_GetProcessType() == GeckoProcessType_Content) {
+      mWidget->mLayerManager->ClearCachedResources();
+    }
+  }
+  return NS_OK;
+}
+
+void
+PuppetWidget::MemoryPressureObserver::Remove()
+{
+  nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
+  if (obs) {
+    obs->RemoveObserver(this, "memory-pressure");
+  }
+  mWidget = nullptr;
 }
 
 bool
@@ -1135,6 +1221,20 @@ PuppetWidget::GetScreenBounds(nsIntRect &aRect) {
   aRect.MoveTo(LayoutDeviceIntPoint::ToUntyped(WidgetToScreenOffset()));
   aRect.SizeTo(mBounds.Size());
   return NS_OK;
+}
+
+uint32_t PuppetWidget::GetMaxTouchPoints() const
+{
+  static uint32_t sTouchPoints = 0;
+  static bool sIsInitialized = false;
+  if (sIsInitialized) {
+    return sTouchPoints;
+  }
+  if (mTabChild) {
+    mTabChild->GetMaxTouchPoints(&sTouchPoints);
+    sIsInitialized = true;
+  }
+  return sTouchPoints;
 }
 
 PuppetScreen::PuppetScreen(void *nativeScreen)

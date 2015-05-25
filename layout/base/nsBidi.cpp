@@ -324,7 +324,7 @@ nsresult nsBidi::SetPara(const char16_t *aText, int32_t aLength,
   if (mIsolateCount <= SIMPLE_ISOLATES_SIZE) {
     mIsolates = mSimpleIsolates;
   } else {
-    if (mIsolateCount <= (int32_t) mIsolatesSize) {
+    if (mIsolateCount * sizeof(Isolate) <= mIsolatesSize) {
       mIsolates = mIsolatesMemory;
     } else {
       if (GETINITIALISOLATESMEMORY(mIsolateCount)) {
@@ -669,7 +669,7 @@ void nsBidi::ResolveExplicitLevels(nsBidiDirection *aDirection)
 
     uint16_t stack[NSBIDI_MAX_EXPLICIT_LEVEL + 2];   /* we never push anything >=NSBIDI_MAX_EXPLICIT_LEVEL
                                                         but we need one more entry as base */
-    uint32_t stackLast = 0;
+    int32_t stackLast = 0;
     int32_t overflowIsolateCount = 0;
     int32_t overflowEmbeddingCount = 0;
     int32_t validIsolateCount = 0;
@@ -773,8 +773,14 @@ void nsBidi::ResolveExplicitLevels(nsBidiDirection *aDirection)
               /* pop embedding entries        */
               /* until the last isolate entry */
               stackLast--;
+
+              // Since validIsolateCount is true, there must be an isolate entry
+              // on the stack, so the stack is guaranteed to not be empty.
+              // Still, to eliminate a warning from coverity, we use an assertion.
+              MOZ_ASSERT(stackLast > 0);
             }
             stackLast--;  /* pop also the last isolate entry */
+            MOZ_ASSERT(stackLast >= 0);  // For coverity
             validIsolateCount--;
           } else {
             dirProps[i] |= IGNORE_CC;

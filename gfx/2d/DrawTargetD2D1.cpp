@@ -69,7 +69,8 @@ TemporaryRef<SourceSurface>
 DrawTargetD2D1::Snapshot()
 {
   if (mSnapshot) {
-    return mSnapshot;
+    RefPtr<SourceSurface> snapshot(mSnapshot);
+    return snapshot.forget();
   }
   PopAllClips();
 
@@ -77,7 +78,8 @@ DrawTargetD2D1::Snapshot()
 
   mSnapshot = new SourceSurfaceD2D1(mBitmap, mDC, mFormat, mSize, this);
 
-  return mSnapshot;
+  RefPtr<SourceSurface> snapshot(mSnapshot);
+  return snapshot.forget();
 }
 
 void
@@ -657,7 +659,7 @@ DrawTargetD2D1::CreateSourceSurfaceFromData(unsigned char *aData,
     return nullptr;
   }
 
-  return new SourceSurfaceD2D1(bitmap.get(), mDC, aFormat, aSize);
+  return MakeAndAddRef<SourceSurfaceD2D1>(bitmap.get(), mDC, aFormat, aSize);
 }
 
 TemporaryRef<DrawTarget>
@@ -694,7 +696,7 @@ DrawTargetD2D1::CreatePathBuilder(FillRule aFillRule) const
     sink->SetFillMode(D2D1_FILL_MODE_WINDING);
   }
 
-  return new PathBuilderD2D(sink, path, aFillRule, BackendType::DIRECT2D1_1);
+  return MakeAndAddRef<PathBuilderD2D>(sink, path, aFillRule, BackendType::DIRECT2D1_1);
 }
 
 TemporaryRef<GradientStops>
@@ -725,7 +727,7 @@ DrawTargetD2D1::CreateGradientStops(GradientStop *rawStops, uint32_t aNumStops, 
     return nullptr;
   }
 
-  return new GradientStopsD2D(stopCollection, Factory::GetDirect3D11Device());
+  return MakeAndAddRef<GradientStopsD2D>(stopCollection, Factory::GetDirect3D11Device());
 }
 
 TemporaryRef<FilterNode>
@@ -944,12 +946,16 @@ DrawTargetD2D1::PrepareForDrawing(CompositionOp aOp, const Pattern &aPattern)
 {
   MarkChanged();
 
-  if (aOp == CompositionOp::OP_OVER && IsPatternSupportedByD2D(aPattern)) {
+  if (D2DSupportsPrimitiveBlendMode(aOp) && IsPatternSupportedByD2D(aPattern)) {
     // It's important to do this before FlushTransformToDC! As this will cause
     // the transform to become dirty.
     PushAllClips();
 
     FlushTransformToDC();
+
+    if (aOp != CompositionOp::OP_OVER)
+      mDC->SetPrimitiveBlend(D2DPrimitiveBlendMode(aOp));
+
     return;
   }
 
@@ -967,7 +973,9 @@ DrawTargetD2D1::FinalizeDrawing(CompositionOp aOp, const Pattern &aPattern)
 {
   bool patternSupported = IsPatternSupportedByD2D(aPattern);
 
-  if (aOp == CompositionOp::OP_OVER && patternSupported) {
+  if (D2DSupportsPrimitiveBlendMode(aOp) && patternSupported) {
+    if (aOp != CompositionOp::OP_OVER)
+      mDC->SetPrimitiveBlend(D2D1_PRIMITIVE_BLEND_SOURCE_OVER);
     return;
   }
 
@@ -1128,7 +1136,8 @@ DrawTargetD2D1::GetClippedGeometry(IntRect *aClipBounds)
 {
   if (mCurrentClippedGeometry) {
     *aClipBounds = mCurrentClipBounds;
-    return mCurrentClippedGeometry;
+    RefPtr<ID2D1Geometry> clippedGeometry(mCurrentClippedGeometry);
+    return clippedGeometry.forget();
   }
 
   MOZ_ASSERT(mPushedClips.size());
@@ -1209,7 +1218,8 @@ DrawTargetD2D1::GetClippedGeometry(IntRect *aClipBounds)
   }
   mCurrentClippedGeometry = pathGeom.forget();
   *aClipBounds = mCurrentClipBounds;
-  return mCurrentClippedGeometry;
+  RefPtr<ID2D1Geometry> clippedGeometry(mCurrentClippedGeometry);
+  return clippedGeometry.forget();
 }
 
 TemporaryRef<ID2D1Geometry>
@@ -1227,7 +1237,7 @@ DrawTargetD2D1::GetInverseClippedGeometry()
   rectGeom->CombineWithGeometry(geom, D2D1_COMBINE_MODE_EXCLUDE, D2D1::IdentityMatrix(), sink);
   sink->Close();
 
-  return inverseGeom;
+  return inverseGeom.forget();
 }
 
 void
@@ -1289,7 +1299,7 @@ DrawTargetD2D1::GetSolidColorBrush(const D2D_COLOR_F& aColor)
 {
   RefPtr<ID2D1SolidColorBrush> brush = mSolidColorBrush;
   brush->SetColor(aColor);
-  return brush;
+  return brush.forget();
 }
 
 TemporaryRef<ID2D1Brush>
@@ -1453,7 +1463,8 @@ TemporaryRef<SourceSurface>
 DrawTargetD2D1::OptimizeSourceSurface(SourceSurface* aSurface) const
 {
   if (aSurface->GetType() == SurfaceType::D2D1_1_IMAGE) {
-    return aSurface;
+    RefPtr<SourceSurface> surface(aSurface);
+    return surface.forget();
   }
 
   RefPtr<DataSourceSurface> data = aSurface->GetDataSurface();
@@ -1478,7 +1489,7 @@ DrawTargetD2D1::OptimizeSourceSurface(SourceSurface* aSurface) const
     return data.forget();
   }
 
-  return new SourceSurfaceD2D1(bitmap.get(), mDC, data->GetFormat(), data->GetSize());
+  return MakeAndAddRef<SourceSurfaceD2D1>(bitmap.get(), mDC, data->GetFormat(), data->GetSize());
 }
 
 void

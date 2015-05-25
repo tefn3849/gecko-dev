@@ -7,7 +7,7 @@
 #if !defined(MediaPromise_h_)
 #define MediaPromise_h_
 
-#include "prlog.h"
+#include "mozilla/Logging.h"
 
 #include "AbstractThread.h"
 
@@ -31,7 +31,7 @@ extern PRLogModuleInfo* gMediaPromiseLog;
 
 #define PROMISE_LOG(x, ...) \
   MOZ_ASSERT(gMediaPromiseLog); \
-  PR_LOG(gMediaPromiseLog, PR_LOG_DEBUG, (x, ##__VA_ARGS__))
+  MOZ_LOG(gMediaPromiseLog, PR_LOG_DEBUG, (x, ##__VA_ARGS__))
 
 /*
  * A promise manages an asynchronous request that may or may not be able to be
@@ -42,9 +42,18 @@ extern PRLogModuleInfo* gMediaPromiseLog;
  * When IsExclusive is true, the MediaPromise does a release-mode assertion that
  * there is at most one call to either Then(...) or ChainTo(...).
  */
+
+class MediaPromiseBase
+{
+public:
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(MediaPromiseBase)
+protected:
+  virtual ~MediaPromiseBase() {}
+};
+
 template<typename T> class MediaPromiseHolder;
 template<typename ResolveValueT, typename RejectValueT, bool IsExclusive>
-class MediaPromise
+class MediaPromise : public MediaPromiseBase
 {
 public:
   typedef ResolveValueT ResolveValueType;
@@ -74,8 +83,6 @@ public:
     Maybe<ResolveValueType> mResolveValue;
     Maybe<RejectValueType> mRejectValue;
   };
-
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(MediaPromise)
 
 protected:
   // MediaPromise is the public type, and never constructed directly. Construct
@@ -432,7 +439,7 @@ protected:
     }
   }
 
-  ~MediaPromise()
+  virtual ~MediaPromise()
   {
     PROMISE_LOG("MediaPromise::~MediaPromise [this=%p]", this);
     MOZ_ASSERT(!IsPending());

@@ -2,14 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/* global loop, sinon */
-
-var expect = chai.expect;
-var TestUtils = React.addons.TestUtils;
-
 describe("loop.webapp", function() {
   "use strict";
 
+  var expect = chai.expect;
+  var TestUtils = React.addons.TestUtils;
   var sharedActions = loop.shared.actions;
   var sharedModels = loop.shared.models,
       sharedViews = loop.shared.views,
@@ -40,8 +37,9 @@ describe("loop.webapp", function() {
       send: function() {},
       abort: function() {},
       getResponseHeader: function(header) {
-        if (header === "Content-Type")
+        if (header === "Content-Type") {
           return "audio/ogg";
+        }
       },
       responseType: null,
       response: new ArrayBuffer(10),
@@ -1013,8 +1011,9 @@ describe("loop.webapp", function() {
       });
 
       afterEach(function() {
-        if (oldLocalStorageValue !== null)
+        if (oldLocalStorageValue !== null) {
           localStorage.setItem("has-seen-tos", oldLocalStorageValue);
+        }
       });
 
       it("should show the TOS", function() {

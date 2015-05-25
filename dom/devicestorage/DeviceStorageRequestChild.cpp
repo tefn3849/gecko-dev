@@ -104,12 +104,13 @@ DeviceStorageRequestChild::
     {
       BlobResponse r = aValue;
       BlobChild* actor = static_cast<BlobChild*>(r.blobChild());
-      nsRefPtr<FileImpl> bloblImpl = actor->GetBlobImpl();
-      nsRefPtr<File> blob = new File(mRequest->GetParentObject(), bloblImpl);
+      nsRefPtr<BlobImpl> bloblImpl = actor->GetBlobImpl();
+      nsRefPtr<Blob> blob = Blob::Create(mRequest->GetParentObject(),
+                                         bloblImpl);
 
       AutoJSContext cx;
 
-      JS::Rooted<JSObject*> obj(cx, blob->WrapObject(cx, JS::NullPtr()));
+      JS::Rooted<JSObject*> obj(cx, blob->WrapObject(cx, nullptr));
       MOZ_ASSERT(obj);
 
       JS::Rooted<JS::Value> result(cx, JS::ObjectValue(*obj));

@@ -2,8 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/* global loop:true */
-
 var loop = loop || {};
 loop.shared = loop.shared || {};
 loop.shared.mixins = (function() {
@@ -120,10 +118,12 @@ loop.shared.mixins = (function() {
         if (!menu) {
           return;
         }
-        if (menu.style.maxWidth)
+        if (menu.style.maxWidth) {
           menu.style.maxWidth = "none";
-        if (menu.style.maxHeight)
+        }
+        if (menu.style.maxHeight) {
           menu.style.maxHeight = "none";
+        }
 
         // Correct the position of the menu only if necessary.
         var x, y, boundingBox, boundingRect;
@@ -280,12 +280,9 @@ loop.shared.mixins = (function() {
    * elements and handling updates of the media containers.
    */
   var MediaSetupMixin = {
-    _videoDimensionsCache: {
-      local: {},
-      remote: {}
-    },
 
     componentDidMount: function() {
+      this.resetDimensionsCache();
       rootObject.addEventListener("orientationchange", this.updateVideoContainer);
       rootObject.addEventListener("resize", this.updateVideoContainer);
     },
@@ -453,7 +450,7 @@ loop.shared.mixins = (function() {
             remoteVideoDimensions.streamWidth = leadingAxis === "width" ?
               remoteVideoDimensions.width : slaveAxisSize;
             remoteVideoDimensions.streamHeight = leadingAxis === "height" ?
-              remoteVideoDimensions.height: slaveAxisSize;
+              remoteVideoDimensions.height : slaveAxisSize;
           } else {
             // If the leading axis is not "full" then we need to adjust it, based
             // on the length of the leading axis.
@@ -462,7 +459,7 @@ loop.shared.mixins = (function() {
             remoteVideoDimensions.streamWidth = leadingAxis === "height" ?
               remoteVideoDimensions.width : leadingAxisSize;
             remoteVideoDimensions.streamHeight = leadingAxis === "width" ?
-              remoteVideoDimensions.height: leadingAxisSize;
+              remoteVideoDimensions.height : leadingAxisSize;
           }
         }
       }
@@ -518,7 +515,7 @@ loop.shared.mixins = (function() {
           this._bufferedUpdateVideo = null;
           var localStreamParent = this._getElement(".local .OT_publisher");
           var remoteStreamParent = this._getElement(".remote .OT_subscriber");
-          var screenShareStreamParent = this._getElement('.screen .OT_subscriber');
+          var screenShareStreamParent = this._getElement(".screen .OT_subscriber");
           if (localStreamParent) {
             localStreamParent.style.width = "100%";
           }

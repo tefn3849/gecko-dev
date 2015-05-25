@@ -190,7 +190,6 @@ let MozLoopServiceInternal = {
       // Default to 5 seconds
       return 5000;
     }
-    return initialDelay;
   },
 
   /**
@@ -724,8 +723,9 @@ let MozLoopServiceInternal = {
    * @returns {Map} a map of element ids with localized string values
    */
   get localizedStrings() {
-    if (gLocalizedStrings.size)
+    if (gLocalizedStrings.size) {
       return gLocalizedStrings;
+    }
 
     let stringBundle =
       Services.strings.createBundle("chrome://browser/locale/loop/loop.properties");
@@ -752,7 +752,7 @@ let MozLoopServiceInternal = {
   stageForTelemetryUpload: function(window, pc) {
     window.WebrtcGlobalInformation.getAllStats(allStats => {
       let internalFormat = allStats.reports[0]; // filtered on pc.id
-      window.WebrtcGlobalInformation.getLogging('', logs => {
+      window.WebrtcGlobalInformation.getLogging("", logs => {
         let report = convertToRTCStatsReport(internalFormat);
         let logStr = "";
         logs.forEach(s => { logStr += s + "\n"; });
@@ -765,7 +765,7 @@ let MozLoopServiceInternal = {
 
         let ai = Services.appinfo;
         let uuid = uuidgen.generateUUID().toString();
-        uuid = uuid.substr(1, uuid.length-2); // remove uuid curly braces
+        uuid = uuid.substr(1, uuid.length - 2); // remove uuid curly braces
 
         let directory = OS.Path.join(OS.Constants.Path.profileDir,
                                      "saved-telemetry-pings");
@@ -895,7 +895,7 @@ let MozLoopServiceInternal = {
             var pair = pc.id.split("(");  //)
             if (pair.length == 2) {
               pc.id = pair[0] + "(session=" + context.sessionId +
-                  (context.callId? " call=" + context.callId : "") + " " + pair[1]; //)
+                  (context.callId ? " call=" + context.callId : "") + " " + pair[1]; //)
             }
           }
 
@@ -1072,6 +1072,7 @@ let gInitializeTimerFunc = (deferredInitialization) => {
              MozLoopServiceInternal.initialRegistrationDelayMilliseconds);
 };
 
+let gServiceInitialized = false;
 
 /**
  * Public API
@@ -1089,8 +1090,19 @@ this.MozLoopService = {
     };
   },
 
+  /**
+   * Used to override the initalize timer function for test purposes.
+   */
   set initializeTimerFunc(value) {
     gInitializeTimerFunc = value;
+  },
+
+  /**
+   * Used to reset if the service has been initialized or not - for test
+   * purposes.
+   */
+  resetServiceInitialized: function() {
+    gServiceInitialized = false;
   },
 
   get roomsParticipantsCount() {
@@ -1101,9 +1113,18 @@ this.MozLoopService = {
    * Initialized the loop service, and starts registration with the
    * push and loop servers.
    *
+   * Note: this returns a promise for unit test purposes.
+   *
    * @return {Promise}
    */
   initialize: Task.async(function*() {
+    // Ensure we don't setup things like listeners more than once.
+    if (gServiceInitialized) {
+      return Promise.resolve();
+    }
+
+    gServiceInitialized = true;
+
     // Do this here, rather than immediately after definition, so that we can
     // stub out API functions for unit testing
     Object.freeze(this);
@@ -1348,9 +1369,10 @@ this.MozLoopService = {
           return;
         }
 
-        // XXX If we don't have a key for FxA yet, then simply reject for now.
-        // We'll create some sign-in/sign-out UX in bug 1153788.
-        reject(new Error("FxA re-register not implemented"));
+        // This should generally never happen, but its not really possible
+        // for us to force reauth from here in a sensible way for the user.
+        // So we'll just have to flag it the best we can.
+        reject(new Error("No FxA key available"));
         return;
       }
 

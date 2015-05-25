@@ -63,7 +63,7 @@
 #include "rdfutil.h"
 #include "pldhash.h"
 #include "plstr.h"
-#include "prlog.h"
+#include "mozilla/Logging.h"
 #include "rdf.h"
 
 #include "rdfIDataSource.h"
@@ -125,7 +125,7 @@ public:
     {
         struct hash
         {
-            PLDHashTable*   mPropertyHash; 
+            PLDHashTable2*  mPropertyHash;
         } hash;
         struct as
         {
@@ -163,7 +163,7 @@ Assertion::Assertion(nsIRDFResource* aSource)
     NS_ADDREF(mSource);
 
     u.hash.mPropertyHash =
-        new PLDHashTable(PL_DHashGetStubOps(), sizeof(Entry));
+        new PLDHashTable2(PL_DHashGetStubOps(), sizeof(Entry));
 }
 
 Assertion::Assertion(nsIRDFResource* aSource,
@@ -809,7 +809,7 @@ InMemoryDataSource::~InMemoryDataSource()
     if (mReverseArcs.IsInitialized())
         PL_DHashTableFinish(&mReverseArcs);
 
-    PR_LOG(gLog, PR_LOG_NOTICE,
+    MOZ_LOG(gLog, PR_LOG_NOTICE,
            ("InMemoryDataSource(%p): destroyed.", this));
 
     MOZ_COUNT_DTOR(InMemoryDataSource);

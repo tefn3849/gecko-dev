@@ -423,7 +423,7 @@ IsLazyFunction(JSContext* cx, unsigned argc, Value* vp)
     }
     if (!args[0].isObject() || !args[0].toObject().is<JSFunction>()) {
         JS_ReportError(cx, "The first argument should be a function.");
-        return true;
+        return false;
     }
     args.rval().setBoolean(args[0].toObject().as<JSFunction>().isInterpretedLazy());
     return true;
@@ -804,7 +804,7 @@ NondeterministicGetWeakMapKeys(JSContext* cx, unsigned argc, jsval* vp)
 
 struct JSCountHeapNode {
     void*               thing;
-    JSGCTraceKind       kind;
+    JS::TraceKind       kind;
     JSCountHeapNode*    next;
 };
 
@@ -822,7 +822,7 @@ class CountHeapTracer : public JS::CallbackTracer
 };
 
 static void
-CountHeapNotify(JS::CallbackTracer* trc, void** thingp, JSGCTraceKind kind)
+CountHeapNotify(JS::CallbackTracer* trc, void** thingp, JS::TraceKind kind)
 {
     CountHeapTracer* countTracer = (CountHeapTracer*)trc;
     void* thing = *thingp;
@@ -857,12 +857,12 @@ CountHeapNotify(JS::CallbackTracer* trc, void** thingp, JSGCTraceKind kind)
 
 static const struct TraceKindPair {
     const char*      name;
-    int32_t           kind;
+    int32_t          kind;
 } traceKindNames[] = {
-    { "all",        -1                  },
-    { "object",     JSTRACE_OBJECT      },
-    { "string",     JSTRACE_STRING      },
-    { "symbol",     JSTRACE_SYMBOL      },
+    { "all",        -1                             },
+    { "object",     int32_t(JS::TraceKind::Object) },
+    { "string",     int32_t(JS::TraceKind::String) },
+    { "symbol",     int32_t(JS::TraceKind::Symbol) },
 };
 
 static bool
@@ -941,7 +941,7 @@ CountHeap(JSContext* cx, unsigned argc, jsval* vp)
     while ((node = countTracer.traceList) != nullptr) {
         if (traceThing == nullptr) {
             // We are looking for all nodes with a specific kind
-            if (traceKind == -1 || node->kind == traceKind)
+            if (traceKind == -1 || int32_t(node->kind) == traceKind)
                 counter++;
         } else {
             // We are looking for some specific thing
@@ -1005,7 +1005,7 @@ SaveStack(JSContext* cx, unsigned argc, jsval* vp)
             return false;
         if (d < 0) {
             ReportValueErrorFlags(cx, JSREPORT_ERROR, JSMSG_UNEXPECTED_TYPE,
-                                  JSDVG_SEARCH_STACK, args[0], JS::NullPtr(),
+                                  JSDVG_SEARCH_STACK, args[0], nullptr,
                                   "not a valid maximum frame count", NULL);
             return false;
         }
@@ -1016,7 +1016,7 @@ SaveStack(JSContext* cx, unsigned argc, jsval* vp)
     if (args.length() >= 2) {
         if (!args[1].isObject()) {
             ReportValueErrorFlags(cx, JSREPORT_ERROR, JSMSG_UNEXPECTED_TYPE,
-                                  JSDVG_SEARCH_STACK, args[0], JS::NullPtr(),
+                                  JSDVG_SEARCH_STACK, args[0], nullptr,
                                   "not an object", NULL);
             return false;
         }
@@ -1100,6 +1100,34 @@ OOMAfterAllocations(JSContext* cx, unsigned argc, jsval* vp)
         return false;
 
     OOM_maxAllocations = OOM_counter + count;
+    OOM_failAlways = true;
+    return true;
+}
+
+static bool
+OOMAtAllocation(JSContext* cx, unsigned argc, jsval* vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    if (args.length() != 1) {
+        JS_ReportError(cx, "count argument required");
+        return false;
+    }
+
+    uint32_t count;
+    if (!JS::ToUint32(cx, args[0], &count))
+        return false;
+
+    OOM_maxAllocations = OOM_counter + count;
+    OOM_failAlways = false;
+    return true;
+}
+
+static bool
+ResetOOMFailure(JSContext* cx, unsigned argc, jsval* vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+    args.rval().setBoolean(OOM_counter >= OOM_maxAllocations);
+    OOM_maxAllocations = UINT32_MAX;
     return true;
 }
 #endif
@@ -1113,7 +1141,7 @@ MakeFakePromise(JSContext* cx, unsigned argc, jsval* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    RootedObject obj(cx, NewObjectWithGivenProto(cx, &FakePromiseClass, NullPtr()));
+    RootedObject obj(cx, NewObjectWithGivenProto(cx, &FakePromiseClass, nullptr));
     if (!obj)
         return false;
 
@@ -1164,7 +1192,7 @@ MakeFinalizeObserver(JSContext* cx, unsigned argc, jsval* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    JSObject* obj = JS_NewObjectWithGivenProto(cx, &FinalizeCounterClass, JS::NullPtr());
+    JSObject* obj = JS_NewObjectWithGivenProto(cx, &FinalizeCounterClass, nullptr);
     if (!obj)
         return false;
 
@@ -2246,14 +2274,14 @@ FindPath(JSContext* cx, unsigned argc, jsval* vp)
     // Non-GCThing endpoints don't make much sense.
     if (!args[0].isObject() && !args[0].isString() && !args[0].isSymbol()) {
         ReportValueErrorFlags(cx, JSREPORT_ERROR, JSMSG_UNEXPECTED_TYPE,
-                              JSDVG_SEARCH_STACK, args[0], JS::NullPtr(),
+                              JSDVG_SEARCH_STACK, args[0], nullptr,
                               "not an object, string, or symbol", NULL);
         return false;
     }
 
     if (!args[1].isObject() && !args[1].isString() && !args[1].isSymbol()) {
         ReportValueErrorFlags(cx, JSREPORT_ERROR, JSMSG_UNEXPECTED_TYPE,
-                              JSDVG_SEARCH_STACK, args[0], JS::NullPtr(),
+                              JSDVG_SEARCH_STACK, args[0], nullptr,
                               "not an object, string, or symbol", NULL);
         return false;
     }
@@ -2654,6 +2682,16 @@ static const JSFunctionSpecWithHelp TestingFunctions[] = {
 "oomAfterAllocations(count)",
 "  After 'count' js_malloc memory allocations, fail every following allocation\n"
 "  (return NULL)."),
+
+    JS_FN_HELP("oomAtAllocation", OOMAtAllocation, 1, 0,
+"oomAtAllocation(count)",
+"  After 'count' js_malloc memory allocations, fail the next allocation\n"
+"  (return NULL)."),
+
+    JS_FN_HELP("resetOOMFailure", ResetOOMFailure, 0, 0,
+"resetOOMFailure()",
+"  Remove the allocation failure scheduled by either oomAfterAllocations() or\n"
+"  oomAtAllocation() and return whether any allocation had been caused to fail."),
 #endif
 
     JS_FN_HELP("makeFakePromise", MakeFakePromise, 0, 0,

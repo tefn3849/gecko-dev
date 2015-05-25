@@ -68,7 +68,7 @@ static nsCookieService *gCookieService;
 
 // XXX_hack. See bug 178993.
 // This is a hack to hide HttpOnly cookies from older browsers
-static const char kHttpOnlyPrefix[] = "#HttpOnly_";
+#define HTTP_ONLY_PREFIX "#HttpOnly_"
 
 #define COOKIES_FILE "cookies.sqlite"
 #define COOKIES_SCHEMA_VERSION 5
@@ -92,7 +92,7 @@ static const int64_t kCookieStaleThreshold = 60 * PR_USEC_PER_SEC; // 1 minute i
 static const int64_t kCookiePurgeAge =
   int64_t(30 * 24 * 60 * 60) * PR_USEC_PER_SEC; // 30 days in microseconds
 
-static const char kOldCookieFileName[] = "cookies.txt";
+#define OLD_COOKIE_FILE_NAME "cookies.txt"
 
 #undef  LIMIT
 #define LIMIT(x, low, high, default) ((x) >= (low) && (x) <= (high) ? (x) : (default))
@@ -183,7 +183,7 @@ struct nsListIter
 //    set NSPR_LOG_MODULES=cookie:4 -- shows accepted and rejected cookies
 //    set NSPR_LOG_FILE=cookie.log
 //
-#include "prlog.h"
+#include "mozilla/Logging.h"
 #endif
 
 // define logging macros for convenience
@@ -210,8 +210,8 @@ GetCookieLog()
 
 #define COOKIE_LOGSTRING(lvl, fmt)   \
   PR_BEGIN_MACRO                     \
-    PR_LOG(GetCookieLog(), lvl, fmt);  \
-    PR_LOG(GetCookieLog(), lvl, ("\n")); \
+    MOZ_LOG(GetCookieLog(), lvl, fmt);  \
+    MOZ_LOG(GetCookieLog(), lvl, ("\n")); \
   PR_END_MACRO
 
 static void
@@ -225,20 +225,20 @@ LogFailure(bool aSetCookie, nsIURI *aHostURI, const char *aCookieString, const c
   if (aHostURI)
     aHostURI->GetAsciiSpec(spec);
 
-  PR_LOG(GetCookieLog(), PR_LOG_WARNING,
+  MOZ_LOG(GetCookieLog(), PR_LOG_WARNING,
     ("===== %s =====\n", aSetCookie ? "COOKIE NOT ACCEPTED" : "COOKIE NOT SENT"));
-  PR_LOG(GetCookieLog(), PR_LOG_WARNING,("request URL: %s\n", spec.get()));
+  MOZ_LOG(GetCookieLog(), PR_LOG_WARNING,("request URL: %s\n", spec.get()));
   if (aSetCookie)
-    PR_LOG(GetCookieLog(), PR_LOG_WARNING,("cookie string: %s\n", aCookieString));
+    MOZ_LOG(GetCookieLog(), PR_LOG_WARNING,("cookie string: %s\n", aCookieString));
 
   PRExplodedTime explodedTime;
   PR_ExplodeTime(PR_Now(), PR_GMTParameters, &explodedTime);
   char timeString[40];
   PR_FormatTimeUSEnglish(timeString, 40, "%c GMT", &explodedTime);
 
-  PR_LOG(GetCookieLog(), PR_LOG_WARNING,("current time: %s", timeString));
-  PR_LOG(GetCookieLog(), PR_LOG_WARNING,("rejected because %s\n", aReason));
-  PR_LOG(GetCookieLog(), PR_LOG_WARNING,("\n"));
+  MOZ_LOG(GetCookieLog(), PR_LOG_WARNING,("current time: %s", timeString));
+  MOZ_LOG(GetCookieLog(), PR_LOG_WARNING,("rejected because %s\n", aReason));
+  MOZ_LOG(GetCookieLog(), PR_LOG_WARNING,("\n"));
 }
 
 static void
@@ -249,27 +249,27 @@ LogCookie(nsCookie *aCookie)
   char timeString[40];
   PR_FormatTimeUSEnglish(timeString, 40, "%c GMT", &explodedTime);
 
-  PR_LOG(GetCookieLog(), PR_LOG_DEBUG,("current time: %s", timeString));
+  MOZ_LOG(GetCookieLog(), PR_LOG_DEBUG,("current time: %s", timeString));
 
   if (aCookie) {
-    PR_LOG(GetCookieLog(), PR_LOG_DEBUG,("----------------\n"));
-    PR_LOG(GetCookieLog(), PR_LOG_DEBUG,("name: %s\n", aCookie->Name().get()));
-    PR_LOG(GetCookieLog(), PR_LOG_DEBUG,("value: %s\n", aCookie->Value().get()));
-    PR_LOG(GetCookieLog(), PR_LOG_DEBUG,("%s: %s\n", aCookie->IsDomain() ? "domain" : "host", aCookie->Host().get()));
-    PR_LOG(GetCookieLog(), PR_LOG_DEBUG,("path: %s\n", aCookie->Path().get()));
+    MOZ_LOG(GetCookieLog(), PR_LOG_DEBUG,("----------------\n"));
+    MOZ_LOG(GetCookieLog(), PR_LOG_DEBUG,("name: %s\n", aCookie->Name().get()));
+    MOZ_LOG(GetCookieLog(), PR_LOG_DEBUG,("value: %s\n", aCookie->Value().get()));
+    MOZ_LOG(GetCookieLog(), PR_LOG_DEBUG,("%s: %s\n", aCookie->IsDomain() ? "domain" : "host", aCookie->Host().get()));
+    MOZ_LOG(GetCookieLog(), PR_LOG_DEBUG,("path: %s\n", aCookie->Path().get()));
 
     PR_ExplodeTime(aCookie->Expiry() * int64_t(PR_USEC_PER_SEC),
                    PR_GMTParameters, &explodedTime);
     PR_FormatTimeUSEnglish(timeString, 40, "%c GMT", &explodedTime);
-    PR_LOG(GetCookieLog(), PR_LOG_DEBUG,
+    MOZ_LOG(GetCookieLog(), PR_LOG_DEBUG,
       ("expires: %s%s", timeString, aCookie->IsSession() ? " (at end of session)" : ""));
 
     PR_ExplodeTime(aCookie->CreationTime(), PR_GMTParameters, &explodedTime);
     PR_FormatTimeUSEnglish(timeString, 40, "%c GMT", &explodedTime);
-    PR_LOG(GetCookieLog(), PR_LOG_DEBUG,("created: %s", timeString));
+    MOZ_LOG(GetCookieLog(), PR_LOG_DEBUG,("created: %s", timeString));
 
-    PR_LOG(GetCookieLog(), PR_LOG_DEBUG,("is secure: %s\n", aCookie->IsSecure() ? "true" : "false"));
-    PR_LOG(GetCookieLog(), PR_LOG_DEBUG,("is httpOnly: %s\n", aCookie->IsHttpOnly() ? "true" : "false"));
+    MOZ_LOG(GetCookieLog(), PR_LOG_DEBUG,("is secure: %s\n", aCookie->IsSecure() ? "true" : "false"));
+    MOZ_LOG(GetCookieLog(), PR_LOG_DEBUG,("is httpOnly: %s\n", aCookie->IsHttpOnly() ? "true" : "false"));
   }
 }
 
@@ -285,27 +285,27 @@ LogSuccess(bool aSetCookie, nsIURI *aHostURI, const char *aCookieString, nsCooki
   if (aHostURI)
     aHostURI->GetAsciiSpec(spec);
 
-  PR_LOG(GetCookieLog(), PR_LOG_DEBUG,
+  MOZ_LOG(GetCookieLog(), PR_LOG_DEBUG,
     ("===== %s =====\n", aSetCookie ? "COOKIE ACCEPTED" : "COOKIE SENT"));
-  PR_LOG(GetCookieLog(), PR_LOG_DEBUG,("request URL: %s\n", spec.get()));
-  PR_LOG(GetCookieLog(), PR_LOG_DEBUG,("cookie string: %s\n", aCookieString));
+  MOZ_LOG(GetCookieLog(), PR_LOG_DEBUG,("request URL: %s\n", spec.get()));
+  MOZ_LOG(GetCookieLog(), PR_LOG_DEBUG,("cookie string: %s\n", aCookieString));
   if (aSetCookie)
-    PR_LOG(GetCookieLog(), PR_LOG_DEBUG,("replaces existing cookie: %s\n", aReplacing ? "true" : "false"));
+    MOZ_LOG(GetCookieLog(), PR_LOG_DEBUG,("replaces existing cookie: %s\n", aReplacing ? "true" : "false"));
 
   LogCookie(aCookie);
 
-  PR_LOG(GetCookieLog(), PR_LOG_DEBUG,("\n"));
+  MOZ_LOG(GetCookieLog(), PR_LOG_DEBUG,("\n"));
 }
 
 static void
 LogEvicted(nsCookie *aCookie, const char* details)
 {
-  PR_LOG(GetCookieLog(), PR_LOG_DEBUG,("===== COOKIE EVICTED =====\n"));
-  PR_LOG(GetCookieLog(), PR_LOG_DEBUG,("%s\n", details));
+  MOZ_LOG(GetCookieLog(), PR_LOG_DEBUG,("===== COOKIE EVICTED =====\n"));
+  MOZ_LOG(GetCookieLog(), PR_LOG_DEBUG,("%s\n", details));
 
   LogCookie(aCookie);
 
-  PR_LOG(GetCookieLog(), PR_LOG_DEBUG,("\n"));
+  MOZ_LOG(GetCookieLog(), PR_LOG_DEBUG,("\n"));
 }
 
 // inline wrappers to make passing in nsAFlatCStrings easier
@@ -1237,7 +1237,7 @@ nsCookieService::TryInitDB(bool aRecreateDB)
   // private browsing mode; otherwise ImportCookies() won't be happy.
   DBState* initialState = mDBState;
   mDBState = mDefaultDBState;
-  oldCookieFile->AppendNative(NS_LITERAL_CSTRING(kOldCookieFileName));
+  oldCookieFile->AppendNative(NS_LITERAL_CSTRING(OLD_COOKIE_FILE_NAME));
   ImportCookies(oldCookieFile);
   oldCookieFile->Remove(false);
   mDBState = initialState;
@@ -2501,9 +2501,9 @@ nsCookieService::ImportCookies(nsIFile *aCookieFile)
   }
 
   while (isMore && NS_SUCCEEDED(lineInputStream->ReadLine(buffer, &isMore))) {
-    if (StringBeginsWith(buffer, NS_LITERAL_CSTRING(kHttpOnlyPrefix))) {
+    if (StringBeginsWith(buffer, NS_LITERAL_CSTRING(HTTP_ONLY_PREFIX))) {
       isHttpOnly = true;
-      hostIndex = sizeof(kHttpOnlyPrefix) - 1;
+      hostIndex = sizeof(HTTP_ONLY_PREFIX) - 1;
     } else if (buffer.IsEmpty() || buffer.First() == '#') {
       continue;
     } else {

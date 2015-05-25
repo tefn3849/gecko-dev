@@ -176,7 +176,7 @@ js::OnUnknownMethod(JSContext* cx, HandleObject obj, Value idval_, MutableHandle
         return false;
 
     if (value.isObject()) {
-        NativeObject* obj = NewNativeObjectWithClassProto(cx, &js_NoSuchMethodClass, NullPtr());
+        NativeObject* obj = NewNativeObjectWithClassProto(cx, &js_NoSuchMethodClass, nullptr);
         if (!obj)
             return false;
 
@@ -346,7 +346,7 @@ js::ReportIsNotFunction(JSContext* cx, HandleValue v, int numToSkip, MaybeConstr
     unsigned error = construct ? JSMSG_NOT_CONSTRUCTOR : JSMSG_NOT_FUNCTION;
     int spIndex = numToSkip >= 0 ? -(numToSkip + 1) : JSDVG_SEARCH_STACK;
 
-    ReportValueError3(cx, error, spIndex, v, NullPtr(), nullptr, nullptr);
+    ReportValueError3(cx, error, spIndex, v, nullptr, nullptr, nullptr);
     return false;
 }
 
@@ -722,9 +722,10 @@ js::Invoke(JSContext* cx, CallArgs args, MaybeConstruct construct)
 
     /* Invoke native functions. */
     JSFunction* fun = &args.callee().as<JSFunction>();
-    MOZ_ASSERT_IF(construct, !fun->isNativeConstructor());
-    if (fun->isNative())
+    if (fun->isNative()) {
+        MOZ_ASSERT_IF(construct, !fun->isConstructor());
         return CallJSNative(cx, fun->native(), args);
+    }
 
     if (!fun->getOrCreateScript(cx))
         return false;
@@ -801,11 +802,11 @@ js::InvokeConstructor(JSContext* cx, CallArgs args)
     if (callee.is<JSFunction>()) {
         RootedFunction fun(cx, &callee.as<JSFunction>());
 
-        if (fun->isNativeConstructor())
-            return CallJSNativeConstructor(cx, fun->native(), args);
-
-        if (!fun->isInterpretedConstructor())
+        if (!fun->isConstructor())
             return ReportIsNotFunction(cx, args.calleev(), args.length() + 1, CONSTRUCT);
+
+        if (fun->isNative())
+            return CallJSNativeConstructor(cx, fun->native(), args);
 
         if (!Invoke(cx, args, CONSTRUCT))
             return false;
@@ -952,7 +953,7 @@ js::HasInstance(JSContext* cx, HandleObject obj, HandleValue v, bool* bp)
 
     RootedValue val(cx, ObjectValue(*obj));
     ReportValueError(cx, JSMSG_BAD_INSTANCEOF_RHS,
-                        JSDVG_SEARCH_STACK, val, NullPtr());
+                        JSDVG_SEARCH_STACK, val, nullptr);
     return false;
 }
 
@@ -2167,7 +2168,7 @@ CASE(JSOP_IN)
 {
     HandleValue rref = REGS.stackHandleAt(-1);
     if (!rref.isObject()) {
-        ReportValueError(cx, JSMSG_IN_NOT_OBJECT, -1, rref, js::NullPtr());
+        ReportValueError(cx, JSMSG_IN_NOT_OBJECT, -1, rref, nullptr);
         goto error;
     }
     RootedObject& obj = rootObject0;
@@ -2775,7 +2776,7 @@ CASE(JSOP_STRICTSETPROP_SUPER)
 
     RootedValue& receiver = rootValue0;
     receiver = REGS.sp[-3];
-    
+
     RootedObject& obj = rootObject0;
     obj = &REGS.sp[-2].toObject();
 
@@ -2947,7 +2948,7 @@ CASE(JSOP_FUNCALL)
     bool isFunction = IsFunctionObject(args.calleev(), fun.address());
 
     /* Don't bother trying to fast-path calls to scripted non-constructors. */
-    if (!isFunction || !fun->isInterpretedConstructor()) {
+    if (!isFunction || !fun->isInterpreted() || !fun->isConstructor()) {
         if (construct) {
             if (!InvokeConstructor(cx, args))
                 goto error;
@@ -3714,7 +3715,7 @@ CASE(JSOP_INSTANCEOF)
     RootedValue& rref = rootValue0;
     rref = REGS.sp[-1];
     if (rref.isPrimitive()) {
-        ReportValueError(cx, JSMSG_BAD_INSTANCEOF_RHS, -1, rref, js::NullPtr());
+        ReportValueError(cx, JSMSG_BAD_INSTANCEOF_RHS, -1, rref, nullptr);
         goto error;
     }
     RootedObject& obj = rootObject0;
@@ -3914,7 +3915,7 @@ CASE(JSOP_CLASSHERITAGE)
             goto error;
 
         if (!objProto.isObjectOrNull()) {
-            ReportValueError(cx, JSMSG_PROTO_NOT_OBJORNULL, -1, objProto, NullPtr());
+            ReportValueError(cx, JSMSG_PROTO_NOT_OBJORNULL, -1, objProto, nullptr);
             goto error;
         }
     }
@@ -3963,7 +3964,7 @@ CASE(JSOP_INITHOMEOBJECT)
     /* Load the function to be initialized */
     RootedFunction& func = rootFunction0;
     func = &REGS.sp[-1].toObject().as<JSFunction>();
-    MOZ_ASSERT(func->isMethod());
+    MOZ_ASSERT(func->allowSuperProperty());
 
     /* Load the home object */
     RootedNativeObject& obj = rootNativeObject0;
@@ -3980,7 +3981,14 @@ CASE(JSOP_SUPERBASE)
     for (; !si.done(); ++si) {
         if (si.hasScopeObject() && si.type() == ScopeIter::Call) {
             JSFunction& callee = si.scope().as<CallObject>().callee();
-            MOZ_ASSERT(callee.isMethod());
+
+            // Arrow functions don't have the information we're looking for,
+            // their enclosing scopes do. Nevertheless, they might have call
+            // objects. Skip them to find what we came for.
+            if (callee.isArrow())
+                continue;
+
+            MOZ_ASSERT(callee.allowSuperProperty());
             MOZ_ASSERT(callee.nonLazyScript()->needsHomeObject());
             const Value& homeObjVal = callee.getExtendedSlot(FunctionExtended::METHOD_HOMEOBJECT_SLOT);
 
@@ -4183,7 +4191,7 @@ js::LambdaArrow(JSContext* cx, HandleFunction fun, HandleObject parent, HandleVa
 {
     MOZ_ASSERT(fun->isArrow());
 
-    RootedObject clone(cx, CloneFunctionObjectIfNotSingleton(cx, fun, parent, NullPtr(),
+    RootedObject clone(cx, CloneFunctionObjectIfNotSingleton(cx, fun, parent, nullptr,
                                                              TenuredObject));
     if (!clone)
         return nullptr;
@@ -4210,7 +4218,7 @@ js::DefFunOperation(JSContext* cx, HandleScript script, HandleObject scopeChain,
      */
     RootedFunction fun(cx, funArg);
     if (fun->isNative() || fun->environment() != scopeChain) {
-        fun = CloneFunctionObjectIfNotSingleton(cx, fun, scopeChain, NullPtr(), TenuredObject);
+        fun = CloneFunctionObjectIfNotSingleton(cx, fun, scopeChain, nullptr, TenuredObject);
         if (!fun)
             return false;
     } else {
@@ -4718,7 +4726,7 @@ js::NewArrayOperation(JSContext* cx, HandleScript script, jsbytecode* pc, uint32
             return UnboxedArrayObject::create(cx, group, length, newKind);
     }
 
-    ArrayObject* obj = NewDenseFullyAllocatedArray(cx, length, NullPtr(), newKind);
+    ArrayObject* obj = NewDenseFullyAllocatedArray(cx, length, nullptr, newKind);
     if (!obj)
         return nullptr;
 
@@ -4748,7 +4756,7 @@ js::NewArrayOperationWithTemplate(JSContext* cx, HandleObject templateObject)
     }
 
     ArrayObject* obj = NewDenseFullyAllocatedArray(cx, templateObject->as<ArrayObject>().length(),
-                                                   NullPtr(), newKind);
+                                                   nullptr, newKind);
     if (!obj)
         return nullptr;
 

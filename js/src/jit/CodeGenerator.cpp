@@ -64,7 +64,7 @@ class OutOfLineUpdateCache :
   private:
     LInstruction* lir_;
     size_t cacheIndex_;
-    AddCacheState state_;
+    RepatchLabel entry_;
 
   public:
     OutOfLineUpdateCache(LInstruction* lir, size_t cacheIndex)
@@ -83,8 +83,8 @@ class OutOfLineUpdateCache :
     LInstruction* lir() const {
         return lir_;
     }
-    AddCacheState& state() {
-        return state_;
+    RepatchLabel& entry() {
+        return entry_;
     }
 
     void accept(CodeGenerator* codegen) {
@@ -125,10 +125,7 @@ CodeGeneratorShared::addCache(LInstruction* lir, size_t cacheIndex)
     OutOfLineUpdateCache* ool = new(alloc()) OutOfLineUpdateCache(lir, cacheIndex);
     addOutOfLineCode(ool, mir);
 
-    // OOL-specific state depends on the type of cache.
-    cache->initializeAddCacheState(lir, &ool->state());
-
-    cache->emitInitialJump(masm, ool->state());
+    cache->emitInitialJump(masm, ool->entry());
     masm.bind(ool->rejoin());
 }
 
@@ -139,7 +136,7 @@ CodeGenerator::visitOutOfLineCache(OutOfLineUpdateCache* ool)
 
     // Register the location of the OOL path in the IC.
     cache->setFallbackLabel(masm.labelForPatch());
-    cache->bindInitialJump(masm, ool->state());
+    masm.bind(&ool->entry());
 
     // Dispatch to ICs' accept functions.
     cache->accept(this, ool);
@@ -1713,7 +1710,7 @@ CodeGenerator::visitLambda(LLambda* lir)
     emitLambdaInit(output, scopeChain, info);
 
     if (info.flags & JSFunction::EXTENDED) {
-        MOZ_ASSERT(info.fun->isMethod());
+        MOZ_ASSERT(info.fun->allowSuperProperty());
         static_assert(FunctionExtended::NUM_EXTENDED_SLOTS == 2, "All slots must be initialized");
         masm.storeValue(UndefinedValue(), Address(output, FunctionExtended::offsetOfExtendedSlot(0)));
         masm.storeValue(UndefinedValue(), Address(output, FunctionExtended::offsetOfExtendedSlot(1)));
@@ -2120,13 +2117,13 @@ CodeGenerator::visitMoveGroup(LMoveGroup* group)
     for (size_t i = 0; i < group->numMoves(); i++) {
         const LMove& move = group->getMove(i);
 
-        const LAllocation* from = move.from();
-        const LAllocation* to = move.to();
+        LAllocation from = move.from();
+        LAllocation to = move.to();
         LDefinition::Type type = move.type();
 
         // No bogus moves.
-        MOZ_ASSERT(*from != *to);
-        MOZ_ASSERT(!from->isConstant());
+        MOZ_ASSERT(from != to);
+        MOZ_ASSERT(!from.isConstant());
         MoveOp::Type moveType;
         switch (type) {
           case LDefinition::OBJECT:
@@ -3044,7 +3041,7 @@ CodeGenerator::visitCallKnown(LCallKnown* call)
     // Missing arguments must have been explicitly appended by the IonBuilder.
     MOZ_ASSERT(target->nargs() <= call->mir()->numStackArgs() - 1);
 
-    MOZ_ASSERT_IF(call->mir()->isConstructing(), target->isInterpretedConstructor());
+    MOZ_ASSERT_IF(call->mir()->isConstructing(), target->isConstructor());
 
     masm.checkStackAlignment();
 
@@ -6737,7 +6734,7 @@ CodeGenerator::visitOutOfLineStoreElementHole(OutOfLineStoreElementHole* ool)
         Address initLength(elements, ObjectElements::offsetOfInitializedLength());
         masm.branchKey(Assembler::NotEqual, initLength, ToInt32Key(index), &callStub);
     } else {
-        Address initLength(obj, UnboxedArrayObject::offsetOfCapacityIndexAndInitializedLength());
+        Address initLength(object, UnboxedArrayObject::offsetOfCapacityIndexAndInitializedLength());
         masm.load32(initLength, ToRegister(temp));
         masm.and32(Imm32(UnboxedArrayObject::InitializedLengthMask), ToRegister(temp));
         masm.branchKey(Assembler::NotEqual, ToRegister(temp), ToInt32Key(index), &callStub);

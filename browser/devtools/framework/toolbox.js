@@ -137,9 +137,6 @@ function Toolbox(target, selectedTool, hostType, hostOptions) {
   if (!selectedTool) {
     selectedTool = Services.prefs.getCharPref(this._prefs.LAST_TOOL);
   }
-  if (!gDevTools.getToolDefinition(selectedTool)) {
-    selectedTool = "webconsole";
-  }
   this._defaultToolId = selectedTool;
 
   this._hostOptions = hostOptions;
@@ -369,6 +366,14 @@ Toolbox.prototype = {
       let buttonsPromise = this._buildButtons();
 
       this._pingTelemetry();
+
+      // The isTargetSupported check needs to happen after the target is
+      // remoted, otherwise we could have done it in the toolbox constructor
+      // (bug 1072764).
+      let toolDef = gDevTools.getToolDefinition(this._defaultToolId);
+      if (!toolDef || !toolDef.isTargetSupported(this._target)) {
+        this._defaultToolId = "webconsole";
+      }
 
       yield this.selectTool(this._defaultToolId);
 
@@ -1474,8 +1479,8 @@ Toolbox.prototype = {
   },
 
   /**
-   * Switch to a new host for the toolbox UI. E.g.
-   * bottom, sidebar, separate window.
+   * Switch to a new host for the toolbox UI. E.g. bottom, sidebar, window,
+   * and focus the window when done.
    *
    * @param {string} hostType
    *        The host type of the new host object
@@ -1491,6 +1496,11 @@ Toolbox.prototype = {
       iframe.QueryInterface(Ci.nsIFrameLoaderOwner);
       iframe.swapFrameLoaders(this.frame);
 
+      // See bug 1022726, most probably because of swapFrameLoaders we need to
+      // first focus the window here, and then once again further below to make
+      // sure focus actually happens.
+      this.frame.contentWindow.focus();
+
       this._host.off("window-closed", this.destroy);
       this.destroyHost();
 
@@ -1502,6 +1512,10 @@ Toolbox.prototype = {
 
       this._buildDockButtons();
       this._addKeysToWindow();
+
+      // Focus the contentWindow to make sure keyboard shortcuts work straight
+      // away.
+      this.frame.contentWindow.focus();
 
       this.emit("host-changed");
     });
@@ -1748,7 +1762,8 @@ Toolbox.prototype = {
 
     // Now that we are closing the toolbox we can re-enable the cache settings
     // and disable the service workers testing settings for the current tab.
-    if (this.target.activeTab) {
+    // FF41+ automatically cleans up state in actor on disconnect.
+    if (this.target.activeTab && !this.target.activeTab.traits.noTabReconfigureOnClose) {
       this.target.activeTab.reconfigure({
         "cacheDisabled": false,
         "serviceWorkersTestingEnabled": false

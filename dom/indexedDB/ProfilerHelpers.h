@@ -27,7 +27,7 @@
 #include "nsID.h"
 #include "nsIDOMEvent.h"
 #include "nsString.h"
-#include "prlog.h"
+#include "mozilla/Logging.h"
 
 // Include this last to avoid path problems on Windows.
 #include "ActorsChild.h"
@@ -297,7 +297,7 @@ LoggingHelper(bool aUseProfiler, const char* aFmt, ...)
       va_end(args);
     }
 
-    PR_LOG(logModule, logLevel, ("%s", message.get()));
+    MOZ_LOG(logModule, logLevel, ("%s", message.get()));
 
     if (aUseProfiler) {
       PROFILER_MARKER(message.get());

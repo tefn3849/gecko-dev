@@ -247,7 +247,6 @@ nsString* nsContentUtils::sModifierSeparator = nullptr;
 bool nsContentUtils::sInitialized = false;
 bool nsContentUtils::sIsFullScreenApiEnabled = false;
 bool nsContentUtils::sTrustedFullScreenOnly = true;
-bool nsContentUtils::sFullscreenApiIsContentOnly = false;
 bool nsContentUtils::sIsPerformanceTimingEnabled = false;
 bool nsContentUtils::sIsResourceTimingEnabled = false;
 bool nsContentUtils::sIsUserTimingLoggingEnabled = false;
@@ -337,7 +336,7 @@ namespace {
 static NS_DEFINE_CID(kParserServiceCID, NS_PARSERSERVICE_CID);
 static NS_DEFINE_CID(kCParserCID, NS_PARSER_CID);
 
-static PLDHashTable sEventListenerManagersHash;
+static PLDHashTable2* sEventListenerManagersHash;
 
 class DOMEventListenerManagersHashReporter final : public nsIMemoryReporter
 {
@@ -353,9 +352,9 @@ public:
   {
     // We don't measure the |EventListenerManager| objects pointed to by the
     // entries because those references are non-owning.
-    int64_t amount = sEventListenerManagersHash.IsInitialized()
+    int64_t amount = sEventListenerManagersHash
                    ? PL_DHashTableSizeOfExcludingThis(
-                       &sEventListenerManagersHash, nullptr, MallocSizeOf)
+                       sEventListenerManagersHash, nullptr, MallocSizeOf)
                    : 0;
 
     return MOZ_COLLECT_REPORT(
@@ -488,7 +487,7 @@ nsContentUtils::Init()
   if (!InitializeEventTable())
     return NS_ERROR_FAILURE;
 
-  if (!sEventListenerManagersHash.IsInitialized()) {
+  if (!sEventListenerManagersHash) {
     static const PLDHashTableOps hash_table_ops =
     {
       PL_DHashVoidPtrKeyStub,
@@ -498,8 +497,8 @@ nsContentUtils::Init()
       EventListenerManagerHashInitEntry
     };
 
-    PL_DHashTableInit(&sEventListenerManagersHash, &hash_table_ops,
-                      sizeof(EventListenerManagerMapEntry));
+    sEventListenerManagersHash =
+      new PLDHashTable2(&hash_table_ops, sizeof(EventListenerManagerMapEntry));
 
     RegisterStrongMemoryReporter(new DOMEventListenerManagersHashReporter());
   }
@@ -511,12 +510,6 @@ nsContentUtils::Init()
 
   Preferences::AddBoolVarCache(&sIsFullScreenApiEnabled,
                                "full-screen-api.enabled");
-
-  // Note: We deliberately read this pref here because this code runs
-  // before the profile loads, so users' changes to this pref in about:config
-  // won't have any effect on behaviour. We don't really want users messing
-  // with this pref, as it affects the security model of the fullscreen API.
-  sFullscreenApiIsContentOnly = Preferences::GetBool("full-screen-api.content-only", false);
 
   Preferences::AddBoolVarCache(&sTrustedFullScreenOnly,
                                "full-screen-api.allow-trusted-requests-only");
@@ -1810,8 +1803,8 @@ nsContentUtils::Shutdown()
   delete sUserDefinedEvents;
   sUserDefinedEvents = nullptr;
 
-  if (sEventListenerManagersHash.IsInitialized()) {
-    NS_ASSERTION(sEventListenerManagersHash.EntryCount() == 0,
+  if (sEventListenerManagersHash) {
+    NS_ASSERTION(sEventListenerManagersHash->EntryCount() == 0,
                  "Event listener manager hash not empty at shutdown!");
 
     // See comment above.
@@ -1823,8 +1816,9 @@ nsContentUtils::Shutdown()
     // it could leave dangling references in DOMClassInfo's preserved
     // wrapper table.
 
-    if (sEventListenerManagersHash.EntryCount() == 0) {
-      PL_DHashTableFinish(&sEventListenerManagersHash);
+    if (sEventListenerManagersHash->EntryCount() == 0) {
+      delete sEventListenerManagersHash;
+      sEventListenerManagersHash = nullptr;
     }
   }
 
@@ -3989,8 +3983,8 @@ ListenerEnumerator(PLDHashTable* aTable, PLDHashEntryHdr* aEntry,
 void
 nsContentUtils::UnmarkGrayJSListenersInCCGenerationDocuments(uint32_t aGeneration)
 {
-  if (sEventListenerManagersHash.IsInitialized()) {
-    PL_DHashTableEnumerate(&sEventListenerManagersHash, ListenerEnumerator,
+  if (sEventListenerManagersHash) {
+    PL_DHashTableEnumerate(sEventListenerManagersHash, ListenerEnumerator,
                            &aGeneration);
   }
 }
@@ -4000,14 +3994,14 @@ void
 nsContentUtils::TraverseListenerManager(nsINode *aNode,
                                         nsCycleCollectionTraversalCallback &cb)
 {
-  if (!sEventListenerManagersHash.IsInitialized()) {
+  if (!sEventListenerManagersHash) {
     // We're already shut down, just return.
     return;
   }
 
   EventListenerManagerMapEntry *entry =
     static_cast<EventListenerManagerMapEntry *>
-               (PL_DHashTableSearch(&sEventListenerManagersHash, aNode));
+               (PL_DHashTableSearch(sEventListenerManagersHash, aNode));
   if (entry) {
     CycleCollectionNoteChild(cb, entry->mListenerManager.get(),
                              "[via hash] mListenerManager");
@@ -4017,7 +4011,7 @@ nsContentUtils::TraverseListenerManager(nsINode *aNode,
 EventListenerManager*
 nsContentUtils::GetListenerManagerForNode(nsINode *aNode)
 {
-  if (!sEventListenerManagersHash.IsInitialized()) {
+  if (!sEventListenerManagersHash) {
     // We're already shut down, don't bother creating an event listener
     // manager.
 
@@ -4026,7 +4020,7 @@ nsContentUtils::GetListenerManagerForNode(nsINode *aNode)
 
   EventListenerManagerMapEntry *entry =
     static_cast<EventListenerManagerMapEntry *>
-      (PL_DHashTableAdd(&sEventListenerManagersHash, aNode, fallible));
+      (PL_DHashTableAdd(sEventListenerManagersHash, aNode, fallible));
 
   if (!entry) {
     return nullptr;
@@ -4048,7 +4042,7 @@ nsContentUtils::GetExistingListenerManagerForNode(const nsINode *aNode)
     return nullptr;
   }
 
-  if (!sEventListenerManagersHash.IsInitialized()) {
+  if (!sEventListenerManagersHash) {
     // We're already shut down, don't bother creating an event listener
     // manager.
 
@@ -4057,7 +4051,7 @@ nsContentUtils::GetExistingListenerManagerForNode(const nsINode *aNode)
 
   EventListenerManagerMapEntry *entry =
     static_cast<EventListenerManagerMapEntry *>
-               (PL_DHashTableSearch(&sEventListenerManagersHash, aNode));
+               (PL_DHashTableSearch(sEventListenerManagersHash, aNode));
   if (entry) {
     return entry->mListenerManager;
   }
@@ -4069,16 +4063,16 @@ nsContentUtils::GetExistingListenerManagerForNode(const nsINode *aNode)
 void
 nsContentUtils::RemoveListenerManager(nsINode *aNode)
 {
-  if (sEventListenerManagersHash.IsInitialized()) {
+  if (sEventListenerManagersHash) {
     EventListenerManagerMapEntry *entry =
       static_cast<EventListenerManagerMapEntry *>
-                 (PL_DHashTableSearch(&sEventListenerManagersHash, aNode));
+                 (PL_DHashTableSearch(sEventListenerManagersHash, aNode));
     if (entry) {
       nsRefPtr<EventListenerManager> listenerManager;
       listenerManager.swap(entry->mListenerManager);
       // Remove the entry and *then* do operations that could cause further
       // modification of sEventListenerManagersHash.  See bug 334177.
-      PL_DHashTableRawRemove(&sEventListenerManagersHash, entry);
+      PL_DHashTableRawRemove(sEventListenerManagersHash, entry);
       if (listenerManager) {
         listenerManager->Disconnect();
       }
@@ -6090,16 +6084,16 @@ nsContentUtils::CreateBlobBuffer(JSContext* aCx,
 {
   uint32_t blobLen = aData.Length();
   void* blobData = malloc(blobLen);
-  nsRefPtr<File> blob;
+  nsRefPtr<Blob> blob;
   if (blobData) {
     memcpy(blobData, aData.BeginReading(), blobLen);
-    blob = mozilla::dom::File::CreateMemoryFile(aParent, blobData, blobLen,
+    blob = mozilla::dom::Blob::CreateMemoryBlob(aParent, blobData, blobLen,
                                                 EmptyString());
   } else {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  if (!GetOrCreateDOMReflector(aCx, blob, aBlob)) {
+  if (!ToJSValue(aCx, blob, aBlob)) {
     return NS_ERROR_FAILURE;
   }
 
@@ -6636,13 +6630,6 @@ nsContentUtils::IsRequestFullScreenAllowed()
 
 /* static */
 bool
-nsContentUtils::IsFullscreenApiContentOnly()
-{
-  return sFullscreenApiIsContentOnly;
-}
-
-/* static */
-bool
 nsContentUtils::HaveEqualPrincipals(nsIDocument* aDoc1, nsIDocument* aDoc2)
 {
   if (!aDoc1 || !aDoc2) {
@@ -6751,16 +6738,16 @@ nsContentUtils::FireMutationEventsForDirectParsing(nsIDocument* aDoc,
 
 /* static */
 nsIDocument*
-nsContentUtils::GetFullscreenAncestor(nsIDocument* aDoc)
+nsContentUtils::GetRootDocument(nsIDocument* aDoc)
 {
+  if (!aDoc) {
+    return nullptr;
+  }
   nsIDocument* doc = aDoc;
-  while (doc) {
-    if (doc->IsFullScreenDoc()) {
-      return doc;
-    }
+  while (doc->GetParentDocument()) {
     doc = doc->GetParentDocument();
   }
-  return nullptr;
+  return doc;
 }
 
 /* static */
@@ -7070,10 +7057,19 @@ nsContentUtils::DOMWindowDumpEnabled()
 }
 
 bool
-nsContentUtils::GetNodeTextContent(nsINode* aNode, bool aDeep, nsAString& aResult)
+nsContentUtils::GetNodeTextContent(nsINode* aNode, bool aDeep, nsAString& aResult,
+                                   const fallible_t& aFallible)
 {
   aResult.Truncate();
-  return AppendNodeTextContent(aNode, aDeep, aResult, fallible);
+  return AppendNodeTextContent(aNode, aDeep, aResult, aFallible);
+}
+
+void
+nsContentUtils::GetNodeTextContent(nsINode* aNode, bool aDeep, nsAString& aResult)
+{
+  if (!GetNodeTextContent(aNode, aDeep, aResult, fallible)) {
+    NS_ABORT_OOM(0); // Unfortunately we don't know the allocation size
+  }
 }
 
 void
@@ -7347,27 +7343,27 @@ nsContentUtils::TransferableToIPCTransferable(nsITransferable* aTransferable,
           }
 
           // Otherwise, handle this as a file.
-          nsCOMPtr<FileImpl> fileImpl;
+          nsCOMPtr<BlobImpl> blobImpl;
           nsCOMPtr<nsIFile> file = do_QueryInterface(data);
           if (file) {
-            fileImpl = new FileImplFile(file, false);
+            blobImpl = new BlobImplFile(file, false);
             ErrorResult rv;
-            fileImpl->GetSize(rv);
-            fileImpl->GetLastModified(rv);
+            blobImpl->GetSize(rv);
+            blobImpl->GetLastModified(rv);
           } else {
-            fileImpl = do_QueryInterface(data);
+            blobImpl = do_QueryInterface(data);
           }
-          if (fileImpl) {
+          if (blobImpl) {
             IPCDataTransferItem* item = aIPCDataTransfer->items().AppendElement();
             item->flavor() = nsCString(flavorStr);
             if (aChild) {
               item->data() =
                 mozilla::dom::BlobChild::GetOrCreate(aChild,
-                  static_cast<FileImpl*>(fileImpl.get()));
+                  static_cast<BlobImpl*>(blobImpl.get()));
             } else if (aParent) {
               item->data() =
                 mozilla::dom::BlobParent::GetOrCreate(aParent,
-                  static_cast<FileImpl*>(fileImpl.get()));
+                  static_cast<BlobImpl*>(blobImpl.get()));
             }
           } else {
             // This is a hack to support kFilePromiseMime.

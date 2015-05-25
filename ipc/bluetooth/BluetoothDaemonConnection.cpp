@@ -11,6 +11,7 @@
 #include <sys/un.h>
 #include <unistd.h>
 #include "mozilla/ipc/DataSocket.h"
+#include "mozilla/ipc/UnixSocketConnector.h"
 #include "mozilla/ipc/UnixSocketWatcher.h"
 #include "nsTArray.h"
 #include "nsXULAppAPI.h"
@@ -212,8 +213,6 @@ public:
   // Task callback methods
   //
 
-  void Connect(const char* aSocketName);
-
   void Send(UnixSocketIOBuffer* aBuffer);
 
   void OnSocketCanReceiveWithoutBlocking() override;
@@ -266,50 +265,6 @@ BluetoothDaemonConnectionIO::BluetoothDaemonConnectionIO(
 {
   MOZ_ASSERT(mConnection);
   MOZ_ASSERT(mConsumer);
-}
-
-void
-BluetoothDaemonConnectionIO::Connect(const char* aSocketName)
-{
-  static const size_t sNameOffset = 1;
-
-  MOZ_ASSERT(aSocketName);
-
-  // Create socket address
-
-  struct sockaddr_un addr;
-  size_t namesiz = strlen(aSocketName) + 1;
-
-  if((sNameOffset + namesiz) > sizeof(addr.sun_path)) {
-    CHROMIUM_LOG("Address too long for socket struct!");
-    return;
-  }
-  memset(addr.sun_path, '\0', sNameOffset); // abstract socket
-  memcpy(addr.sun_path + sNameOffset, aSocketName, namesiz);
-  addr.sun_family = AF_UNIX;
-
-  socklen_t socklen = offsetof(struct sockaddr_un, sun_path) + 1 + namesiz;
-
-  // Create socket
-
-  int fd = socket(AF_UNIX, SOCK_SEQPACKET, 0);
-  if (fd < 0) {
-    OnError("socket", errno);
-    return;
-  }
-  if (TEMP_FAILURE_RETRY(fcntl(fd, F_SETFL, O_NONBLOCK)) < 0) {
-    OnError("fcntl", errno);
-    ScopedClose cleanupFd(fd);
-    return;
-  }
-
-  SetFd(fd);
-
-  // Connect socket to address; calls OnConnected()
-  // on success, or OnError() otherwise
-  nsresult rv = UnixSocketWatcher::Connect(
-    reinterpret_cast<struct sockaddr*>(&addr), socklen);
-  NS_WARN_IF(NS_FAILED(rv));
 }
 
 void
@@ -474,82 +429,42 @@ BluetoothDaemonConnectionIO::ShutdownOnIOThread()
 }
 
 //
-// I/O helper tasks
-//
-
-class BluetoothDaemonConnectTask final
-  : public SocketIOTask<BluetoothDaemonConnectionIO>
-{
-public:
-  BluetoothDaemonConnectTask(BluetoothDaemonConnectionIO* aIO)
-  : SocketIOTask<BluetoothDaemonConnectionIO>(aIO)
-  { }
-
-  void Run() override
-  {
-    if (IsCanceled()) {
-      return;
-    }
-    GetIO()->Connect(sBluetoothdSocketName);
-  }
-};
-
-//
 // BluetoothDaemonConnection
 //
 
-BluetoothDaemonConnection::BluetoothDaemonConnection()
-  : mIO(nullptr)
-{ }
+BluetoothDaemonConnection::BluetoothDaemonConnection(
+  BluetoothDaemonPDUConsumer* aConsumer)
+  : mConsumer(aConsumer)
+  , mIO(nullptr)
+{
+  MOZ_ASSERT(mConsumer);
+}
 
 BluetoothDaemonConnection::~BluetoothDaemonConnection()
 { }
 
+// |ConnectionOrientedSocket|
+
 nsresult
-BluetoothDaemonConnection::ConnectSocket(BluetoothDaemonPDUConsumer* aConsumer)
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  if (mIO) {
-    CHROMIUM_LOG("Bluetooth daemon already connecting/connected!");
-    return NS_ERROR_FAILURE;
-  }
-
-  SetConnectionStatus(SOCKET_CONNECTING);
-
-  MessageLoop* ioLoop = XRE_GetIOMessageLoop();
-  mIO = new BluetoothDaemonConnectionIO(
-    ioLoop, -1, UnixSocketWatcher::SOCKET_IS_CONNECTING, this, aConsumer);
-  ioLoop->PostTask(FROM_HERE, new BluetoothDaemonConnectTask(mIO));
-
-  return NS_OK;
-}
-
-ConnectionOrientedSocketIO*
-BluetoothDaemonConnection::PrepareAccept(BluetoothDaemonPDUConsumer* aConsumer)
+BluetoothDaemonConnection::PrepareAccept(UnixSocketConnector* aConnector,
+                                         ConnectionOrientedSocketIO*& aIO)
 {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(!mIO);
-  MOZ_ASSERT(aConsumer);
+
+  // |BluetoothDaemonConnection| now owns the connector, but doesn't
+  // actually use it. So the connector is stored in an auto pointer
+  // to be deleted at the end of the method.
+  nsAutoPtr<UnixSocketConnector> connector(aConnector);
 
   SetConnectionStatus(SOCKET_CONNECTING);
 
   mIO = new BluetoothDaemonConnectionIO(
     XRE_GetIOMessageLoop(), -1, UnixSocketWatcher::SOCKET_IS_CONNECTING,
-    this, aConsumer);
+    this, mConsumer);
+  aIO = mIO;
 
-  return mIO;
-}
-
-// |ConnectionOrientedSocket|
-
-ConnectionOrientedSocketIO*
-BluetoothDaemonConnection::GetIO()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(mIO); // Call |PrepareAccept| before listening for connections
-
-  return mIO;
+  return NS_OK;
 }
 
 // |DataSocket|
@@ -569,7 +484,7 @@ BluetoothDaemonConnection::SendSocketData(UnixSocketIOBuffer* aBuffer)
 // |SocketBase|
 
 void
-BluetoothDaemonConnection::CloseSocket()
+BluetoothDaemonConnection::Close()
 {
   MOZ_ASSERT(NS_IsMainThread());
 

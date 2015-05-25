@@ -20,12 +20,8 @@
 #include "vpx/vpx_decoder.h"
 
 #undef LOG
-#ifdef PR_LOGGING
 PRLogModuleInfo* GetDemuxerLog();
-#define LOG(...) PR_LOG(GetDemuxerLog(), PR_LOG_DEBUG, (__VA_ARGS__))
-#else
-#define LOG(...)
-#endif
+#define LOG(...) MOZ_LOG(GetDemuxerLog(), PR_LOG_DEBUG, (__VA_ARGS__))
 
 using namespace mp4_demuxer;
 

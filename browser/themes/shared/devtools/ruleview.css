@@ -16,15 +16,15 @@
 }
 
 .ruleview-rule-source {
-  -moz-padding-start: 5px;
   text-align: end;
   float: right;
   -moz-user-select: none;
+  margin-bottom: 2px;
 }
 
-.ruleview-rule-source,
 .ruleview-rule-source > label {
   cursor: pointer;
+  margin: 0;
 }
 
 .ruleview-rule-source[unselectable],
@@ -160,9 +160,9 @@
 .ruleview-swatch {
   cursor: pointer;
   border-radius: 50%;
-  width: 1em;
-  height: 1em;
-  vertical-align: text-top;
+  width: 0.9em;
+  height: 0.9em;
+  vertical-align: middle;
   -moz-margin-end: 5px;
   display: inline-block;
   position: relative;
@@ -263,4 +263,9 @@
 .ruleview-selectorhighlighter:active,
 .ruleview-selectorhighlighter.highlighted {
   background-position: -16px 0;
+}
+
+#ruleview-add-rule-button::before {
+  background-image: url("chrome://browser/skin/devtools/add.svg");
+  background-size: cover;
 }

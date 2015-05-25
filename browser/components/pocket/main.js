@@ -42,7 +42,10 @@
 // TODO : [nice to have] - Immediately save, buffer the actions in a local queue and send (so it works offline, works like our native extensions)
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "ReaderMode", "resource://gre/modules/ReaderMode.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
+  "resource://gre/modules/PrivateBrowsingUtils.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "ReaderMode",
+  "resource://gre/modules/ReaderMode.jsm");
 
 var pktUI = (function() {
 
@@ -294,7 +297,7 @@ var pktUI = (function() {
             {
             	startheight = overflowMenuHeight;
             }
-            else if (pktApi.getSignupAB() == 'storyboard')
+            else if (pktApi.getSignupAB().indexOf('storyboard') > -1)
             {
                 startheight = 460;
                 if (fxasignedin == '1')
@@ -616,11 +619,33 @@ var pktUI = (function() {
      * Open a new tab with a given url and notify the iframe panel that it was opened
      */
 
-	function openTabWithUrl(url, activate) {
-        var tab = gBrowser.addTab(url);
-        if (activate) {
-            gBrowser.selectedTab = tab;
+	function openTabWithUrl(url) {
+        let recentWindow = Services.wm.getMostRecentWindow("navigator:browser");
+        if (!recentWindow) {
+          Cu.reportError("Pocket: No open browser windows to openTabWithUrl");
+          return;
         }
+
+        // If the user is in permanent private browsing than this is not an issue,
+        // since the current window will always share the same cookie jar as the other
+        // windows.
+        if (!PrivateBrowsingUtils.isWindowPrivate(recentWindow) ||
+            PrivateBrowsingUtils.permanentPrivateBrowsing) {
+          recentWindow.openUILinkIn(url, "tab");
+          return;
+        }
+
+        let windows = Services.wm.getEnumerator("navigator:browser");
+        while (windows.hasMoreElements()) {
+          let win = windows.getNext();
+          if (!PrivateBrowsingUtils.isWindowPrivate(win)) {
+            win.openUILinkIn(url, "tab");
+            return;
+          }
+        }
+
+        // If there were no non-private windows opened already.
+        recentWindow.openUILinkIn(url, "window");
 	}
 
 
@@ -644,7 +669,15 @@ var pktUI = (function() {
     }
 
     function getPanelFrame() {
-    	return document.getElementById('pocket-panel-iframe');
+        var frame = document.getElementById('pocket-panel-iframe');
+        if (!frame) {
+            var frameParent = document.getElementById("PanelUI-pocketView").firstChild;
+            frame = document.createElement("iframe");
+            frame.id = 'pocket-panel-iframe';
+            frame.setAttribute("type", "content");
+            frameParent.appendChild(frame);
+        }
+        return frame;
     }
 
     function getSubview() {
@@ -779,6 +812,9 @@ var pktUI = (function() {
      */
     return {
     	onLoad: onLoad,
+    	getPanelFrame: getPanelFrame,
+
+        openTabWithUrl: openTabWithUrl,
 
     	pocketButtonOnCommand: pocketButtonOnCommand,
     	pocketPanelDidShow: pocketPanelDidShow,
@@ -841,7 +877,7 @@ var pktUIMessaging = (function() {
 
         if (!isPanelIdValid(panelId)) { return; };
 
-        var panelFrame = document.getElementById('pocket-panel-iframe');
+        var panelFrame = pktUI.getPanelFrame();
         if (!isPocketPanelFrameValid(panelFrame)) { return; }
 
         var doc = panelFrame.contentWindow.document;

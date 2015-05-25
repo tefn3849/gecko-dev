@@ -371,9 +371,10 @@ nsTableFrame::SetInitialChildList(ChildListID     aListID,
   }
 }
 
-void nsTableFrame::AttributeChangedFor(nsIFrame*       aFrame,
-                                       nsIContent*     aContent,
-                                       nsIAtom*        aAttribute)
+void
+nsTableFrame::AttributeChangedFor(nsIFrame*       aFrame,
+                                  nsIContent*     aContent,
+                                  nsIAtom*        aAttribute)
 {
   nsTableCellFrame *cellFrame = do_QueryFrame(aFrame);
   if (cellFrame) {
@@ -403,7 +404,8 @@ void nsTableFrame::AttributeChangedFor(nsIFrame*       aFrame,
 /* ****** CellMap methods ******* */
 
 /* return the effective col count */
-int32_t nsTableFrame::GetEffectiveColCount() const
+int32_t
+nsTableFrame::GetEffectiveColCount() const
 {
   int32_t colCount = GetColCount();
   if (LayoutStrategy()->GetType() == nsITableLayoutStrategy::Auto) {
@@ -422,7 +424,8 @@ int32_t nsTableFrame::GetEffectiveColCount() const
   return colCount;
 }
 
-int32_t nsTableFrame::GetIndexOfLastRealCol()
+int32_t
+nsTableFrame::GetIndexOfLastRealCol()
 {
   int32_t numCols = mColFrames.Length();
   if (numCols > 0) {
@@ -452,8 +455,9 @@ nsTableFrame::GetColFrame(int32_t aColIndex) const
   }
 }
 
-int32_t nsTableFrame::GetEffectiveRowSpan(int32_t                 aRowIndex,
-                                          const nsTableCellFrame& aCell) const
+int32_t
+nsTableFrame::GetEffectiveRowSpan(int32_t                 aRowIndex,
+                                  const nsTableCellFrame& aCell) const
 {
   nsTableCellMap* cellMap = GetCellMap();
   NS_PRECONDITION (nullptr != cellMap, "bad call, cellMap not yet allocated.");
@@ -463,8 +467,9 @@ int32_t nsTableFrame::GetEffectiveRowSpan(int32_t                 aRowIndex,
   return cellMap->GetEffectiveRowSpan(aRowIndex, colIndex);
 }
 
-int32_t nsTableFrame::GetEffectiveRowSpan(const nsTableCellFrame& aCell,
-                                          nsCellMap*              aCellMap)
+int32_t
+nsTableFrame::GetEffectiveRowSpan(const nsTableCellFrame& aCell,
+                                  nsCellMap*              aCellMap)
 {
   nsTableCellMap* tableCellMap = GetCellMap(); if (!tableCellMap) ABORT1(1);
 
@@ -478,8 +483,9 @@ int32_t nsTableFrame::GetEffectiveRowSpan(const nsTableCellFrame& aCell,
     return tableCellMap->GetEffectiveRowSpan(rowIndex, colIndex);
 }
 
-int32_t nsTableFrame::GetEffectiveColSpan(const nsTableCellFrame& aCell,
-                                          nsCellMap*              aCellMap) const
+int32_t
+nsTableFrame::GetEffectiveColSpan(const nsTableCellFrame& aCell,
+                                  nsCellMap*              aCellMap) const
 {
   nsTableCellMap* tableCellMap = GetCellMap(); if (!tableCellMap) ABORT1(1);
 
@@ -494,14 +500,16 @@ int32_t nsTableFrame::GetEffectiveColSpan(const nsTableCellFrame& aCell,
     return tableCellMap->GetEffectiveColSpan(rowIndex, colIndex);
 }
 
-bool nsTableFrame::HasMoreThanOneCell(int32_t aRowIndex) const
+bool
+nsTableFrame::HasMoreThanOneCell(int32_t aRowIndex) const
 {
   nsTableCellMap* tableCellMap = GetCellMap(); if (!tableCellMap) ABORT1(1);
   return tableCellMap->HasMoreThanOneCell(aRowIndex);
 }
 
-void nsTableFrame::AdjustRowIndices(int32_t         aRowIndex,
-                                    int32_t         aAdjustment)
+void
+nsTableFrame::AdjustRowIndices(int32_t         aRowIndex,
+                               int32_t         aAdjustment)
 {
   // Iterate over the row groups and adjust the row indices of all rows
   // whose index is >= aRowIndex.
@@ -514,7 +522,8 @@ void nsTableFrame::AdjustRowIndices(int32_t         aRowIndex,
 }
 
 
-void nsTableFrame::ResetRowIndices(const nsFrameList::Slice& aRowGroupsToExclude)
+void
+nsTableFrame::ResetRowIndices(const nsFrameList::Slice& aRowGroupsToExclude)
 {
   // Iterate over the row groups and adjust the row indices of all rows
   // omit the rowgroups that will be inserted later
@@ -542,8 +551,9 @@ void nsTableFrame::ResetRowIndices(const nsFrameList::Slice& aRowGroupsToExclude
     }
   }
 }
-void nsTableFrame::InsertColGroups(int32_t                   aStartColIndex,
-                                   const nsFrameList::Slice& aColGroups)
+void
+nsTableFrame::InsertColGroups(int32_t                   aStartColIndex,
+                              const nsFrameList::Slice& aColGroups)
 {
   int32_t colIndex = aStartColIndex;
   nsFrameList::Enumerator colGroups(aColGroups);
@@ -574,8 +584,9 @@ void nsTableFrame::InsertColGroups(int32_t                   aStartColIndex,
   }
 }
 
-void nsTableFrame::InsertCol(nsTableColFrame& aColFrame,
-                             int32_t          aColIndex)
+void
+nsTableFrame::InsertCol(nsTableColFrame& aColFrame,
+                        int32_t          aColIndex)
 {
   mColFrames.InsertElementAt(aColIndex, &aColFrame);
   nsTableColType insertedColType = aColFrame.GetColType();
@@ -618,10 +629,11 @@ void nsTableFrame::InsertCol(nsTableColFrame& aColFrame,
   }
 }
 
-void nsTableFrame::RemoveCol(nsTableColGroupFrame* aColGroupFrame,
-                             int32_t               aColIndex,
-                             bool                  aRemoveFromCache,
-                             bool                  aRemoveFromCellMap)
+void
+nsTableFrame::RemoveCol(nsTableColGroupFrame* aColGroupFrame,
+                        int32_t               aColIndex,
+                        bool                  aRemoveFromCache,
+                        bool                  aRemoveFromCellMap)
 {
   if (aRemoveFromCache) {
     mColFrames.RemoveElementAt(aColIndex);
@@ -811,9 +823,10 @@ nsTableFrame::AppendCell(nsTableCellFrame& aCellFrame,
   }
 }
 
-void nsTableFrame::InsertCells(nsTArray<nsTableCellFrame*>& aCellFrames,
-                               int32_t                      aRowIndex,
-                               int32_t                      aColIndexBefore)
+void
+nsTableFrame::InsertCells(nsTArray<nsTableCellFrame*>& aCellFrames,
+                          int32_t                      aRowIndex,
+                          int32_t                      aColIndexBefore)
 {
   nsTableCellMap* cellMap = GetCellMap();
   if (cellMap) {
@@ -852,8 +865,9 @@ nsTableFrame::DestroyAnonymousColFrames(int32_t aNumFrames)
   return (aNumFrames - numColsRemoved);
 }
 
-void nsTableFrame::RemoveCell(nsTableCellFrame* aCellFrame,
-                              int32_t           aRowIndex)
+void
+nsTableFrame::RemoveCell(nsTableCellFrame* aCellFrame,
+                         int32_t           aRowIndex)
 {
   nsTableCellMap* cellMap = GetCellMap();
   if (cellMap) {
@@ -885,9 +899,10 @@ nsTableFrame::GetStartRowIndex(nsTableRowGroupFrame* aRowGroupFrame)
 }
 
 // this cannot extend beyond a single row group
-void nsTableFrame::AppendRows(nsTableRowGroupFrame*       aRowGroupFrame,
-                              int32_t                     aRowIndex,
-                              nsTArray<nsTableRowFrame*>& aRowFrames)
+void
+nsTableFrame::AppendRows(nsTableRowGroupFrame*       aRowGroupFrame,
+                         int32_t                     aRowIndex,
+                         nsTArray<nsTableRowFrame*>& aRowFrames)
 {
   nsTableCellMap* cellMap = GetCellMap();
   if (cellMap) {
@@ -938,7 +953,8 @@ nsTableFrame::InsertRows(nsTableRowGroupFrame*       aRowGroupFrame,
 }
 
 // this cannot extend beyond a single row group
-void nsTableFrame::RemoveRows(nsTableRowFrame& aFirstRowFrame,
+void
+nsTableFrame::RemoveRows(nsTableRowFrame& aFirstRowFrame,
                               int32_t          aNumRowsToRemove,
                               bool             aConsiderSpans)
 {
@@ -1174,7 +1190,8 @@ nsDisplayTableBorderBackground::Paint(nsDisplayListBuilder* aBuilder,
   nsDisplayTableItemGeometry::UpdateDrawResult(this, result);
 }
 
-static int32_t GetTablePartRank(nsDisplayItem* aItem)
+static int32_t
+GetTablePartRank(nsDisplayItem* aItem)
 {
   nsIAtom* type = aItem->Frame()->GetType();
   if (type == nsGkAtoms::tableFrame)
@@ -2249,11 +2266,17 @@ nsTableFrame::AppendFrames(ChildListID     aListID,
     const nsStyleDisplay* display = f->StyleDisplay();
 
     if (NS_STYLE_DISPLAY_TABLE_COLUMN_GROUP == display->mDisplay) {
+      if (MOZ_UNLIKELY(GetPrevInFlow())) {
+        nsFrameList colgroupFrame(f, f);
+        auto firstInFlow = static_cast<nsTableFrame*>(FirstInFlow());
+        firstInFlow->AppendFrames(aListID, colgroupFrame);
+        continue;
+      }
       nsTableColGroupFrame* lastColGroup =
         nsTableColGroupFrame::GetLastRealColGroup(this);
       int32_t startColIndex = (lastColGroup)
         ? lastColGroup->GetStartColumnIndex() + lastColGroup->GetColCount() : 0;
-      mColGroups.InsertFrame(nullptr, lastColGroup, f);
+      mColGroups.InsertFrame(this, lastColGroup, f);
       // Insert the colgroup and its cols into the table
       InsertColGroups(startColIndex,
                       nsFrameList::Slice(mColGroups, f, f->GetNextSibling()));
@@ -2347,16 +2370,22 @@ nsTableFrame::HomogenousInsertFrames(ChildListID     aListID,
 {
   // See what kind of frame we have
   const nsStyleDisplay* display = aFrameList.FirstChild()->StyleDisplay();
+  bool isColGroup = NS_STYLE_DISPLAY_TABLE_COLUMN_GROUP == display->mDisplay;
 #ifdef DEBUG
   // Verify that either all siblings have display:table-column-group, or they
   // all have display values different from table-column-group.
-  for (nsFrameList::Enumerator e(aFrameList); !e.AtEnd(); e.Next()) {
-    const nsStyleDisplay* nextDisplay = e.get()->StyleDisplay();
-    MOZ_ASSERT((display->mDisplay == NS_STYLE_DISPLAY_TABLE_COLUMN_GROUP) ==
-               (nextDisplay->mDisplay == NS_STYLE_DISPLAY_TABLE_COLUMN_GROUP),
+  for (nsIFrame* frame : aFrameList) {
+    auto nextDisplay = frame->StyleDisplay()->mDisplay;
+    MOZ_ASSERT(isColGroup ==
+               (nextDisplay == NS_STYLE_DISPLAY_TABLE_COLUMN_GROUP),
                "heterogenous childlist");
   }
 #endif
+  if (MOZ_UNLIKELY(isColGroup && GetPrevInFlow())) {
+    auto firstInFlow = static_cast<nsTableFrame*>(FirstInFlow());
+    firstInFlow->AppendFrames(aListID, aFrameList);
+    return;
+  }
   if (aPrevFrame) {
     const nsStyleDisplay* prevDisplay = aPrevFrame->StyleDisplay();
     // Make sure they belong on the same frame list
@@ -2377,8 +2406,6 @@ nsTableFrame::HomogenousInsertFrames(ChildListID     aListID,
       if (MOZ_LIKELY(container)) { // XXX need this null-check, see bug 411823.
         int32_t newIndex = container->IndexOf(content);
         nsIFrame* kidFrame;
-        bool isColGroup = (NS_STYLE_DISPLAY_TABLE_COLUMN_GROUP ==
-                             display->mDisplay);
         nsTableColGroupFrame* lastColGroup;
         if (isColGroup) {
           kidFrame = mColGroups.FirstChild();
@@ -2415,7 +2442,7 @@ nsTableFrame::HomogenousInsertFrames(ChildListID     aListID,
     NS_ASSERTION(aListID == kColGroupList, "unexpected child list");
     // Insert the column group frames
     const nsFrameList::Slice& newColgroups =
-      mColGroups.InsertFrames(nullptr, aPrevFrame, aFrameList);
+      mColGroups.InsertFrames(this, aPrevFrame, aFrameList);
     // find the starting col index for the first new col group
     int32_t startColIndex = 0;
     if (aPrevFrame) {
@@ -2689,12 +2716,13 @@ nsTableFrame::InitChildReflowState(nsHTMLReflowState& aReflowState)
 
 // Position and size aKidFrame and update our reflow state. The origin of
 // aKidRect is relative to the upper-left origin of our frame
-void nsTableFrame::PlaceChild(nsTableReflowState&  aReflowState,
-                              nsIFrame*            aKidFrame,
-                              nsPoint              aKidPosition,
-                              nsHTMLReflowMetrics& aKidDesiredSize,
-                              const nsRect&        aOriginalKidRect,
-                              const nsRect&        aOriginalKidVisualOverflow)
+void
+nsTableFrame::PlaceChild(nsTableReflowState&  aReflowState,
+                         nsIFrame*            aKidFrame,
+                         nsPoint              aKidPosition,
+                         nsHTMLReflowMetrics& aKidDesiredSize,
+                         const nsRect&        aOriginalKidRect,
+                         const nsRect&        aOriginalKidVisualOverflow)
 {
   bool isFirstReflow =
     (aKidFrame->GetStateBits() & NS_FRAME_FIRST_REFLOW) != 0;
@@ -3206,7 +3234,8 @@ nsTableFrame::ReflowColGroups(nsRenderingContext *aRenderingContext)
 }
 
 void
-nsTableFrame::CalcDesiredHeight(const nsHTMLReflowState& aReflowState, nsHTMLReflowMetrics& aDesiredSize)
+nsTableFrame::CalcDesiredHeight(const nsHTMLReflowState& aReflowState,
+                                nsHTMLReflowMetrics& aDesiredSize)
 {
   nsTableCellMap* cellMap = GetCellMap();
   if (!cellMap) {
@@ -3545,7 +3574,8 @@ nsTableFrame::DistributeHeightToRows(const nsHTMLReflowState& aReflowState,
   ResizeCells(*this);
 }
 
-int32_t nsTableFrame::GetColumnISize(int32_t aColIndex)
+int32_t
+nsTableFrame::GetColumnISize(int32_t aColIndex)
 {
   nsTableFrame* firstInFlow = static_cast<nsTableFrame*>(FirstInFlow());
   if (this == firstInFlow) {
@@ -3555,7 +3585,8 @@ int32_t nsTableFrame::GetColumnISize(int32_t aColIndex)
   return firstInFlow->GetColumnISize(aColIndex);
 }
 
-nscoord nsTableFrame::GetColSpacing()
+nscoord
+nsTableFrame::GetColSpacing()
 {
   if (IsBorderCollapse())
     return 0;
@@ -3564,7 +3595,8 @@ nscoord nsTableFrame::GetColSpacing()
 }
 
 // XXX: could cache this.  But be sure to check style changes if you do!
-nscoord nsTableFrame::GetColSpacing(int32_t aColIndex)
+nscoord
+nsTableFrame::GetColSpacing(int32_t aColIndex)
 {
   NS_ASSERTION(aColIndex >= -1 && aColIndex <= GetColCount(),
                "Column index exceeds the bounds of the table");
@@ -3574,8 +3606,9 @@ nscoord nsTableFrame::GetColSpacing(int32_t aColIndex)
   return GetColSpacing();
 }
 
-nscoord nsTableFrame::GetColSpacing(int32_t aStartColIndex,
-                                      int32_t aEndColIndex)
+nscoord
+nsTableFrame::GetColSpacing(int32_t aStartColIndex,
+                            int32_t aEndColIndex)
 {
   NS_ASSERTION(aStartColIndex >= -1 && aStartColIndex <= GetColCount(),
                "Start column index exceeds the bounds of the table");
@@ -3588,7 +3621,8 @@ nscoord nsTableFrame::GetColSpacing(int32_t aStartColIndex,
   return GetColSpacing() * (aEndColIndex - aStartColIndex);
 }
 
-nscoord nsTableFrame::GetRowSpacing()
+nscoord
+nsTableFrame::GetRowSpacing()
 {
   if (IsBorderCollapse())
     return 0;
@@ -3597,7 +3631,8 @@ nscoord nsTableFrame::GetRowSpacing()
 }
 
 // XXX: could cache this. But be sure to check style changes if you do!
-nscoord nsTableFrame::GetRowSpacing(int32_t aRowIndex)
+nscoord
+nsTableFrame::GetRowSpacing(int32_t aRowIndex)
 {
   NS_ASSERTION(aRowIndex >= -1 && aRowIndex <= GetRowCount(),
                "Row index exceeds the bounds of the table");
@@ -3607,8 +3642,9 @@ nscoord nsTableFrame::GetRowSpacing(int32_t aRowIndex)
   return GetRowSpacing();
 }
 
-nscoord nsTableFrame::GetRowSpacing(int32_t aStartRowIndex,
-                                      int32_t aEndRowIndex)
+nscoord
+nsTableFrame::GetRowSpacing(int32_t aStartRowIndex,
+                            int32_t aEndRowIndex)
 {
   NS_ASSERTION(aStartRowIndex >= -1 && aStartRowIndex <= GetRowCount(),
                "Start row index exceeds the bounds of the table");
@@ -3889,7 +3925,8 @@ nsTableIterator::nsTableIterator(nsFrameList& aSource)
   Init(firstChild);
 }
 
-void nsTableIterator::Init(nsIFrame* aFirstChild)
+void
+nsTableIterator::Init(nsIFrame* aFirstChild)
 {
   mFirstListChild = aFirstChild;
   mFirstChild     = aFirstChild;
@@ -3916,13 +3953,15 @@ void nsTableIterator::Init(nsIFrame* aFirstChild)
   }
 }
 
-nsIFrame* nsTableIterator::First()
+nsIFrame*
+nsTableIterator::First()
 {
   mCurrentChild = mFirstChild;
   return mCurrentChild;
 }
 
-nsIFrame* nsTableIterator::Next()
+nsIFrame*
+nsTableIterator::Next()
 {
   if (!mCurrentChild) {
     return nullptr;
@@ -3944,12 +3983,14 @@ nsIFrame* nsTableIterator::Next()
   }
 }
 
-bool nsTableIterator::IsLeftToRight()
+bool
+nsTableIterator::IsLeftToRight()
 {
   return mLeftToRight;
 }
 
-int32_t nsTableIterator::Count()
+int32_t
+nsTableIterator::Count()
 {
   if (-1 == mCount) {
     mCount = 0;
@@ -4229,7 +4270,8 @@ BCMapCellInfo::BCMapCellInfo(nsTableFrame* aTableFrame)
   ResetCellInfo();
 }
 
-void BCMapCellInfo::ResetCellInfo()
+void
+BCMapCellInfo::ResetCellInfo()
 {
   mCellData  = nullptr;
   mRowGroup  = nullptr;
@@ -4243,12 +4285,14 @@ void BCMapCellInfo::ResetCellInfo()
   mRgAtStart = mRgAtEnd = mCgAtStart = mCgAtEnd = false;
 }
 
-inline int32_t BCMapCellInfo::GetCellEndRowIndex() const
+inline int32_t
+BCMapCellInfo::GetCellEndRowIndex() const
 {
   return mRowIndex + mRowSpan - 1;
 }
 
-inline int32_t BCMapCellInfo::GetCellEndColIndex() const
+inline int32_t
+BCMapCellInfo::GetCellEndColIndex() const
 {
   return mColIndex + mColSpan - 1;
 }
@@ -4786,7 +4830,7 @@ CompareBorders(bool                aIsCorner, // Pass true for corner calculatio
                const BCCellBorder& aBorder1,
                const BCCellBorder& aBorder2,
                bool                aSecondIsHorizontal,
-               bool*             aFirstDominates = nullptr)
+               bool*               aFirstDominates = nullptr)
 {
   bool firstDominates = true;
 
@@ -4847,8 +4891,8 @@ CompareBorders(const nsIFrame*  aTableFrame,
                const nsIFrame*  aRowGroupFrame,
                const nsIFrame*  aRowFrame,
                const nsIFrame*  aCellFrame,
-               WritingMode aTableWM,
-               LogicalSide aSide,
+               WritingMode      aTableWM,
+               LogicalSide      aSide,
                bool             aAja)
 {
   BCCellBorder border, tempBorder;
@@ -6238,8 +6282,6 @@ struct BCHorizontalSeg
 class BCPaintBorderIterator
 {
 public:
-
-
   explicit BCPaintBorderIterator(nsTableFrame* aTable);
   ~BCPaintBorderIterator() { if (mVerInfo) {
                               delete [] mVerInfo;
@@ -6540,7 +6582,7 @@ BCPaintBorderIterator::Reset()
  */
 void
 BCPaintBorderIterator::SetNewData(int32_t aY,
-                                int32_t aX)
+                                  int32_t aX)
 {
   if (!mTableCellMap || !mTableCellMap->mBCInfo) ABORT0();
 
@@ -7041,9 +7083,9 @@ BCHorizontalSeg::BCHorizontalSeg()
   +  */
 void
 BCHorizontalSeg::Start(BCPaintBorderIterator& aIter,
-                       BCBorderOwner        aBorderOwner,
-                       BCPixelSize          aBottomVerSegWidth,
-                       BCPixelSize          aHorSegHeight)
+                       BCBorderOwner          aBorderOwner,
+                       BCPixelSize            aBottomVerSegWidth,
+                       BCPixelSize            aHorSegHeight)
 {
   mozilla::css::Side cornerOwnerSide = NS_SIDE_TOP;
   bool bevel     = false;
@@ -7368,7 +7410,7 @@ BCPaintBorderIterator::ResetVerInfo()
  */
 void
 nsTableFrame::PaintBCBorders(nsRenderingContext& aRenderingContext,
-                             const nsRect&        aDirtyRect)
+                             const nsRect&       aDirtyRect)
 {
   // We first transfer the aDirtyRect into cellmap coordinates to compute which
   // cell borders need to be painted
@@ -7398,7 +7440,8 @@ nsTableFrame::PaintBCBorders(nsRenderingContext& aRenderingContext,
   }
 }
 
-bool nsTableFrame::RowHasSpanningCells(int32_t aRowIndex, int32_t aNumEffCols)
+bool
+nsTableFrame::RowHasSpanningCells(int32_t aRowIndex, int32_t aNumEffCols)
 {
   bool result = false;
   nsTableCellMap* cellMap = GetCellMap();
@@ -7409,7 +7452,8 @@ bool nsTableFrame::RowHasSpanningCells(int32_t aRowIndex, int32_t aNumEffCols)
   return result;
 }
 
-bool nsTableFrame::RowIsSpannedInto(int32_t aRowIndex, int32_t aNumEffCols)
+bool
+nsTableFrame::RowIsSpannedInto(int32_t aRowIndex, int32_t aNumEffCols)
 {
   bool result = false;
   nsTableCellMap* cellMap = GetCellMap();

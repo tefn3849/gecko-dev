@@ -477,19 +477,19 @@ SampleAnimations(Layer* aLayer, TimeStamp aPoint)
       dom::KeyframeEffectReadOnly::GetComputedTimingAt(
         Nullable<TimeDuration>(elapsedDuration), timing);
 
-    MOZ_ASSERT(0.0 <= computedTiming.mTimeFraction &&
-               computedTiming.mTimeFraction <= 1.0,
-               "time fraction should be in [0-1]");
+    MOZ_ASSERT(0.0 <= computedTiming.mProgress &&
+               computedTiming.mProgress <= 1.0,
+               "iteration progress should be in [0-1]");
 
     int segmentIndex = 0;
     AnimationSegment* segment = animation.segments().Elements();
-    while (segment->endPortion() < computedTiming.mTimeFraction) {
+    while (segment->endPortion() < computedTiming.mProgress) {
       ++segment;
       ++segmentIndex;
     }
 
     double positionInSegment =
-      (computedTiming.mTimeFraction - segment->startPortion()) /
+      (computedTiming.mProgress - segment->startPortion()) /
       (segment->endPortion() - segment->startPortion());
 
     double portion =
@@ -730,17 +730,17 @@ ApplyAsyncTransformToScrollbarForContent(Layer* aScrollbar,
     // fraction of the whole srollable rect that is in view.
     const float yScale = 1.f / asyncZoomY;
 
-    // Note: |metrics.GetZoom()| doesn't yet include the async zoom, so
-    // |metrics.CalculateCompositedSizeInCssPixels()| would not give a correct
-    // result.
+    // Note: |metrics.GetZoom()| doesn't yet include the async zoom.
     const CSSToParentLayerScale effectiveZoom(metrics.GetZoom().yScale * asyncZoomY);
 
-    const LayoutDeviceToParentLayerScale nonLayoutScale = effectiveZoom /
-        metrics.GetDevPixelsPerCSSPixel();
     // Here we convert the scrollbar thumb ratio into a true unitless ratio by
     // dividing out the conversion factor from the scrollframe's parent's space
     // to the scrollframe's space.
-    const float ratio = aScrollbar->GetScrollbarThumbRatio() / nonLayoutScale.scale;
+    const float ratio = aScrollbar->GetScrollbarThumbRatio() /
+        (metrics.GetPresShellResolution() * asyncZoomY);
+    // The scroll thumb needs to be translated in opposite direction of the
+    // async scroll. This is because scrolling down, which translates the layer
+    // content up, should result in moving the scroll thumb down.
     ParentLayerCoord yTranslation = -asyncScrollY * ratio;
 
     // The scroll thumb additionally needs to be translated to compensate for
@@ -760,14 +760,13 @@ ApplyAsyncTransformToScrollbarForContent(Layer* aScrollbar,
     const ParentLayerCoord thumbOriginDeltaPL = thumbOriginDelta * effectiveZoom;
     yTranslation -= thumbOriginDeltaPL;
 
-    if (aScrollbarIsDescendant) {
-      // In cases where the scrollbar is a descendant of the content, the
-      // scrollbar gets painted at the same resolution as the content. Since the
-      // coordinate space we apply this transform in includes the resolution, we
-      // need to adjust for it as well here. Note that in another
-      // aScrollbarIsDescendant hunk below we apply a resolution-cancelling
-      // transform which ensures the scroll thumb isn't actually rendered
-      // at a larger scale.
+    if (metrics.IsRootScrollable()) {
+      // Scrollbar for the root are painted at the same resolution as the
+      // content. Since the coordinate space we apply this transform in includes
+      // the resolution, we need to adjust for it as well here. Note that in
+      // another metrics.IsRootScrollable() hunk below we apply a
+      // resolution-cancelling transform which ensures the scroll thumb isn't
+      // actually rendered at a larger scale.
       yTranslation *= metrics.GetPresShellResolution();
     }
 
@@ -784,9 +783,8 @@ ApplyAsyncTransformToScrollbarForContent(Layer* aScrollbar,
 
     const CSSToParentLayerScale effectiveZoom(metrics.GetZoom().xScale * asyncZoomX);
 
-    const LayoutDeviceToParentLayerScale nonLayoutScale = effectiveZoom /
-        metrics.GetDevPixelsPerCSSPixel();
-    const float ratio = aScrollbar->GetScrollbarThumbRatio() / nonLayoutScale.scale;
+    const float ratio = aScrollbar->GetScrollbarThumbRatio() /
+        (metrics.GetPresShellResolution() * asyncZoomX);
     ParentLayerCoord xTranslation = -asyncScrollX * ratio;
 
     const CSSCoord thumbOrigin = (metrics.GetScrollOffset().x * ratio);
@@ -795,7 +793,7 @@ ApplyAsyncTransformToScrollbarForContent(Layer* aScrollbar,
     const ParentLayerCoord thumbOriginDeltaPL = thumbOriginDelta * effectiveZoom;
     xTranslation -= thumbOriginDeltaPL;
 
-    if (aScrollbarIsDescendant) {
+    if (metrics.IsRootScrollable()) {
       xTranslation *= metrics.GetPresShellResolution();
     }
 
@@ -805,48 +803,49 @@ ApplyAsyncTransformToScrollbarForContent(Layer* aScrollbar,
 
   Matrix4x4 transform = aScrollbar->GetLocalTransform() * scrollbarTransform;
 
-  if (aScrollbarIsDescendant) {
-    // If the scrollbar layer is a child of the content it is a scrollbar for,
-    // then we need to make a couple of adjustments to the scrollbar's transform.
-    //
-    //  - First, the content's resolution applies to the scrollbar as well.
-    //    Since we don't actually want the scroll thumb's size to vary with
-    //    the zoom (other than its length reflecting the fraction of the
-    //    scrollable length that's in view, which is taken care of above),
-    //    we apply a transform to cancel out this resolution.
-    //
-    //  - Second, if there is any async transform (including an overscroll
-    //    transform) on the content, this needs to be cancelled out because
-    //    layout positions and sizes the scrollbar on the assumption that there
-    //    is no async transform, and without this adjustment the scrollbar will
-    //    end up in the wrong place.
-    //
-    //    Note that since the async transform is applied on top of the content's
-    //    regular transform, we need to make sure to unapply the async transform
-    //    in the same coordinate space. This requires applying the content
-    //    transform and then unapplying it after unapplying the async transform.
-    Matrix4x4 resolutionCancellingTransform =
+  Matrix4x4 compensation;
+  // If the scrollbar layer is for the root then the content's resolution
+  // applies to the scrollbar as well. Since we don't actually want the scroll
+  // thumb's size to vary with the zoom (other than its length reflecting the
+  // fraction of the scrollable length that's in view, which is taken care of
+  // above), we apply a transform to cancel out this resolution.
+  if (metrics.IsRootScrollable()) {
+    compensation =
         Matrix4x4::Scaling(metrics.GetPresShellResolution(),
                            metrics.GetPresShellResolution(),
                            1.0f).Inverse();
+  }
+  // If the scrollbar layer is a child of the content it is a scrollbar for,
+  // then we need to adjust for any async transform (including an overscroll
+  // transform) on the content. This needs to be cancelled out because layout
+  // positions and sizes the scrollbar on the assumption that there is no async
+  // transform, and without this adjustment the scrollbar will end up in the
+  // wrong place.
+  //
+  // Note that since the async transform is applied on top of the content's
+  // regular transform, we need to make sure to unapply the async transform in
+  // the same coordinate space. This requires applying the content transform
+  // and then unapplying it after unapplying the async transform.
+  if (aScrollbarIsDescendant) {
     Matrix4x4 asyncUntransform = (asyncTransform * apzc->GetOverscrollTransform()).Inverse();
     Matrix4x4 contentTransform = aContent.GetTransform();
     Matrix4x4 contentUntransform = contentTransform.Inverse();
 
-    Matrix4x4 compensation = resolutionCancellingTransform
-                           * contentTransform
-                           * asyncUntransform
-                           * contentUntransform;
-    transform = transform * compensation;
+    Matrix4x4 asyncCompensation = contentTransform
+                                * asyncUntransform
+                                * contentUntransform;
+
+    compensation = compensation * asyncCompensation;
 
     // We also need to make a corresponding change on the clip rect of all the
     // layers on the ancestor chain from the scrollbar layer up to but not
     // including the layer with the async transform. Otherwise the scrollbar
     // shifts but gets clipped and so appears to flicker.
     for (Layer* ancestor = aScrollbar; ancestor != aContent.GetLayer(); ancestor = ancestor->GetParent()) {
-      TransformClipRect(ancestor, compensation);
+      TransformClipRect(ancestor, asyncCompensation);
     }
   }
+  transform = transform * compensation;
 
   SetShadowTransform(aScrollbar, transform);
 }
@@ -881,14 +880,15 @@ FindScrolledLayerForScrollbar(Layer* aScrollbar, bool* aOutIsAncestor)
 {
   // First check if the scrolled layer is an ancestor of the scrollbar layer.
   LayerMetricsWrapper root(aScrollbar->Manager()->GetRoot());
-  LayerMetricsWrapper scrollbar(aScrollbar);
+  LayerMetricsWrapper prevAncestor(aScrollbar);
   for (LayerMetricsWrapper ancestor(aScrollbar); ancestor; ancestor = ancestor.GetParent()) {
     // Don't walk into remote layer trees; the scrollbar will always be in
     // the same layer space.
     if (ancestor.AsRefLayer()) {
-      root = ancestor;
+      root = prevAncestor;
       break;
     }
+    prevAncestor = ancestor;
 
     if (LayerIsScrollbarTarget(ancestor, aScrollbar)) {
       *aOutIsAncestor = true;

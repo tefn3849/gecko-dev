@@ -103,6 +103,10 @@
 #ifndef PROCESS_DEP_ENABLE
 #define PROCESS_DEP_ENABLE 0x1
 #endif
+
+#if defined(MOZ_CONTENT_SANDBOX)
+#include "nsIUUIDGenerator.h"
+#endif
 #endif
 
 #ifdef ACCESSIBILITY
@@ -172,7 +176,7 @@
 #endif
 
 #ifdef DEBUG
-#include "prlog.h"
+#include "mozilla/Logging.h"
 #endif
 
 #ifdef MOZ_JPROF
@@ -582,6 +586,157 @@ CanShowProfileManager()
 {
   return true;
 }
+
+#if defined(XP_WIN) && defined(MOZ_CONTENT_SANDBOX)
+static already_AddRefed<nsIFile>
+GetAndCleanLowIntegrityTemp(const nsAString& aTempDirSuffix)
+{
+  // Get the base low integrity Mozilla temp directory.
+  nsCOMPtr<nsIFile> lowIntegrityTemp;
+  nsresult rv = NS_GetSpecialDirectory(NS_WIN_LOW_INTEGRITY_TEMP_BASE,
+                                       getter_AddRefs(lowIntegrityTemp));
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return nullptr;
+  }
+
+  // Append our profile specific temp name.
+  rv = lowIntegrityTemp->Append(NS_LITERAL_STRING("Temp-") + aTempDirSuffix);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return nullptr;
+  }
+
+  rv = lowIntegrityTemp->Remove(/* aRecursive */ true);
+  if (NS_FAILED(rv) && rv != NS_ERROR_FILE_NOT_FOUND) {
+    NS_WARNING("Failed to delete low integrity temp directory.");
+    return nullptr;
+  }
+
+  return lowIntegrityTemp.forget();
+}
+
+static void
+SetUpSandboxEnvironment()
+{
+  // A low integrity temp only currently makes sense for Vista and later, e10s
+  // and sandbox pref level 1.
+  if (!IsVistaOrLater() || !BrowserTabsRemoteAutostart() ||
+      Preferences::GetInt("security.sandbox.content.level") != 1) {
+    return;
+  }
+
+  // Get (and create if blank) temp directory suffix pref.
+  nsresult rv;
+  nsAdoptingString tempDirSuffix =
+    Preferences::GetString("security.sandbox.content.tempDirSuffix");
+  if (tempDirSuffix.IsEmpty()) {
+    nsCOMPtr<nsIUUIDGenerator> uuidgen =
+      do_GetService("@mozilla.org/uuid-generator;1", &rv);
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      return;
+    }
+
+    nsID uuid;
+    rv = uuidgen->GenerateUUIDInPlace(&uuid);
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      return;
+    }
+
+    char uuidChars[NSID_LENGTH];
+    uuid.ToProvidedString(uuidChars);
+    tempDirSuffix.AssignASCII(uuidChars);
+
+    // Save the pref to be picked up later.
+    rv = Preferences::SetCString("security.sandbox.content.tempDirSuffix",
+                                 uuidChars);
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      // If we fail to save the pref we don't want to create the temp dir,
+      // because we won't be able to clean it up later.
+      return;
+    }
+
+    nsCOMPtr<nsIPrefService> prefsvc = Preferences::GetService();
+    if (!prefsvc || NS_FAILED(prefsvc->SavePrefFile(nullptr))) {
+      // Again, if we fail to save the pref file we might not be able to clean
+      // up the temp directory, so don't create one.
+      NS_WARNING("Failed to save pref file, cannot create temp dir.");
+      return;
+    }
+  }
+
+  // Get (and clean up if still there) the low integrity Mozilla temp directory.
+  nsCOMPtr<nsIFile> lowIntegrityTemp = GetAndCleanLowIntegrityTemp(tempDirSuffix);
+  if (!lowIntegrityTemp) {
+    NS_WARNING("Failed to get or clean low integrity Mozilla temp directory.");
+    return;
+  }
+
+  rv = lowIntegrityTemp->Create(nsIFile::DIRECTORY_TYPE, 0700);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return;
+  }
+}
+
+static void
+CleanUpSandboxEnvironment()
+{
+  // We can't have created a low integrity temp before Vista.
+  if (!IsVistaOrLater()) {
+    return;
+  }
+
+  // Get temp directory suffix pref.
+  nsAdoptingString tempDirSuffix =
+    Preferences::GetString("security.sandbox.content.tempDirSuffix");
+  if (tempDirSuffix.IsEmpty()) {
+    return;
+  }
+
+  // Get and remove the low integrity Mozilla temp directory.
+  // This function already warns if the deletion fails.
+  unused << GetAndCleanLowIntegrityTemp(tempDirSuffix);
+
+#if defined(NIGHTLY_BUILD)
+  // Temporary code to clean up the old low integrity temp directories.
+  // The removal of this is tracked by bug 1165818.
+  nsCOMPtr<nsIFile> lowIntegrityMozilla;
+  nsresult rv = NS_GetSpecialDirectory(NS_WIN_LOW_INTEGRITY_TEMP_BASE,
+                              getter_AddRefs(lowIntegrityMozilla));
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return;
+  }
+
+  nsCOMPtr<nsISimpleEnumerator> iter;
+  rv = lowIntegrityMozilla->GetDirectoryEntries(getter_AddRefs(iter));
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return;
+  }
+
+  bool more;
+  nsCOMPtr<nsISupports> elem;
+  while (NS_SUCCEEDED(iter->HasMoreElements(&more)) && more) {
+    rv = iter->GetNext(getter_AddRefs(elem));
+    if (NS_FAILED(rv)) {
+      break;
+    }
+
+    nsCOMPtr<nsIFile> file = do_QueryInterface(elem);
+    if (!file) {
+      continue;
+    }
+
+    nsAutoString leafName;
+    rv = file->GetLeafName(leafName);
+    if (NS_FAILED(rv)) {
+      continue;
+    }
+
+    if (leafName.Find(NS_LITERAL_STRING("MozTemp-{")) == 0) {
+      file->Remove(/* aRecursive */ true);
+    }
+  }
+#endif
+}
+#endif
 
 bool gSafeMode = false;
 
@@ -2730,17 +2885,23 @@ static void MOZ_gdk_display_close(GdkDisplay *display)
 #if CLEANUP_MEMORY
   // XXX wallpaper for bug 417163: don't close the Display if we're using the
   // Qt theme because we crash (in Qt code) when using jemalloc.
-  bool theme_is_qt = false;
+  bool skip_display_close = false;
   GtkSettings* settings =
     gtk_settings_get_for_screen(gdk_display_get_default_screen(display));
   gchar *theme_name;
   g_object_get(settings, "gtk-theme-name", &theme_name, nullptr);
   if (theme_name) {
-    theme_is_qt = strcmp(theme_name, "Qt") == 0;
-    if (theme_is_qt)
+    skip_display_close = strcmp(theme_name, "Qt") == 0;
+    if (skip_display_close)
       NS_WARNING("wallpaper bug 417163 for Qt theme");
     g_free(theme_name);
   }
+
+#if (MOZ_WIDGET_GTK == 3)
+  // A workaround for https://bugzilla.gnome.org/show_bug.cgi?id=703257
+  if (gtk_check_version(3,9,8) != NULL)
+    skip_display_close = true;
+#endif
 
   // Get a (new) Pango context that holds a reference to the fontmap that
   // GTK has been using.  gdk_pango_context_get() must be called while GTK
@@ -2754,7 +2915,7 @@ static void MOZ_gdk_display_close(GdkDisplay *display)
     // like Pango and cairo. But if cairo shutdown is buggy, we should
     // shut down cairo first otherwise it may crash because of dangling
     // references to Display objects (see bug 469831).
-    if (!theme_is_qt)
+    if (!skip_display_close)
       gdk_display_close(display);
   }
 
@@ -2791,7 +2952,7 @@ static void MOZ_gdk_display_close(GdkDisplay *display)
   FcFini();
 
   if (buggyCairoShutdown) {
-    if (!theme_is_qt)
+    if (!skip_display_close)
       gdk_display_close(display);
   }
 #else // not CLEANUP_MEMORY
@@ -4075,6 +4236,10 @@ XREMain::XRE_mainRun()
   }
 #endif /* MOZ_INSTRUMENT_EVENT_LOOP */
 
+#if defined(XP_WIN) && defined(MOZ_CONTENT_SANDBOX)
+  SetUpSandboxEnvironment();
+#endif
+
   {
     rv = appStartup->Run();
     if (NS_FAILED(rv)) {
@@ -4082,6 +4247,10 @@ XREMain::XRE_mainRun()
       gLogConsoleErrors = true;
     }
   }
+
+#if defined(XP_WIN) && defined(MOZ_CONTENT_SANDBOX)
+  CleanUpSandboxEnvironment();
+#endif
 
   return rv;
 }
@@ -4106,17 +4275,6 @@ XREMain::XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
   gArgv = argv;
 
   NS_ENSURE_TRUE(aAppData, 2);
-
-#if defined(_MSC_VER) && _MSC_VER < 1900 && defined(_M_X64)
-  // Disable CRT use of FMA3 on non-AVX2 processors because of bug 1160148
-  int cpuid0[4] = {0};
-  int cpuid7[4] = {0};
-  __cpuid(cpuid0, 0); // Get the maximum supported CPUID function
-  __cpuid(cpuid7, 7); // AVX2 is function 7, subfunction 0, EBX, bit 5
-  if (cpuid0[0] < 7 || !(cpuid7[1] & 0x20)) {
-    _set_FMA3_enable(0);
-  }
-#endif
 
   // A initializer to initialize histogram collection, a chromium
   // thing used by Telemetry.
@@ -4411,7 +4569,7 @@ mozilla::BrowserTabsRemoteAutostart()
 #else
   // Nightly builds, update gBrowserTabsRemoteAutostart based on all the
   // e10s remote relayed prefs we watch.
-  bool disabledForA11y = Preferences::GetBool("browser.tabs.remote.autostart.disabled-because-using-a11y", false);
+  bool disabledForA11y = Preferences::GetBool("browser.tabs.remote.disabled-for-a11y", false);
   // Disable for VR
   bool disabledForVR = Preferences::GetBool("dom.vr.enabled", false);
 

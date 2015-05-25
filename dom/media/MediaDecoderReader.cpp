@@ -20,13 +20,9 @@ namespace mozilla {
 // Un-comment to enable logging of seek bisections.
 //#define SEEK_LOGGING
 
-#ifdef PR_LOGGING
 extern PRLogModuleInfo* gMediaDecoderLog;
 #define DECODER_LOG(x, ...) \
-  PR_LOG(gMediaDecoderLog, PR_LOG_DEBUG, ("Decoder=%p " x, mDecoder, ##__VA_ARGS__))
-#else
-#define DECODER_LOG(x, ...)
-#endif
+  MOZ_LOG(gMediaDecoderLog, PR_LOG_DEBUG, ("Decoder=%p " x, mDecoder, ##__VA_ARGS__))
 
 // Same workaround as MediaDecoderStateMachine.cpp.
 #define DECODER_WARN_HELPER(a, b) NS_WARNING b
@@ -151,8 +147,8 @@ MediaDecoderReader::SetStartTime(int64_t aStartTime)
   mStartTime = aStartTime;
 }
 
-nsresult
-MediaDecoderReader::GetBuffered(mozilla::dom::TimeRanges* aBuffered)
+media::TimeIntervals
+MediaDecoderReader::GetBuffered()
 {
   AutoPinned<MediaResource> stream(mDecoder->GetResource());
   int64_t durationUs = 0;
@@ -160,8 +156,7 @@ MediaDecoderReader::GetBuffered(mozilla::dom::TimeRanges* aBuffered)
     ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
     durationUs = mDecoder->GetMediaDuration();
   }
-  GetEstimatedBufferedTimeRanges(stream, durationUs, aBuffered);
-  return NS_OK;
+  return GetEstimatedBufferedTimeRanges(stream, durationUs);
 }
 
 int64_t
@@ -282,7 +277,7 @@ MediaDecoderReader::RequestVideoData(bool aSkipToNextKeyframe,
       // again. We don't just decode straight in a loop here, as that
       // would hog the decode task queue.
       RefPtr<nsIRunnable> task(new ReRequestVideoWithSkipTask(this, aTimeThreshold));
-      mTaskQueue->Dispatch(task);
+      mTaskQueue->Dispatch(task.forget());
       return p;
     }
   }
@@ -318,7 +313,7 @@ MediaDecoderReader::RequestAudioData()
     // consumed. (|mVideoSinkBufferCount| > 0)
     if (AudioQueue().GetSize() == 0 && mTaskQueue) {
       RefPtr<nsIRunnable> task(new ReRequestAudioTask(this));
-      mTaskQueue->Dispatch(task);
+      mTaskQueue->Dispatch(task.forget());
       return p;
     }
   }

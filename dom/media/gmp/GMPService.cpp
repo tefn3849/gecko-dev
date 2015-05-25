@@ -6,7 +6,7 @@
 #include "GMPServiceParent.h"
 #include "GMPServiceChild.h"
 #include "prio.h"
-#include "prlog.h"
+#include "mozilla/Logging.h"
 #include "GMPParent.h"
 #include "GMPVideoDecoderParent.h"
 #include "nsIObserverService.h"
@@ -41,7 +41,6 @@ namespace mozilla {
 #undef LOG
 #endif
 
-#ifdef PR_LOGGING
 PRLogModuleInfo*
 GetGMPLog()
 {
@@ -51,12 +50,8 @@ GetGMPLog()
   return sLog;
 }
 
-#define LOGD(msg) PR_LOG(GetGMPLog(), PR_LOG_DEBUG, msg)
-#define LOG(level, msg) PR_LOG(GetGMPLog(), (level), msg)
-#else
-#define LOGD(msg)
-#define LOG(leve1, msg)
-#endif
+#define LOGD(msg) MOZ_LOG(GetGMPLog(), PR_LOG_DEBUG, msg)
+#define LOG(level, msg) MOZ_LOG(GetGMPLog(), (level), msg)
 
 #ifdef __CLASS__
 #undef __CLASS__
@@ -280,8 +275,8 @@ GeckoMediaPluginService::GetThread(nsIThread** aThread)
     InitializePlugins();
   }
 
-  NS_ADDREF(mGMPThread);
-  *aThread = mGMPThread;
+  nsCOMPtr<nsIThread> copy = mGMPThread;
+  copy.forget(aThread);
 
   return NS_OK;
 }

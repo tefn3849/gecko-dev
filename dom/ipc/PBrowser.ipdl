@@ -59,6 +59,8 @@ using mozilla::WritingMode from "mozilla/WritingModes.h";
 using mozilla::layers::TouchBehaviorFlags from "mozilla/layers/APZUtils.h";
 using nsIWidget::TouchPointerState from "nsIWidget.h";
 using struct LookAndFeelInt from "mozilla/widget/WidgetMessageUtils.h";
+using struct mozilla::OwningSerializedStructuredCloneBuffer from "ipc/IPCMessageUtils.h";
+using nsEventStatus from "mozilla/EventForwards.h";
 
 namespace mozilla {
 namespace dom {
@@ -147,11 +149,11 @@ parent:
 
     sync SyncMessage(nsString aMessage, ClonedMessageData aData,
                      CpowEntry[] aCpows, Principal aPrincipal)
-      returns (nsString[] retval);
+      returns (OwningSerializedStructuredCloneBuffer[] retval);
 
     prio(high) sync RpcMessage(nsString aMessage, ClonedMessageData aData,
                                CpowEntry[] aCpows, Principal aPrincipal)
-      returns (nsString[] retval);
+      returns (OwningSerializedStructuredCloneBuffer[] retval);
 
     /**
      * The IME sequence number (seqno) parameter is used to make sure
@@ -347,6 +349,11 @@ parent:
     sync GetDefaultScale() returns (double value);
 
     /**
+     * Gets maximum of touch points at current device.
+     */
+    sync GetMaxTouchPoints() returns (uint32_t value);
+
+    /**
      * Set the native cursor.
      * @param value
      *   The widget cursor to set.
@@ -355,6 +362,30 @@ parent:
      *   update.
      */
     SetCursor(uint32_t value, bool force);
+
+    /**
+     * Set the native cursor using a custom image.
+     * @param cursorData
+     *   Serialized image data.
+     * @param width
+     *   Width of the image.
+     * @param height
+     *   Height of the image.
+     * @param stride
+     *   Stride used in the image data.
+     * @param format
+     *   Image format, see gfx::SurfaceFormat for possible values.
+     * @param hotspotX
+     *   Horizontal hotspot of the image, as specified by the css cursor property.
+     * @param hotspotY
+     *   Vertical hotspot of the image, as specified by the css cursor property.
+     * @param force
+     *   Invalidate any locally cached cursor settings and force an
+     *   update.
+     */
+    SetCustomCursor(nsCString cursorData, uint32_t width, uint32_t height,
+                    uint32_t stride, uint8_t format,
+                    uint32_t hotspotX, uint32_t hotspotY, bool force);
 
     SetBackgroundColor(nscolor color);
 
@@ -588,8 +619,14 @@ child:
     RealMouseButtonEvent(WidgetMouseEvent event);
     RealKeyEvent(WidgetKeyboardEvent event, MaybeNativeKeyBinding keyBinding);
     MouseWheelEvent(WidgetWheelEvent event, ScrollableLayerGuid aGuid, uint64_t aInputBlockId);
-    RealTouchEvent(WidgetTouchEvent aEvent, ScrollableLayerGuid aGuid, uint64_t aInputBlockId);
-    RealTouchMoveEvent(WidgetTouchEvent aEvent, ScrollableLayerGuid aGuid, uint64_t aInputBlockId);
+    RealTouchEvent(WidgetTouchEvent aEvent,
+                   ScrollableLayerGuid aGuid,
+                   uint64_t aInputBlockId,
+                   nsEventStatus aApzResponse);
+    RealTouchMoveEvent(WidgetTouchEvent aEvent,
+                       ScrollableLayerGuid aGuid,
+                       uint64_t aInputBlockId,
+                       nsEventStatus aApzResponse);
     RealDragEvent(WidgetDragEvent aEvent, uint32_t aDragAction, uint32_t aDropEffect);
 
     /**

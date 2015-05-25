@@ -31,7 +31,6 @@ namespace mozilla {
 #undef LOG
 #endif
 
-#ifdef PR_LOGGING
 #ifdef MOZILLA_INTERNAL_API
 extern PRLogModuleInfo* GetGMPLog();
 #else
@@ -45,12 +44,8 @@ GetGMPLog()
   return sLog;
 }
 #endif
-#define LOGD(msg) PR_LOG(GetGMPLog(), PR_LOG_DEBUG, msg)
-#define LOG(level, msg) PR_LOG(GetGMPLog(), (level), msg)
-#else
-#define LOGD(msg)
-#define LOG(level, msg)
-#endif
+#define LOGD(msg) MOZ_LOG(GetGMPLog(), PR_LOG_DEBUG, msg)
+#define LOG(level, msg) MOZ_LOG(GetGMPLog(), (level), msg)
 
 // Encoder.
 WebrtcGmpVideoEncoder::WebrtcGmpVideoEncoder()

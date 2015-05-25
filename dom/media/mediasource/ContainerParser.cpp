@@ -9,14 +9,13 @@
 #include "WebMBufferedParser.h"
 #include "mozilla/Endian.h"
 #include "mp4_demuxer/MoofParser.h"
-#include "prlog.h"
+#include "mozilla/Logging.h"
 #include "MediaData.h"
 #ifdef MOZ_FMP4
 #include "MP4Stream.h"
 #endif
 #include "SourceBufferResource.h"
 
-#ifdef PR_LOGGING
 extern PRLogModuleInfo* GetMediaSourceLog();
 
 /* Polyfill __func__ on MSVC to pass to the log. */
@@ -26,10 +25,7 @@ extern PRLogModuleInfo* GetMediaSourceLog();
 
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
-#define MSE_DEBUG(name, arg, ...) PR_LOG(GetMediaSourceLog(), PR_LOG_DEBUG, (TOSTRING(name) "(%p:%s)::%s: " arg, this, mType.get(), __func__, ##__VA_ARGS__))
-#else
-#define MSE_DEBUG(...)
-#endif
+#define MSE_DEBUG(name, arg, ...) MOZ_LOG(GetMediaSourceLog(), PR_LOG_DEBUG, (TOSTRING(name) "(%p:%s)::%s: " arg, this, mType.get(), __func__, ##__VA_ARGS__))
 
 namespace mozilla {
 
@@ -179,7 +175,7 @@ public:
     if (initSegment || !HasCompleteInitData()) {
       if (mParser.mInitEndOffset > 0) {
         MOZ_ASSERT(mParser.mInitEndOffset <= mResource->GetLength());
-        if (!mInitData->SetLength(mParser.mInitEndOffset)) {
+        if (!mInitData->SetLength(mParser.mInitEndOffset, fallible)) {
           // Super unlikely OOM
           return false;
         }
@@ -277,7 +273,9 @@ public:
     return ((*aData)[4] == 'm' && (*aData)[5] == 'o' && (*aData)[6] == 'o' &&
             (*aData)[7] == 'f') ||
            ((*aData)[4] == 's' && (*aData)[5] == 't' && (*aData)[6] == 'y' &&
-            (*aData)[7] == 'p');
+            (*aData)[7] == 'p') ||
+           ((*aData)[4] == 's' && (*aData)[5] == 'i' && (*aData)[6] == 'd' &&
+            (*aData)[7] == 'x');
   }
 
   bool ParseStartAndEndTimestamps(MediaLargeByteBuffer* aData,
@@ -310,7 +308,7 @@ public:
       const MediaByteRange& range = mParser->mInitRange;
       uint32_t length = range.mEnd - range.mStart;
       if (length) {
-        if (!mInitData->SetLength(length)) {
+        if (!mInitData->SetLength(length, fallible)) {
           // Super unlikely OOM
           return false;
         }

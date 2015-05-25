@@ -12,7 +12,7 @@ const PROPNAME_MAX_LENGTH = 4;
 /**
  * View for rendering JIT Optimization data. The terminology and types
  * used here can be referenced:
- * @see browser/devtools/shared/profiler/jit.js
+ * @see browser/devtools/performance/modules/logic/jit.js
  */
 
 let JITOptimizationsView = {
@@ -139,7 +139,7 @@ let JITOptimizationsView = {
     this.el.classList.remove("empty");
 
     // An array of sorted OptimizationSites.
-    let sites = frameNode.getOptimizations().getOptimizationSites();
+    let sites = frameNode.getOptimizations().optimizationSites;
 
     for (let site of sites) {
       this._renderSite(view, site, frameData);
@@ -187,7 +187,7 @@ let JITOptimizationsView = {
 
       let ionNode = this._createIonNode(ionType);
       view.add([id, `${id}-types`, { id: `${id}-types-${i}`, node: ionNode }]);
-      for (let observedType of (ionType.types || [])) {
+      for (let observedType of (ionType.typeset || [])) {
         let node = this._createObservedTypeNode(observedType);
         view.add([id, `${id}-types`, `${id}-types-${i}`, { node }]);
       }
@@ -243,31 +243,22 @@ let JITOptimizationsView = {
   /**
    * Creates an element for insertion in the raw view for an IonType.
    *
-   * @see browser/devtools/shared/profiler/jit.js
+   * @see browser/devtools/performance/modules/logic/jit.js
    * @param {IonType} ionType
    * @return {Element}
    */
 
   _createIonNode: function (ionType) {
     let node = document.createElement("span");
-    let icon = document.createElement("span");
-    let typeNode = document.createElement("span");
-    let siteNode = document.createElement("span");
-
-    typeNode.textContent = ionType.mirType;
-    typeNode.className = "opt-ion-type";
-    siteNode.textContent = `(${ionType.site})`;
-    siteNode.className = "opt-ion-type-site";
-    node.appendChild(typeNode);
-    node.appendChild(siteNode);
-
+    node.textContent = `${ionType.site} : ${ionType.mirType}`;
+    node.className = "opt-ion-type";
     return node;
   },
 
   /**
    * Creates an element for insertion in the raw view for an ObservedType.
    *
-   * @see browser/devtools/shared/profiler/jit.js
+   * @see browser/devtools/performance/modules/logic/jit.js
    * @param {ObservedType} type
    * @return {Element}
    */
@@ -307,7 +298,7 @@ let JITOptimizationsView = {
   /**
    * Creates an element for insertion in the raw view for an OptimizationAttempt.
    *
-   * @see browser/devtools/shared/profiler/jit.js
+   * @see browser/devtools/performance/modules/logic/jit.js
    * @param {OptimizationAttempt} attempt
    * @return {Element}
    */

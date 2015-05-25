@@ -26,7 +26,7 @@
 #include "mozilla/Monitor.h"
 #include "nsMimeTypes.h"
 #include "MPAPI.h"
-#include "prlog.h"
+#include "mozilla/Logging.h"
 
 #include "GonkNativeWindow.h"
 #include "GonkNativeWindowClient.h"
@@ -37,12 +37,8 @@
 #define OD_LOG(...) __android_log_print(ANDROID_LOG_DEBUG, "OmxDecoder", __VA_ARGS__)
 
 #undef LOG
-#ifdef PR_LOGGING
 PRLogModuleInfo *gOmxDecoderLog;
-#define LOG(type, msg...) PR_LOG(gOmxDecoderLog, type, (msg))
-#else
-#define LOG(x...)
-#endif
+#define LOG(type, msg...) MOZ_LOG(gOmxDecoderLog, type, (msg))
 
 using namespace MPAPI;
 using namespace mozilla;
@@ -113,11 +109,9 @@ static sp<IOMX> GetOMX()
 }
 
 bool OmxDecoder::Init(sp<MediaExtractor>& extractor) {
-#ifdef PR_LOGGING
   if (!gOmxDecoderLog) {
     gOmxDecoderLog = PR_NewLogModule("OmxDecoder");
   }
-#endif
 
   sp<MetaData> meta = extractor->getMetaData();
 
@@ -361,7 +355,7 @@ void OmxDecoder::ReleaseMediaResources() {
         GrallocTextureClientOGL* client = static_cast<GrallocTextureClientOGL*>(*it);
         client->ClearRecycleCallback();
         if (client->GetMediaBuffer()) {
-          mPendingVideoBuffers.push(BufferItem(client->GetMediaBuffer(), client->GetReleaseFenceHandle()));
+          mPendingVideoBuffers.push(BufferItem(client->GetMediaBuffer(), client->GetAndResetReleaseFenceHandle()));
         }
       }
       mPendingRecycleTexutreClients.clear();
@@ -879,12 +873,9 @@ void OmxDecoder::ReleaseAllPendingVideoBuffersLocked()
     MediaBuffer *buffer;
     buffer = releasingVideoBuffers[i].mMediaBuffer;
 #if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
-    android::sp<Fence> fence;
-    int fenceFd = -1;
-    fence = releasingVideoBuffers[i].mReleaseFenceHandle.mFence;
-    if (fence.get() && fence->isValid()) {
-      fenceFd = fence->dup();
-    }
+    nsRefPtr<FenceHandle::FdObj> fdObj = releasingVideoBuffers.editItemAt(i).mReleaseFenceHandle.GetAndResetFdObj();
+    int fenceFd = fdObj->GetAndResetFd();
+
     MOZ_ASSERT(buffer->refcount() == 1);
     // This code expect MediaBuffer's ref count is 1.
     // Return gralloc buffer to ANativeWindow
@@ -916,7 +907,7 @@ void OmxDecoder::RecycleCallbackImp(TextureClient* aClient)
     mPendingRecycleTexutreClients.erase(aClient);
     GrallocTextureClientOGL* client = static_cast<GrallocTextureClientOGL*>(aClient);
     if (client->GetMediaBuffer()) {
-      mPendingVideoBuffers.push(BufferItem(client->GetMediaBuffer(), client->GetReleaseFenceHandle()));
+      mPendingVideoBuffers.push(BufferItem(client->GetMediaBuffer(), client->GetAndResetReleaseFenceHandle()));
     }
   }
   sp<AMessage> notify =

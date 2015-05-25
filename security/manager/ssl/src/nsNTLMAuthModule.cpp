@@ -24,7 +24,7 @@
 #include "nsNSSShutDown.h"
 #include "nsUnicharUtils.h"
 #include "pk11pub.h"
-#include "prlog.h"
+#include "mozilla/Logging.h"
 #include "prsystem.h"
 
 static bool sNTLMv1Forced = false;
@@ -38,7 +38,7 @@ GetNTLMLog()
   return sNTLMLog;
 }
 
-#define LOG(x) PR_LOG(GetNTLMLog(), PR_LOG_DEBUG, x)
+#define LOG(x) MOZ_LOG(GetNTLMLog(), PR_LOG_DEBUG, x)
 #define LOG_ENABLED() PR_LOG_TEST(GetNTLMLog(), PR_LOG_DEBUG)
 
 static void des_makekey(const uint8_t *raw, uint8_t *key);

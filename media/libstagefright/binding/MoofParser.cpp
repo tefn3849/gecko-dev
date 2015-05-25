@@ -7,9 +7,9 @@
 #include "mp4_demuxer/SinfParser.h"
 #include <limits>
 
-#include "prlog.h"
+#include "mozilla/Logging.h"
 
-#if defined(MOZ_FMP4) && defined(PR_LOGGING)
+#if defined(MOZ_FMP4)
 extern PRLogModuleInfo* GetDemuxerLog();
 
 /* Polyfill __func__ on MSVC to pass to the log. */
@@ -19,7 +19,7 @@ extern PRLogModuleInfo* GetDemuxerLog();
 
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
-#define LOG(name, arg, ...) PR_LOG(GetDemuxerLog(), PR_LOG_DEBUG, (TOSTRING(name) "(%p)::%s: " arg, this, __func__, ##__VA_ARGS__))
+#define LOG(name, arg, ...) MOZ_LOG(GetDemuxerLog(), PR_LOG_DEBUG, (TOSTRING(name) "(%p)::%s: " arg, this, __func__, ##__VA_ARGS__))
 #else
 #define LOG(...)
 #endif
@@ -125,13 +125,24 @@ MoofParser::HasMetadata()
   byteRanges.AppendElement(MediaByteRange(0, length));
   nsRefPtr<mp4_demuxer::BlockingStream> stream = new BlockingStream(mSource);
 
+  MediaByteRange ftyp;
+  MediaByteRange moov;
   BoxContext context(stream, byteRanges);
   for (Box box(&context, mOffset); box.IsAvailable(); box = box.Next()) {
+    if (box.IsType("ftyp")) {
+      ftyp = box.Range();
+      continue;
+    }
     if (box.IsType("moov")) {
-      return true;
+      moov = box.Range();
+      break;
     }
   }
-  return false;
+  if (!ftyp.Length() || !moov.Length()) {
+    return false;
+  }
+  mInitRange = ftyp.Extents(moov);
+  return true;
 }
 
 Interval<Microseconds>

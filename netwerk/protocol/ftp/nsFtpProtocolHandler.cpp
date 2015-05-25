@@ -25,7 +25,7 @@ using namespace mozilla::net;
 #include "nsFtpProtocolHandler.h"
 #include "nsFTPChannel.h"
 #include "nsIStandardURL.h"
-#include "prlog.h"
+#include "mozilla/Logging.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #include "nsIObserverService.h"
@@ -47,7 +47,7 @@ using namespace mozilla::net;
 //
 PRLogModuleInfo* gFTPLog = nullptr;
 #undef LOG
-#define LOG(args) PR_LOG(gFTPLog, PR_LOG_DEBUG, args)
+#define LOG(args) MOZ_LOG(gFTPLog, PR_LOG_DEBUG, args)
 
 //-----------------------------------------------------------------------------
 

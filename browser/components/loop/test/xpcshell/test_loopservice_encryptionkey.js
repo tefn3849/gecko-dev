@@ -1,6 +1,5 @@
 /* Any copyright is dedicated to the Public Domain.
  http://creativecommons.org/publicdomain/zero/1.0/ */
-/* global Services, Assert */
 
 "use strict";
 
@@ -57,7 +56,7 @@ add_task(function* test_fxaGetKey() {
 
   // Currently unimplemented, add a test when we implement the code.
   yield Assert.rejects(MozLoopService.promiseProfileEncryptionKey(),
-    /not implemented/, "should reject as unimplemented");
+    /No FxA key available/, "should reject as not available");
 });
 
 add_task(function test_hasEncryptionKey() {

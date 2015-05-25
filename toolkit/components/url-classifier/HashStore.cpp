@@ -35,7 +35,7 @@
 #include "nsIStreamConverterService.h"
 #include "nsNetUtil.h"
 #include "nsCheckSummedOutputStream.h"
-#include "prlog.h"
+#include "mozilla/Logging.h"
 #include "zlib.h"
 
 // Main store for SafeBrowsing protocol data. We store
@@ -93,13 +93,8 @@
 
 // NSPR_LOG_MODULES=UrlClassifierDbService:5
 extern PRLogModuleInfo *gUrlClassifierDbServiceLog;
-#if defined(PR_LOGGING)
-#define LOG(args) PR_LOG(gUrlClassifierDbServiceLog, PR_LOG_DEBUG, args)
-#define LOG_ENABLED() PR_LOG_TEST(gUrlClassifierDbServiceLog, 4)
-#else
-#define LOG(args)
-#define LOG_ENABLED() (false)
-#endif
+#define LOG(args) MOZ_LOG(gUrlClassifierDbServiceLog, PR_LOG_DEBUG, args)
+#define LOG_ENABLED() PR_LOG_TEST(gUrlClassifierDbServiceLog, PR_LOG_DEBUG)
 
 // Either the return was successful or we call the Reset function (unless we
 // hit an OOM).  Used while reading in the store.
@@ -584,7 +579,7 @@ nsresult DeflateWriteTArray(nsIOutputStream* aStream, nsTArray<T>& aIn)
   uLongf insize = aIn.Length() * sizeof(T);
   uLongf outsize = compressBound(insize);
   FallibleTArray<char> outBuff;
-  if (!outBuff.SetLength(outsize)) {
+  if (!outBuff.SetLength(outsize, fallible)) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
@@ -627,7 +622,7 @@ nsresult InflateReadTArray(nsIInputStream* aStream, FallibleTArray<T>* aOut,
   NS_ASSERTION(read == sizeof(inLen), "Error reading inflate length");
 
   FallibleTArray<char> inBuff;
-  if (!inBuff.SetLength(inLen)) {
+  if (!inBuff.SetLength(inLen, fallible)) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
@@ -636,7 +631,7 @@ nsresult InflateReadTArray(nsIInputStream* aStream, FallibleTArray<T>* aOut,
 
   uLongf insize = inLen;
   uLongf outsize = aExpectedSize * sizeof(T);
-  if (!aOut->SetLength(aExpectedSize)) {
+  if (!aOut->SetLength(aExpectedSize, fallible)) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
@@ -709,7 +704,7 @@ ByteSliceRead(nsIInputStream* aInStream, FallibleTArray<uint32_t>* aData, uint32
   rv = ReadTArray(aInStream, &slice4, count);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (!aData->SetCapacity(count)) {
+  if (!aData->SetCapacity(count, fallible)) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
@@ -730,7 +725,7 @@ HashStore::ReadAddPrefixes()
   nsresult rv = ByteSliceRead(mInputStream, &chunks, count);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (!mAddPrefixes.SetCapacity(count)) {
+  if (!mAddPrefixes.SetCapacity(count, fallible)) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
   for (uint32_t i = 0; i < count; i++) {
@@ -759,7 +754,7 @@ HashStore::ReadSubPrefixes()
   rv = ByteSliceRead(mInputStream, &prefixes, count);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (!mSubPrefixes.SetCapacity(count)) {
+  if (!mSubPrefixes.SetCapacity(count, fallible)) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
   for (uint32_t i = 0; i < count; i++) {

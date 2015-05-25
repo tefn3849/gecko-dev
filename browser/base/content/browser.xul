@@ -783,6 +783,7 @@
                 <image id="push-notification-icon" class="notification-anchor-icon" role="button"/>
                 <image id="addons-notification-icon" class="notification-anchor-icon" role="button"/>
                 <image id="indexedDB-notification-icon" class="notification-anchor-icon" role="button"/>
+                <image id="login-fill-notification-icon" class="notification-anchor-icon" role="button"/>
                 <image id="password-notification-icon" class="notification-anchor-icon" role="button"/>
                 <image id="webapps-notification-icon" class="notification-anchor-icon" role="button"/>
                 <image id="plugins-notification-icon" class="notification-anchor-icon" role="button"/>
@@ -1222,6 +1223,8 @@
         <browser id="social-sidebar-browser"
                  type="content"
                  context="contentAreaContextMenu"
+                 message="true"
+                 messagemanagergroup="social"
                  disableglobalhistory="true"
                  tooltip="aHTMLTooltip"
                  popupnotificationanchor="social-sidebar-favico"
@@ -1305,8 +1308,5 @@
 #     Introducing the iframe dynamically, as needed, was found to be better than
 #     starting with an empty iframe here in browser.xul from a Ts standpoint.
 </deck>
-
-<script type="application/javascript" src="chrome://browser/content/pocket/pktApi.js"/>
-<script type="application/javascript" src="chrome://browser/content/pocket/main.js"/>
 
 </window>

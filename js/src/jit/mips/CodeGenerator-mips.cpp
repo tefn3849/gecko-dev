@@ -948,11 +948,11 @@ CodeGeneratorMIPS::visitPowHalfD(LPowHalfD* ins)
 }
 
 MoveOperand
-CodeGeneratorMIPS::toMoveOperand(const LAllocation* a) const
+CodeGeneratorMIPS::toMoveOperand(LAllocation a) const
 {
-    if (a->isGeneralReg())
+    if (a.isGeneralReg())
         return MoveOperand(ToRegister(a));
-    if (a->isFloatReg()) {
+    if (a.isFloatReg()) {
         return MoveOperand(ToFloatRegister(a));
     }
     int32_t offset = ToStackOffset(a);
@@ -1795,13 +1795,6 @@ CodeGeneratorMIPS::generateInvalidateEpilogue()
     // We should never reach this point in JIT code -- the invalidation thunk
     // should pop the invalidated JS frame and return directly to its caller.
     masm.assumeUnreachable("Should have returned directly to its caller instead of here.");
-}
-
-void
-DispatchIonCache::initializeAddCacheState(LInstruction* ins, AddCacheState* addState)
-{
-    // Can always use the scratch register on MIPS.
-    addState->dispatchScratch = ScratchRegister;
 }
 
 void

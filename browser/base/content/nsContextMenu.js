@@ -6,6 +6,12 @@
 Components.utils.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
 Components.utils.import("resource://gre/modules/InlineSpellChecker.jsm");
 Components.utils.import("resource://gre/modules/BrowserUtils.jsm");
+Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "CustomizableUI",
+  "resource:///modules/CustomizableUI.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "Pocket",
+  "resource:///modules/Pocket.jsm");
 
 var gContextMenuContentData = null;
 
@@ -178,24 +184,36 @@ nsContextMenu.prototype = {
                      CastingApps.getServicesForVideo(this.target).length > 0;
     this.setItemAttr("context-castvideo", "disabled", !shouldShowCast);
 
-    let canPocket = false;
-    if (shouldShow && window.gBrowser &&
-        this.browser.getTabBrowser() == window.gBrowser) {
-      let uri = this.browser.currentURI;
-      canPocket =
-        CustomizableUI.getPlacementOfWidget("pocket-button") &&
-        (uri.schemeIs("http") || uri.schemeIs("https") ||
-         (uri.schemeIs("about") && ReaderMode.getOriginalUrl(uri.spec)));
-      if (canPocket) {
-        let locale = Cc["@mozilla.org/chrome/chrome-registry;1"].
-                     getService(Ci.nsIXULChromeRegistry).
-                     getSelectedLocale("browser");
+    this.initPocketItems();
+  },
+
+  initPocketItems: function CM_initPocketItems() {
+    var showSaveCurrentPageToPocket = !(this.onTextInput || this.onLink ||
+                                        this.isContentSelected || this.onImage ||
+                                        this.onCanvas || this.onVideo || this.onAudio);
+    let targetURI = (this.onSaveableLink || this.onPlainTextLink) ? this.linkURI : this.browser.currentURI;
+    let canPocket = CustomizableUI.getPlacementOfWidget("pocket-button") &&
+                    window.pktApi && window.pktApi.isUserLoggedIn();
+    canPocket = canPocket && (targetURI.schemeIs("http") || targetURI.schemeIs("https") ||
+                              (targetURI.schemeIs("about") && ReaderMode.getOriginalUrl(targetURI.spec)));
+    canPocket = canPocket && window.gBrowser && this.browser.getTabBrowser() == window.gBrowser;
+
+    if (canPocket) {
+      let locale = Cc["@mozilla.org/chrome/chrome-registry;1"].
+                   getService(Ci.nsIXULChromeRegistry).
+                   getSelectedLocale("browser");
+      if (locale != "en-US") {
+        if (locale == "ja-JP-mac")
+          locale = "ja";
         let url = "chrome://browser/content/browser-pocket-" + locale + ".properties";
         let bundle = Services.strings.createBundle(url);
-        let item = document.getElementById("context-pocket");
+        let saveToPocketItem = document.getElementById("context-pocket");
+        let saveLinkToPocketItem = document.getElementById("context-savelinktopocket");
         try {
-          item.setAttribute("label", bundle.GetStringFromName("saveToPocketCmd.label"));
-          item.setAttribute("accesskey", bundle.GetStringFromName("saveToPocketCmd.accesskey"));
+          saveToPocketItem.setAttribute("label", bundle.GetStringFromName("saveToPocketCmd.label"));
+          saveToPocketItem.setAttribute("accesskey", bundle.GetStringFromName("saveToPocketCmd.accesskey"));
+          saveLinkToPocketItem.setAttribute("label", bundle.GetStringFromName("saveLinkToPocketCmd.label"));
+          saveLinkToPocketItem.setAttribute("accesskey", bundle.GetStringFromName("saveLinkToPocketCmd.accesskey"));
         } catch (err) {
           // GetStringFromName throws when the bundle doesn't exist.  In that
           // case, the item will retain the browser-pocket.dtd en-US string that
@@ -203,7 +221,10 @@ nsContextMenu.prototype = {
         }
       }
     }
-    this.showItem("context-pocket", canPocket && window.pktApi && window.pktApi.isUserLoggedIn());
+    this.showItem("context-pocket", canPocket && showSaveCurrentPageToPocket);
+    let showSaveLinkToPocket = canPocket && !showSaveCurrentPageToPocket &&
+                               (this.onSaveableLink || this.onPlainTextLink);
+    this.showItem("context-savelinktopocket", showSaveLinkToPocket);
   },
 
   initViewItems: function CM_initViewItems() {
@@ -984,11 +1005,28 @@ nsContextMenu.prototype = {
     else
       throw "not reached";
 
-    // unused (and play nice for fragments generated via XSLT too)
-    var docUrl = null;
-    window.openDialog("chrome://global/content/viewPartialSource.xul",
-                      "_blank", "scrollbars,resizable,chrome,dialog=no",
-                      docUrl, docCharset, reference, aContext);
+    let inTab = Services.prefs.getBoolPref("view_source.tab");
+    if (inTab) {
+      let tab = gBrowser.loadOneTab("about:blank", {
+        relatedToCurrent: true,
+        inBackground: false
+      });
+      let viewSourceBrowser = gBrowser.getBrowserForTab(tab);
+      if (aContext == "selection") {
+        top.gViewSourceUtils
+           .viewSourceFromSelectionInBrowser(reference, viewSourceBrowser);
+      } else {
+        top.gViewSourceUtils
+           .viewSourceFromFragmentInBrowser(reference, aContext,
+                                            viewSourceBrowser);
+      }
+    } else {
+      // unused (and play nice for fragments generated via XSLT too)
+      var docUrl = null;
+      window.openDialog("chrome://global/content/viewPartialSource.xul",
+                        "_blank", "scrollbars,resizable,chrome,dialog=no",
+                        docUrl, docCharset, reference, aContext);
+    }
   },
 
   // Open new "view source" window with the frame's URL.
@@ -1132,7 +1170,7 @@ nsContextMenu.prototype = {
     urlSecurityCheck(this.target.currentURI.spec, this.principal);
 
     // Confirm since it's annoying if you hit this accidentally.
-    const kDesktopBackgroundURL = 
+    const kDesktopBackgroundURL =
                   "chrome://browser/content/setDesktopBackground.xul";
 #ifdef XP_MACOSX
     // On Mac, the Set Desktop Background window is not modal.
@@ -1175,7 +1213,7 @@ nsContextMenu.prototype = {
     // file picker
     function saveAsListener() {}
     saveAsListener.prototype = {
-      extListener: null, 
+      extListener: null,
 
       onStartRequest: function saveLinkAs_onStartRequest(aRequest, aContext) {
 
@@ -1208,17 +1246,17 @@ nsContextMenu.prototype = {
           return;
         }
 
-        let extHelperAppSvc = 
+        let extHelperAppSvc =
           Cc["@mozilla.org/uriloader/external-helper-app-service;1"].
           getService(Ci.nsIExternalHelperAppService);
         let channel = aRequest.QueryInterface(Ci.nsIChannel);
         this.extListener =
-          extHelperAppSvc.doContent(channel.contentType, aRequest, 
+          extHelperAppSvc.doContent(channel.contentType, aRequest,
                                     null, true, window);
         this.extListener.onStartRequest(aRequest, aContext);
-      }, 
+      },
 
-      onStopRequest: function saveLinkAs_onStopRequest(aRequest, aContext, 
+      onStopRequest: function saveLinkAs_onStopRequest(aRequest, aContext,
                                                        aStatusCode) {
         if (aStatusCode == NS_ERROR_SAVE_LINK_AS_TIMEOUT) {
           // do it the old fashioned way, which will pick the best filename
@@ -1251,12 +1289,12 @@ nsContextMenu.prototype = {
           channel.cancel(NS_ERROR_SAVE_LINK_AS_TIMEOUT);
         }
         throw Cr.NS_ERROR_NO_INTERFACE;
-      } 
+      }
     }
 
-    // if it we don't have the headers after a short time, the user 
+    // if it we don't have the headers after a short time, the user
     // won't have received any feedback from their click.  that's bad.  so
-    // we give up waiting for the filename. 
+    // we give up waiting for the filename.
     function timerCallback() {}
     timerCallback.prototype = {
       notify: function sLA_timer_notify(aTimer) {
@@ -1298,8 +1336,8 @@ nsContextMenu.prototype = {
         channel.forceAllowThirdPartyCookie = true;
     }
 
-    // fallback to the old way if we don't see the headers quickly 
-    var timeToWait = 
+    // fallback to the old way if we don't see the headers quickly
+    var timeToWait =
       gPrefService.getIntPref("browser.download.saveLinkAsFilenameTimeout");
     var timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
     timer.initWithCallback(new timerCallback(), timeToWait,
@@ -1412,13 +1450,13 @@ nsContextMenu.prototype = {
 
     var clipboard = Cc["@mozilla.org/widget/clipboardhelper;1"].
                     getService(Ci.nsIClipboardHelper);
-    clipboard.copyString(addresses, document);
+    clipboard.copyString(addresses);
   },
 
   copyLink: function() {
     var clipboard = Cc["@mozilla.org/widget/clipboardhelper;1"].
                     getService(Ci.nsIClipboardHelper);
-    clipboard.copyString(this.linkURL, document);
+    clipboard.copyString(this.linkURL);
   },
 
   ///////////////
@@ -1478,7 +1516,7 @@ nsContextMenu.prototype = {
 
   // Generate fully qualified URL for clicked-on link.
   getLinkURL: function() {
-    var href = this.link.href;  
+    var href = this.link.href;
     if (href)
       return href;
 
@@ -1609,30 +1647,17 @@ nsContextMenu.prototype = {
     let onMessage = (message) => {
       mm.removeMessageListener("ContextMenu:BookmarkFrame:Result", onMessage);
 
-      let itemId = PlacesUtils.getMostRecentBookmarkForURI(uri);
-      if (itemId == -1) {
-        PlacesUIUtils.showBookmarkDialog({ action: "add"
-                                         , type: "bookmark"
-                                         , uri: uri
-                                         , title: message.data.title
-                                         , description: message.data.description
-                                         , hiddenRows: [ "description"
-                                                       , "location"
-                                                       , "loadInSidebar"
-                                                       , "keyword" ]
-                                         }, window.top);
-      }
-      else {
-        PlacesUIUtils.showBookmarkDialog({ action: "edit"
-                                         , type: "bookmark"
-                                         , itemId: itemId
-                                         }, window.top);
-      }
+      window.top.PlacesCommandHook.bookmarkLink(PlacesUtils.bookmarksMenuFolderId,
+                                                uri.spec,
+                                                message.data.title,
+                                                message.data.description)
+                                  .catch(Components.utils.reportError);
     };
     mm.addMessageListener("ContextMenu:BookmarkFrame:Result", onMessage);
 
     mm.sendAsyncMessage("ContextMenu:BookmarkFrame", null, { target: this.target });
   },
+
   markLink: function CM_markLink(origin) {
     // send link to social, if it is the page url linkURI will be null
     SocialMarks.markLink(origin, this.linkURI ? this.linkURI.spec : null, this.target);
@@ -1657,20 +1682,12 @@ nsContextMenu.prototype = {
     saveDocument(this.browser.contentDocumentAsCPOW);
   },
 
-  saveToPocket: function CM_saveToPocket() {
-    let pocketWidget = document.getElementById("pocket-button");
-    let placement = CustomizableUI.getPlacementOfWidget("pocket-button");
-    if (!placement)
-      return;
+  saveLinkToPocket: function CM_saveLinkToPocket() {
+    Pocket.savePage(this.browser, this.linkURL);
+  },
 
-    if (placement.area == CustomizableUI.AREA_PANEL) {
-      PanelUI.show().then(function() {
-        pocketWidget = document.getElementById("pocket-button");
-        pocketWidget.doCommand();
-      });
-    } else {
-      pocketWidget.doCommand();
-    }
+  savePageToPocket: function CM_saveToPocket() {
+    Pocket.savePage(this.browser, this.browser.currentURI.spec, this.browser.contentTitle);
   },
 
   printFrame: function CM_printFrame() {
@@ -1691,7 +1708,7 @@ nsContextMenu.prototype = {
   copyMediaLocation : function () {
     var clipboard = Cc["@mozilla.org/widget/clipboardhelper;1"].
                     getService(Ci.nsIClipboardHelper);
-    clipboard.copyString(this.mediaURL, document);
+    clipboard.copyString(this.mediaURL);
   },
 
   drmLearnMore: function(aEvent) {

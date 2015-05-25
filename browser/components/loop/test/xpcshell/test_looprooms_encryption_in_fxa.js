@@ -4,6 +4,8 @@
 
 "use strict";
 
+timerHandlers.startTimer = callback => callback();
+
 Cu.import("resource://services-common/utils.js");
 const { LOOP_ROOMS_CACHE_FILENAME } = Cu.import("resource:///modules/loop/LoopRoomsCache.jsm", {});
 
@@ -124,7 +126,9 @@ add_task(function* setup_server() {
   });
 
   function returnRoomDetails(res, roomName) {
-    roomDetail.roomName = roomName;
+    var roomDetail = {
+      roomName: roomName
+    };
     res.setStatusLine(null, 200, "OK");
     res.write(JSON.stringify(roomDetail));
     res.processAsync();

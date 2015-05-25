@@ -98,13 +98,7 @@ namespace mozilla {
 class AudioSegment;
 class MediaTaskQueue;
 class AudioSink;
-
-// GetCurrentTime is defined in winbase.h as zero argument macro forwarding to
-// GetTickCount() and conflicts with MediaDecoderStateMachine::GetCurrentTime
-// implementation.
-#ifdef GetCurrentTime
-#undef GetCurrentTime
-#endif
+class DecodedStreamData;
 
 /*
   The state machine class. This manages the decoding and seeking in the
@@ -124,10 +118,9 @@ class MediaDecoderStateMachine
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(MediaDecoderStateMachine)
 public:
   typedef MediaDecoderOwner::NextFrameStatus NextFrameStatus;
-  typedef MediaDecoder::DecodedStreamData DecodedStreamData;
   MediaDecoderStateMachine(MediaDecoder* aDecoder,
-                               MediaDecoderReader* aReader,
-                               bool aRealTime = false);
+                           MediaDecoderReader* aReader,
+                           bool aRealTime = false);
 
   nsresult Init(MediaDecoderStateMachine* aCloneDonor);
 
@@ -183,7 +176,9 @@ public:
 
   void DispatchShutdown()
   {
-    TaskQueue()->Dispatch(NS_NewRunnableMethod(this, &MediaDecoderStateMachine::Shutdown));
+    nsCOMPtr<nsIRunnable> runnable =
+      NS_NewRunnableMethod(this, &MediaDecoderStateMachine::Shutdown);
+    TaskQueue()->Dispatch(runnable.forget());
   }
 
   void FinishShutdown();
@@ -229,12 +224,6 @@ public:
   // Must be called on the state machine thread.
   nsRefPtr<MediaDecoder::SeekPromise> Seek(SeekTarget aTarget);
 
-  // Returns the current playback position in seconds.
-  // Called from the main thread to get the current frame time. The decoder
-  // monitor must be obtained before calling this.
-  double GetCurrentTime() const;
-  int64_t GetCurrentTimeUs() const;
-
   // Clear the flag indicating that a playback position change event
   // is currently queued. This is called from the main thread and must
   // be called with the decode monitor held.
@@ -256,7 +245,9 @@ public:
 
   void DispatchStartBuffering()
   {
-    TaskQueue()->Dispatch(NS_NewRunnableMethod(this, &MediaDecoderStateMachine::StartBuffering));
+    nsCOMPtr<nsIRunnable> runnable =
+      NS_NewRunnableMethod(this, &MediaDecoderStateMachine::StartBuffering);
+    TaskQueue()->Dispatch(runnable.forget());
   }
 
   // This is called on the state machine thread and audio thread.
@@ -290,16 +281,16 @@ public:
     return mState == DECODER_STATE_SEEKING;
   }
 
-  nsresult GetBuffered(dom::TimeRanges* aBuffered) {
+  media::TimeIntervals GetBuffered() {
     // It's possible for JS to query .buffered before we've determined the start
     // time from metadata, in which case the reader isn't ready to be asked this
     // question.
     ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
     if (mStartTime < 0) {
-      return NS_OK;
+      return media::TimeIntervals();
     }
 
-    return mReader->GetBuffered(aBuffered);
+    return mReader->GetBuffered();
   }
 
   size_t SizeOfVideoQueue() {
@@ -662,11 +653,11 @@ protected:
   // Returns the "media time". This is the absolute time which the media
   // playback has reached. i.e. this returns values in the range
   // [mStartTime, mEndTime], and mStartTime will not be 0 if the media does
-  // not start at 0. Note this is different to the value returned
-  // by GetCurrentTime(), which is in the range [0,duration].
+  // not start at 0. Note this is different than the "current playback position",
+  // which is in the range [0,duration].
   int64_t GetMediaTime() const {
     AssertCurrentThreadInMonitor();
-    return mStartTime + mCurrentFrameTime;
+    return mStartTime + mCurrentPosition;
   }
 
   // Returns an upper bound on the number of microseconds of audio that is
@@ -758,7 +749,9 @@ private:
 public:
   void DispatchOnAudioSinkComplete()
   {
-    TaskQueue()->Dispatch(NS_NewRunnableMethod(this, &MediaDecoderStateMachine::OnAudioSinkComplete));
+    nsCOMPtr<nsIRunnable> runnable =
+      NS_NewRunnableMethod(this, &MediaDecoderStateMachine::OnAudioSinkComplete);
+    TaskQueue()->Dispatch(runnable.forget());
   }
 
   // Called by the AudioSink to signal errors.
@@ -766,7 +759,9 @@ public:
 
   void DispatchOnAudioSinkError()
   {
-    TaskQueue()->Dispatch(NS_NewRunnableMethod(this, &MediaDecoderStateMachine::OnAudioSinkError));
+    nsCOMPtr<nsIRunnable> runnable =
+      NS_NewRunnableMethod(this, &MediaDecoderStateMachine::OnAudioSinkError);
+    TaskQueue()->Dispatch(runnable.forget());
   }
 
   // Return true if the video decoder's decode speed can not catch up the
@@ -989,11 +984,13 @@ protected:
   // decoder thread has been stopped.
   nsRevocableEventPtr<WakeDecoderRunnable> mPendingWakeDecoder;
 
-  // The time of the current frame in microseconds. This is referenced from
-  // 0 which is the initial playback position. Set by the state machine
-  // thread, and read-only from the main thread to get the current
-  // time value. Synchronised via decoder monitor.
-  int64_t mCurrentFrameTime;
+  // The time of the current frame in microseconds, corresponding to the "current
+  // playback position" in HTML5. This is referenced from 0, which is the initial
+  // playback position.
+  Canonical<int64_t> mCurrentPosition;
+public:
+  AbstractCanonical<int64_t>* CanonicalCurrentPosition() { return &mCurrentPosition; }
+protected:
 
   // The presentation time of the first audio frame that was played in
   // microseconds. We can add this to the audio stream position to determine

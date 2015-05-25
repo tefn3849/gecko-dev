@@ -16,14 +16,14 @@
 #include <ui/GraphicBuffer.h>
 #endif
 #include <stdio.h>            // FILE
-#include "prlog.h"            // for PR_LOG
+#include "mozilla/Logging.h"            // for PR_LOG
 #ifndef MOZ_LAYERS_HAVE_LOG
 #  define MOZ_LAYERS_HAVE_LOG
 #endif
 #define MOZ_LAYERS_LOG(_args)                             \
-  PR_LOG(LayerManager::GetLog(), PR_LOG_DEBUG, _args)
+  MOZ_LOG(LayerManager::GetLog(), PR_LOG_DEBUG, _args)
 #define MOZ_LAYERS_LOG_IF_SHADOWABLE(layer, _args)         \
-  do { if (layer->AsShadowableLayer()) { PR_LOG(LayerManager::GetLog(), PR_LOG_DEBUG, _args); } } while (0)
+  do { if (layer->AsShadowableLayer()) { MOZ_LOG(LayerManager::GetLog(), PR_LOG_DEBUG, _args); } } while (0)
 
 #define INVALID_OVERLAY -1
 
@@ -44,7 +44,6 @@ enum class LayersBackend : int8_t {
   LAYERS_BASIC,
   LAYERS_OPENGL,
   LAYERS_D3D9,
-  LAYERS_D3D10,
   LAYERS_D3D11,
   LAYERS_CLIENT,
   LAYERS_LAST

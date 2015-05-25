@@ -8,7 +8,6 @@
 #include "CSFLog.h"
 #include "prenv.h"
 
-#ifdef PR_LOGGING
 static PRLogModuleInfo*
 GetUserMediaLog()
 {
@@ -17,7 +16,6 @@ GetUserMediaLog()
     sLog = PR_NewLogModule("GetUserMedia");
   return sLog;
 }
-#endif
 
 #include "MediaEngineWebRTC.h"
 #include "ImageContainer.h"
@@ -37,7 +35,7 @@ GetUserMediaLog()
 #endif
 
 #undef LOG
-#define LOG(args) PR_LOG(GetUserMediaLog(), PR_LOG_DEBUG, args)
+#define LOG(args) MOZ_LOG(GetUserMediaLog(), PR_LOG_DEBUG, args)
 
 namespace mozilla {
 

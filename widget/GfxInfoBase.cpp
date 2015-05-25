@@ -16,6 +16,7 @@
 #include "nsAutoPtr.h"
 #include "nsString.h"
 #include "nsUnicharUtils.h"
+#include "nsVersionComparator.h"
 #include "mozilla/Services.h"
 #include "mozilla/Observer.h"
 #include "nsIObserver.h"
@@ -26,6 +27,7 @@
 #include "nsIDOMNodeList.h"
 #include "nsTArray.h"
 #include "nsXULAppAPI.h"
+#include "nsIXULAppInfo.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/gfx/2D.h"
@@ -144,6 +146,9 @@ GetPrefNameForFeature(int32_t aFeature)
     case nsIGfxInfo::FEATURE_STAGEFRIGHT:
       name = BLACKLIST_PREF_BRANCH "stagefright";
       break;
+    case nsIGfxInfo::FEATURE_WEBRTC_HW_ACCELERATION:
+      name = BLACKLIST_PREF_BRANCH "webrtc.hw.acceleration";
+      break;
     default:
       break;
   };
@@ -217,6 +222,29 @@ BlacklistNodeToTextValue(nsIDOMNode *aBlacklistNode, nsAString& aValue)
   return true;
 }
 
+// <foo attr=Hello/> finds "Hello" if the aAttrName is "attr".
+static bool
+BlacklistAttrToTextValue(nsIDOMNode *aBlacklistNode,
+                         const nsAString& aAttrName,
+                         nsAString& aValue)
+{
+  nsCOMPtr<nsIDOMElement> element = do_QueryInterface(aBlacklistNode);
+  if (!element) {
+    return false;
+  }
+
+  nsAutoString value;
+  if (NS_FAILED(element->GetAttribute(aAttrName, value))) {
+    return false;
+  }
+
+  value.Trim(" \t\r\n");
+  aValue = value;
+
+  return true;
+}
+
+
 static OperatingSystem
 BlacklistOSToOperatingSystem(const nsAString& os)
 {
@@ -283,6 +311,7 @@ BlacklistDevicesToDeviceFamily(nsIDOMHTMLCollection* aDevices)
 static int32_t
 BlacklistFeatureToGfxFeature(const nsAString& aFeature)
 {
+  MOZ_ASSERT(!aFeature.IsEmpty());
   if (aFeature.EqualsLiteral("DIRECT2D"))
     return nsIGfxInfo::FEATURE_DIRECT2D;
   else if (aFeature.EqualsLiteral("DIRECT3D_9_LAYERS"))
@@ -307,7 +336,15 @@ BlacklistFeatureToGfxFeature(const nsAString& aFeature)
     return nsIGfxInfo::FEATURE_WEBGL_MSAA;
   else if (aFeature.EqualsLiteral("STAGEFRIGHT"))
     return nsIGfxInfo::FEATURE_STAGEFRIGHT;
-  return 0;
+  else if (aFeature.EqualsLiteral("WEBRTC_HW_ACCELERATION"))
+    return nsIGfxInfo::FEATURE_WEBRTC_HW_ACCELERATION;
+
+  // If we don't recognize the feature, it may be new, and something
+  // this version doesn't understand.  So, nothing to do.  This is
+  // different from feature not being specified at all, in which case
+  // this method should not get called and we should continue with the
+  // "all features" blocklisting.
+  return -1;
 }
 
 static int32_t
@@ -408,6 +445,42 @@ BlacklistEntryToDriverInfo(nsIDOMNode* aBlacklistEntry,
   nsCOMPtr<nsIDOMNode> dataNode;
   nsAutoString dataValue;
 
+  // If we get an application version to be zero, something is not working
+  // and we are not going to bother checking the blocklist versions.
+  // See TestGfxWidgets.cpp for how version comparison works.
+  // <versionRange minVersion="42.0a1" maxVersion="45.0"></versionRange>
+  static mozilla::Version zeroV("0");
+  static mozilla::Version appV(GfxInfoBase::GetApplicationVersion().get());
+  if (appV <= zeroV) {
+      gfxCriticalErrorOnce(gfxCriticalError::DefaultOptions(false)) << "Invalid application version " << GfxInfoBase::GetApplicationVersion().get();
+  } else if (BlacklistNodeGetChildByName(element,
+                                         NS_LITERAL_STRING("versionRange"),
+                                         getter_AddRefs(dataNode))) {
+    if (BlacklistAttrToTextValue(dataNode,
+                                 NS_LITERAL_STRING("minVersion"),
+                                 dataValue)) {
+      mozilla::Version minV(NS_ConvertUTF16toUTF8(dataValue).get());
+      if (minV > zeroV && appV < minV) {
+        // The version of the application is less than the minimal version
+        // this blocklist entry applies to, so we can just ignore it by
+        // returning false and letting the caller deal with it.
+        return false;
+      }
+    }
+
+    if (BlacklistAttrToTextValue(dataNode,
+                                 NS_LITERAL_STRING("maxVersion"),
+                                 dataValue)) {
+      mozilla::Version maxV(NS_ConvertUTF16toUTF8(dataValue).get());
+      if (maxV > zeroV && appV > maxV) {
+        // The version of the application is more than the maximal version
+        // this blocklist entry applies to, so we can just ignore it by
+        // returning false and letting the caller deal with it.
+        return false;
+      }
+    }
+  }
+
   // <os>WINNT 6.0</os>
   if (BlacklistNodeGetChildByName(element, NS_LITERAL_STRING("os"),
                                   getter_AddRefs(dataNode))) {
@@ -459,6 +532,11 @@ BlacklistEntryToDriverInfo(nsIDOMNode* aBlacklistEntry,
                                   getter_AddRefs(dataNode))) {
     BlacklistNodeToTextValue(dataNode, dataValue);
     aDriverInfo.mFeature = BlacklistFeatureToGfxFeature(dataValue);
+    if (aDriverInfo.mFeature < 0) {
+      // If we don't recognize the feature, we do not want to proceed.
+      gfxWarning() << "Unrecognized feature " << NS_ConvertUTF16toUTF8(dataValue).get();
+      return false;
+    }
   }
 
   // <featureStatus> BLOCKED_DRIVER_VERSION </featureStatus>
@@ -532,9 +610,9 @@ BlacklistEntriesToDriverInfo(nsIDOMHTMLCollection* aBlacklistEntries,
       GfxDriverInfo di;
       if (BlacklistEntryToDriverInfo(blacklistEntry, di)) {
         aDriverInfo[i] = di;
+        // Prevent di falling out of scope from destroying the devices.
+        di.mDeleteDevices = false;
       }
-      // Prevent di falling out of scope from destroying the devices.
-      di.mDeleteDevices = false;
     }
   }
 }
@@ -613,6 +691,21 @@ GfxInfoBase::FindBlocklistedDeviceInList(const nsTArray<GfxDriverInfo>& info,
 
   uint32_t i = 0;
   for (; i < info.Length(); i++) {
+    // Do the operating system check first, no point in getting the driver
+    // info if we won't need to use it. Note we also catch and skips the
+    // application version mismatches that would leave operating system
+    // set to unknown.
+    if (info[i].mOperatingSystem == DRIVER_OS_UNKNOWN ||
+        (info[i].mOperatingSystem != DRIVER_OS_ALL &&
+         info[i].mOperatingSystem != os))
+    {
+      continue;
+    }
+
+    if (info[i].mOperatingSystemVersion && info[i].mOperatingSystemVersion != OperatingSystemVersion()) {
+        continue;
+    }
+
     // XXX: it would be better not to do this everytime round the loop
     nsAutoString adapterVendorID;
     nsAutoString adapterDeviceID;
@@ -637,17 +730,6 @@ GfxInfoBase::FindBlocklistedDeviceInList(const nsTArray<GfxDriverInfo>& info,
     uint64_t driverVersion;
     ParseDriverVersion(adapterDriverVersionString, &driverVersion);
 #endif
-
-
-    if (info[i].mOperatingSystem != DRIVER_OS_ALL &&
-        info[i].mOperatingSystem != os)
-    {
-      continue;
-    }
-
-    if (info[i].mOperatingSystemVersion && info[i].mOperatingSystemVersion != OperatingSystemVersion()) {
-        continue;
-    }
 
     if (!info[i].mAdapterVendor.Equals(GfxDriverInfo::GetDeviceVendor(VendorAll), nsCaseInsensitiveStringComparator()) &&
         !info[i].mAdapterVendor.Equals(adapterVendorID, nsCaseInsensitiveStringComparator())) {
@@ -785,6 +867,11 @@ GfxInfoBase::GetFeatureStatusImpl(int32_t aFeature,
                                   const nsTArray<GfxDriverInfo>& aDriverInfo,
                                   OperatingSystem* aOS /* = nullptr */)
 {
+  if (aFeature <= 0) {
+    gfxWarning() << "Invalid feature <= 0";
+    return NS_OK;
+  }
+
   if (*aStatus != nsIGfxInfo::FEATURE_STATUS_UNKNOWN) {
     // Terminate now with the status determined by the derived type (OS-specific
     // code).
@@ -870,6 +957,7 @@ GfxInfoBase::EvaluateDownloadedBlacklist(nsTArray<GfxDriverInfo>& aDriverInfo)
     nsIGfxInfo::FEATURE_WEBGL_ANGLE,
     nsIGfxInfo::FEATURE_WEBGL_MSAA,
     nsIGfxInfo::FEATURE_STAGEFRIGHT,
+    nsIGfxInfo::FEATURE_WEBRTC_HW_ACCELERATION,
     0
   };
 
@@ -927,8 +1015,8 @@ GfxInfoBase::LogFailure(const nsACString &failure)
 /* void getFailures (out unsigned long failureCount, [optional, array, size_is (failureCount)] out long indices, [array, size_is (failureCount), retval] out string failures); */
 /* XPConnect method of returning arrays is very ugly. Would not recommend. */
 NS_IMETHODIMP GfxInfoBase::GetFailures(uint32_t* failureCount,
-				       int32_t** indices,
-				       char ***failures)
+                                       int32_t** indices,
+                                       char ***failures)
 {
   MutexAutoLock lock(mMutex);
 
@@ -979,7 +1067,7 @@ NS_IMETHODIMP GfxInfoBase::GetFailures(uint32_t* failureCount,
       if (!(*failures)[i]) {
         /* <sarcasm> I'm too afraid to use an inline function... </sarcasm> */
         NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(i, (*failures));
-	*failureCount = i;
+        *failureCount = i;
         return NS_ERROR_OUT_OF_MEMORY;
       }
     }
@@ -1017,6 +1105,24 @@ nsresult GfxInfoBase::GetInfo(JSContext* aCx, JS::MutableHandle<JS::Value> aResu
 
   aResult.setObject(*obj.mObj);
   return NS_OK;
+}
+
+const nsCString&
+GfxInfoBase::GetApplicationVersion()
+{
+  static nsAutoCString version;
+  static bool versionInitialized = false;
+  if (!versionInitialized) {
+    // If we fail to get the version, we will not try again.
+    versionInitialized = true;
+
+    // Get the version from xpcom/system/nsIXULAppInfo.idl
+    nsCOMPtr<nsIXULAppInfo> app = do_GetService("@mozilla.org/xre/app-info;1");
+    if (app) {
+      app->GetVersion(version);
+    }
+  }
+  return version;
 }
 
 void

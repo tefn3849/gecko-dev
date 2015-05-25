@@ -18,6 +18,7 @@
 #include "nsFocusManager.h"
 #include "nsFrameManager.h"
 #include "nsRefreshDriver.h"
+#include "mozilla/dom/BlobBinding.h"
 #include "mozilla/dom/Touch.h"
 #include "mozilla/PendingAnimationTracker.h"
 #include "nsIObjectLoadingContent.h"
@@ -58,6 +59,7 @@
 #include "nsIContentViewer.h"
 #include "mozilla/StyleAnimationValue.h"
 #include "mozilla/dom/File.h"
+#include "mozilla/dom/FileBinding.h"
 #include "mozilla/dom/DOMRect.h"
 #include <algorithm>
 
@@ -2592,7 +2594,7 @@ nsDOMWindowUtils::GetContainerElement(nsIDOMElement** aResult)
 
 NS_IMETHODIMP
 nsDOMWindowUtils::WrapDOMFile(nsIFile *aFile,
-                              nsIDOMFile **aDOMFile)
+                              nsISupports **aDOMFile)
 {
   MOZ_RELEASE_ASSERT(nsContentUtils::IsCallerChrome());
 
@@ -2608,8 +2610,8 @@ nsDOMWindowUtils::WrapDOMFile(nsIFile *aFile,
     return NS_ERROR_FAILURE;
   }
 
-  nsRefPtr<File> file = File::CreateFromFile(innerWindow, aFile);
-  file.forget(aDOMFile);
+  nsCOMPtr<nsIDOMBlob> blob = File::CreateFromFile(innerWindow, aFile);
+  blob.forget(aDOMFile);
   return NS_OK;
 }
 
@@ -2832,11 +2834,8 @@ nsDOMWindowUtils::GetFileId(JS::Handle<JS::Value> aFile, JSContext* aCx,
     return NS_OK;
   }
 
-  nsISupports* nativeObj =
-    nsContentUtils::XPConnect()->GetNativeOfWrapper(aCx, obj);
-
-  nsCOMPtr<nsIDOMBlob> blob = do_QueryInterface(nativeObj);
-  if (blob) {
+  Blob* blob = nullptr;
+  if (NS_SUCCEEDED(UNWRAP_OBJECT(Blob, obj, blob))) {
     *_retval = blob->GetFileId();
     return NS_OK;
   }
@@ -2858,15 +2857,13 @@ nsDOMWindowUtils::GetFilePath(JS::HandleValue aFile, JSContext* aCx,
 
   JSObject* obj = aFile.toObjectOrNull();
 
-  nsISupports* nativeObj =
-    nsContentUtils::XPConnect()->GetNativeOfWrapper(aCx, obj);
-
-  nsCOMPtr<nsIDOMFile> file = do_QueryInterface(nativeObj);
-  if (file) {
+  File* file = nullptr;
+  if (NS_SUCCEEDED(UNWRAP_OBJECT(File, obj, file))) {
     nsString filePath;
-    nsresult rv = file->GetMozFullPathInternal(filePath);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      return rv;
+    ErrorResult rv;
+    file->GetMozFullPathInternal(filePath, rv);
+    if (NS_WARN_IF(rv.Failed())) {
+      return rv.StealNSResult();
     }
 
     _retval = filePath;
@@ -3075,15 +3072,14 @@ nsDOMWindowUtils::SetContentDocumentFixedPositionMargins(float aTop, float aRigh
 }
 
 nsresult
-nsDOMWindowUtils::RemoteFrameFullscreenChanged(nsIDOMElement* aFrameElement,
-                                            const nsAString& aNewOrigin)
+nsDOMWindowUtils::RemoteFrameFullscreenChanged(nsIDOMElement* aFrameElement)
 {
   MOZ_RELEASE_ASSERT(nsContentUtils::IsCallerChrome());
 
   nsCOMPtr<nsIDocument> doc = GetDocument();
   NS_ENSURE_STATE(doc);
 
-  doc->RemoteFrameFullscreenChanged(aFrameElement, aNewOrigin);
+  doc->RemoteFrameFullscreenChanged(aFrameElement);
   return NS_OK;
 }
 

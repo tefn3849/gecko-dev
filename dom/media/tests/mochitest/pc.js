@@ -774,7 +774,6 @@ function PeerConnectionWrapper(label, configuration, h264) {
 
   this._local_ice_candidates = [];
   this._remote_ice_candidates = [];
-  this.holdIceCandidates = new Promise(r => this.releaseIceCandidates = r);
   this.localRequiresTrickleIce = false;
   this.remoteRequiresTrickleIce = false;
   this.localMediaElements = [];
@@ -1085,7 +1084,12 @@ PeerConnectionWrapper.prototype = {
     this.observedNegotiationNeeded = undefined;
     return this._pc.setRemoteDescription(desc).then(() => {
       info(this + ": Successfully set remote description");
-      this.releaseIceCandidates();
+      if (desc.type == "rollback") {
+        this.holdIceCandidates = new Promise(r => this.releaseIceCandidates = r);
+
+      } else {
+        this.releaseIceCandidates();
+      }
     });
   },
 
@@ -1204,21 +1208,18 @@ PeerConnectionWrapper.prototype = {
       return;
     }
     this.holdIceCandidates.then(() => {
-      this.addIceCandidate(candidate);
-    });
-  },
-
-  /**
-   * Adds an ICE candidate and automatically handles the failure case.
-   *
-   * @param {object} candidate
-   *        SDP candidate
-   */
-  addIceCandidate : function(candidate) {
-    info(this + ": adding ICE candidate " + JSON.stringify(candidate));
-    return this._pc.addIceCandidate(candidate).then(() => {
-      info(this + ": Successfully added an ICE candidate");
-    });
+      info(this + ": adding ICE candidate " + JSON.stringify(candidate));
+      return this._pc.addIceCandidate(candidate);
+    })
+    .then(() => ok(true, this + " successfully added an ICE candidate"))
+    .catch(e =>
+      // The onicecandidate callback runs independent of the test steps
+      // and therefore errors thrown from in there don't get caught by the
+      // race of the Promises around our test steps.
+      // Note: as long as we are queuing ICE candidates until the success
+      //       of sRD() this should never ever happen.
+      ok(false, this + " adding ICE candidate failed with: " + e.message)
+    );
   },
 
   /**
@@ -1321,10 +1322,15 @@ PeerConnectionWrapper.prototype = {
 
     var resolveEndOfTrickle;
     this.endOfTrickleIce = new Promise(r => resolveEndOfTrickle = r);
+    this.holdIceCandidates = new Promise(r => this.releaseIceCandidates = r);
 
     this.endOfTrickleIce.then(() => {
       this._pc.onicecandidate = () =>
         ok(false, this.label + " received ICE candidate after end of trickle");
+      var localSdp = this._pc.getLocalDescription();
+      ok(localSdp.includes("a=end-of-candidates"));
+      ok(localSdp.includes("a=rtcp:"));
+      ok(!localSdp.includes("c=IN IP4 0.0.0.0"));
     });
 
     this._pc.onicecandidate = anEvent => {

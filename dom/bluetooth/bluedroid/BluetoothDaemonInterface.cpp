@@ -10,13 +10,13 @@
 #include <stdlib.h>
 #include "BluetoothDaemonA2dpInterface.h"
 #include "BluetoothDaemonAvrcpInterface.h"
+#include "BluetoothDaemonConnector.h"
 #include "BluetoothDaemonHandsfreeInterface.h"
 #include "BluetoothDaemonHelpers.h"
 #include "BluetoothDaemonSetupInterface.h"
 #include "BluetoothDaemonSocketInterface.h"
 #include "BluetoothInterfaceHelpers.h"
 #include "mozilla/ipc/ListenSocket.h"
-#include "mozilla/ipc/UnixSocketConnector.h"
 #include "mozilla/unused.h"
 #include "prrng.h"
 
@@ -1694,24 +1694,18 @@ public:
   void OnConnectError() override;
   void OnDisconnect() override;
 
-  // ConnectionOrientedSocket
-  //
-
-  ConnectionOrientedSocketIO* GetIO() override;
-
 private:
   BluetoothDaemonInterface* mInterface;
   BluetoothDaemonInterface::Channel mChannel;
-  BluetoothDaemonPDUConsumer* mConsumer;
 };
 
 BluetoothDaemonChannel::BluetoothDaemonChannel(
   BluetoothDaemonInterface* aInterface,
   BluetoothDaemonInterface::Channel aChannel,
   BluetoothDaemonPDUConsumer* aConsumer)
-  : mInterface(aInterface)
+  : BluetoothDaemonConnection(aConsumer)
+  , mInterface(aInterface)
   , mChannel(aChannel)
-  , mConsumer(aConsumer)
 { }
 
 void
@@ -1739,12 +1733,6 @@ BluetoothDaemonChannel::OnDisconnect()
   MOZ_ASSERT(mInterface);
 
   mInterface->OnDisconnect(mChannel);
-}
-
-ConnectionOrientedSocketIO*
-BluetoothDaemonChannel::GetIO()
-{
-  return PrepareAccept(mConsumer);
 }
 
 //
@@ -1911,9 +1899,9 @@ BluetoothDaemonInterface::OnConnectSuccess(enum Channel aChannel)
       } else if (
         NS_WARN_IF(mNtfChannel->GetConnectionStatus() == SOCKET_CONNECTED)) {
         /* Notification channel should not be open; let's close it. */
-        mNtfChannel->CloseSocket();
+        mNtfChannel->Close();
       }
-      if (!mListenSocket->Listen(mNtfChannel)) {
+      if (NS_FAILED(mListenSocket->Listen(mNtfChannel))) {
         OnConnectError(NTF_CHANNEL);
       }
       break;
@@ -1942,7 +1930,7 @@ BluetoothDaemonInterface::OnConnectError(enum Channel aChannel)
   switch (aChannel) {
     case NTF_CHANNEL:
       // Close command channel
-      mCmdChannel->CloseSocket();
+      mCmdChannel->Close();
     case CMD_CHANNEL:
       // Stop daemon and close listen socket
       unused << NS_WARN_IF(property_set("ctl.stop", "bluetoothd"));
@@ -2017,78 +2005,6 @@ BluetoothDaemonInterface::OnDisconnect(enum Channel aChannel)
     }
   }
 }
-
-class BluetoothDaemonSocketConnector final
-  : public mozilla::ipc::UnixSocketConnector
-{
-public:
-  BluetoothDaemonSocketConnector(const nsACString& aSocketName)
-    : mSocketName(aSocketName)
-  { }
-
-  int
-  Create() override
-  {
-    MOZ_ASSERT(!NS_IsMainThread());
-
-    int fd = socket(AF_UNIX, SOCK_SEQPACKET, 0);
-    if (fd < 0) {
-      BT_WARNING("Could not open socket!");
-      return -1;
-    }
-    return fd;
-  }
-
-  bool
-  CreateAddr(bool aIsServer,
-             socklen_t& aAddrSize,
-             sockaddr_any& aAddr,
-             const char* aAddress) override
-  {
-    static const size_t sNameOffset = 1;
-
-    size_t namesiz = mSocketName.Length() + 1; /* include trailing '\0' */
-
-    if ((sNameOffset + namesiz) > sizeof(aAddr.un.sun_path)) {
-      BT_WARNING("Address too long for socket struct!");
-      return false;
-    }
-
-    memset(aAddr.un.sun_path, '\0', sNameOffset); // abstract socket
-    memcpy(aAddr.un.sun_path + sNameOffset, mSocketName.get(), namesiz);
-    aAddr.un.sun_family = AF_UNIX;
-
-    aAddrSize = offsetof(struct sockaddr_un, sun_path) + sNameOffset + namesiz;
-
-    return true;
-  }
-
-  bool
-  SetUp(int aFd) override
-  {
-    if (TEMP_FAILURE_RETRY(fcntl(aFd, F_SETFL, O_NONBLOCK)) < 0) {
-      BT_WARNING("Failed to set non-blocking I/O.");
-      return false;
-    }
-    return true;
-  }
-
-  bool
-  SetUpListenSocket(int aFd) override
-  {
-    return true;
-  }
-
-  void
-  GetSocketAddr(const sockaddr_any& aAddr, nsAString& aAddrStr) override
-  {
-    // Unused.
-    MOZ_CRASH("This should never be called!");
-  }
-
-private:
-  nsCString mSocketName;
-};
 
 nsresult
 BluetoothDaemonInterface::CreateRandomAddressString(
@@ -2165,7 +2081,7 @@ BluetoothDaemonInterface::Init(
   BluetoothNotificationHandler* aNotificationHandler,
   BluetoothResultHandler* aRes)
 {
-  static const char BASE_SOCKET_NAME[] = "bluetoothd";
+#define BASE_SOCKET_NAME "bluetoothd"
   static unsigned long POSTFIX_LENGTH = 16;
 
   // If we could not cleanup properly before and an old
@@ -2192,7 +2108,7 @@ BluetoothDaemonInterface::Init(
   } else if (
     NS_WARN_IF(mCmdChannel->GetConnectionStatus() == SOCKET_CONNECTED)) {
     // Command channel should not be open; let's close it.
-    mCmdChannel->CloseSocket();
+    mCmdChannel->Close();
   }
 
   // The listen socket's name is generated with a random postfix. This
@@ -2205,12 +2121,12 @@ BluetoothDaemonInterface::Init(
                                           POSTFIX_LENGTH,
                                           mListenSocketName);
   if (NS_FAILED(rv)) {
-    mListenSocketName = BASE_SOCKET_NAME;
+    mListenSocketName.AssignLiteral(BASE_SOCKET_NAME);
   }
 
-  bool success = mListenSocket->Listen(
-    new BluetoothDaemonSocketConnector(mListenSocketName), mCmdChannel);
-  if (!success) {
+  rv = mListenSocket->Listen(new BluetoothDaemonConnector(mListenSocketName),
+                             mCmdChannel);
+  if (NS_FAILED(rv)) {
     OnConnectError(CMD_CHANNEL);
     return;
   }
@@ -2254,7 +2170,7 @@ private:
       mInterface->mProtocol->UnregisterModuleCmd(0x01, this);
     } else {
       // Cleanup, step 3: Close command channel
-      mInterface->mCmdChannel->CloseSocket();
+      mInterface->mCmdChannel->Close();
     }
   }
 

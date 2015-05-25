@@ -419,10 +419,13 @@ MarkupView.prototype = {
   },
 
   /**
-   * Highlight the inspector selected node.
+   * React to new-node-front selection events.
+   * Highlights the node if needed, and make sure it is shown and selected in
+   * the view.
    */
   _onNewSelection: function() {
     let selection = this._inspector.selection;
+    let reason = selection.reason;
 
     this.htmlEditor.hide();
     if (this._hoveredNode && this._hoveredNode !== selection.nodeFront) {
@@ -430,34 +433,57 @@ MarkupView.prototype = {
       this._hoveredNode = null;
     }
 
+    if (!selection.isNode()) {
+      this.unmarkSelectedNode();
+      return;
+    }
+
     let done = this._inspector.updating("markup-view");
-    if (selection.isNode()) {
-      if (this._shouldNewSelectionBeHighlighted()) {
-        this._brieflyShowBoxModel(selection.nodeFront);
+
+    // Highlight the element briefly if needed.
+    if (this._shouldNewSelectionBeHighlighted()) {
+      this._brieflyShowBoxModel(selection.nodeFront);
+    }
+
+    this.showNode(selection.nodeFront).then(() => {
+      // We could be destroyed by now.
+      if (this._destroyer) {
+        return promise.reject("markupview destroyed");
       }
 
-      this.showNode(selection.nodeFront).then(() => {
-        if (this._destroyer) {
-          return promise.reject("markupview destroyed");
-        }
-        if (selection.reason !== "treepanel") {
-          this.markNodeAsSelected(selection.nodeFront);
-        }
-        done();
-      }).then(null, e => {
-        if (!this._destroyer) {
-          console.error(e);
-        } else {
-          console.warn("Could not mark node as selected, the markup-view was " +
-            "destroyed while showing the node.");
-        }
+      // Mark the node as selected.
+      this.markNodeAsSelected(selection.nodeFront);
 
-        done();
-      });
-    } else {
-      this.unmarkSelectedNode();
+      // Make sure the new selection receives focus so the keyboard can be used.
+      this.maybeFocusNewSelection();
+
       done();
+    }).catch(e => {
+      if (!this._destroyer) {
+        console.error(e);
+      } else {
+        console.warn("Could not mark node as selected, the markup-view was " +
+          "destroyed while showing the node.");
+      }
+
+      done();
+    });
+  },
+
+  /**
+   * Focus the current node selection's MarkupContainer if the selection
+   * happened because the user picked an element using the element picker or
+   * browser context menu.
+   */
+  maybeFocusNewSelection: function() {
+    let {reason, nodeFront} = this._inspector.selection;
+
+    if (reason !== "browser-context-menu" &&
+        reason !== "picker-node-picked") {
+      return;
     }
+
+    this.getContainer(nodeFront).focus();
   },
 
   /**
@@ -874,7 +900,7 @@ MarkupView.prototype = {
         console.warn("Could not expand the node, the markup-view was destroyed");
         return;
       }
-      aContainer.expanded = true;
+      aContainer.setExpanded(true);
     });
   },
 
@@ -919,7 +945,7 @@ MarkupView.prototype = {
    */
   collapseNode: function(aNode) {
     let container = this.getContainer(aNode);
-    container.expanded = false;
+    container.setExpanded(false);
   },
 
   /**
@@ -1155,22 +1181,33 @@ MarkupView.prototype = {
   /**
    * Mark the given node selected, and update the inspector.selection
    * object's NodeFront to keep consistent state between UI and selection.
-   * @param aNode The NodeFront to mark as selected.
+   * @param {NodeFront} aNode The NodeFront to mark as selected.
+   * @param {String} reason The reason for marking the node as selected.
+   * @return {Boolean} False if the node is already marked as selected, true
+   * otherwise.
    */
-  markNodeAsSelected: function(aNode, reason) {
-    let container = this.getContainer(aNode);
+  markNodeAsSelected: function(node, reason) {
+    let container = this.getContainer(node);
     if (this._selectedContainer === container) {
       return false;
     }
+
+    // Un-select the previous container.
     if (this._selectedContainer) {
       this._selectedContainer.selected = false;
     }
+
+    // Select the new container.
     this._selectedContainer = container;
-    if (aNode) {
+    if (node) {
       this._selectedContainer.selected = true;
     }
 
-    this._inspector.selection.setNodeFront(aNode, reason || "nodeselected");
+    // Change the current selection if needed.
+    if (this._inspector.selection.nodeFront !== node) {
+      this._inspector.selection.setNodeFront(node, reason || "nodeselected");
+    }
+
     return true;
   },
 
@@ -1264,11 +1301,40 @@ MarkupView.prototype = {
       return promise.resolve(aContainer);
     }
 
+    if (aContainer.singleTextChild
+        && aContainer.singleTextChild != aContainer.node.singleTextChild) {
+
+      // This container was doing double duty as a container for a single
+      // text child, back that out.
+      this._containers.delete(aContainer.singleTextChild);
+      aContainer.clearSingleTextChild();
+
+      if (aContainer.hasChildren && aContainer.selected) {
+        aContainer.setExpanded(true);
+      }
+    }
+
+    if (aContainer.node.singleTextChild) {
+      aContainer.setExpanded(false);
+      // this container will do double duty as the container for the single
+      // text child.
+      while (aContainer.children.firstChild) {
+        aContainer.children.removeChild(aContainer.children.firstChild);
+      }
+
+      aContainer.setSingleTextChild(aContainer.node.singleTextChild);
+
+      this._containers.set(aContainer.node.singleTextChild, aContainer);
+      aContainer.childrenDirty = false;
+      return promise.resolve(aContainer);
+    }
+
     if (!aContainer.hasChildren) {
       while (aContainer.children.firstChild) {
         aContainer.children.removeChild(aContainer.children.firstChild);
       }
       aContainer.childrenDirty = false;
+      aContainer.setExpanded(false);
       return promise.resolve(aContainer);
     }
 
@@ -1344,7 +1410,8 @@ MarkupView.prototype = {
     if (!this._queuedChildUpdates) {
       return promise.resolve(undefined);
     }
-    return promise.all([updatePromise for (updatePromise of this._queuedChildUpdates.values())]);
+
+    return promise.all([...this._queuedChildUpdates.values()]);
   },
 
   /**
@@ -1705,11 +1772,22 @@ MarkupContainer.prototype = {
 
   set hasChildren(aValue) {
     this._hasChildren = aValue;
+    this.updateExpander();
+  },
+
+  /**
+   * True if the current node can be expanded.
+   */
+  get canExpand() {
+    return this._hasChildren && !this.node.singleTextChild;
+  },
+
+  updateExpander: function() {
     if (!this.expander) {
       return;
     }
 
-    if (aValue) {
+    if (this.canExpand) {
       this.expander.style.visibility = "visible";
     } else {
       this.expander.style.visibility = "hidden";
@@ -1735,9 +1813,13 @@ MarkupContainer.prototype = {
     return !this.elt.classList.contains("collapsed");
   },
 
-  set expanded(aValue) {
+  setExpanded: function(aValue) {
     if (!this.expander) {
       return;
+    }
+
+    if (!this.canExpand) {
+      aValue = false;
     }
 
     if (aValue && this.elt.classList.contains("collapsed")) {
@@ -1766,6 +1848,7 @@ MarkupContainer.prototype = {
     } else if (!aValue) {
       if (this.closeTagLine) {
         this.elt.removeChild(this.closeTagLine);
+        this.closeTagLine = undefined;
       }
       this.elt.classList.add("collapsed");
       this.expander.removeAttribute("open");
@@ -1816,7 +1899,7 @@ MarkupContainer.prototype = {
     // line. So, if the click happened outside of a focusable element, do
     // prevent the default behavior, so that the tagname or textcontent gains
     // focus.
-    if (!target.closest(".open [tabindex]")) {
+    if (!target.closest(".editor [tabindex]")) {
       event.preventDefault();
     }
 
@@ -2169,9 +2252,19 @@ MarkupElementContainer.prototype = Heritage.extend(MarkupContainer.prototype, {
     // the tooltip, because we want the full-size image
     this.node.getImageData().then(data => {
       data.data.string().then(str => {
-        clipboardHelper.copyString(str, this.markup.doc);
+        clipboardHelper.copyString(str);
       });
     });
+  },
+
+  setSingleTextChild: function(singleTextChild) {
+    this.singleTextChild = singleTextChild;
+    this.editor.updateTextEditor();
+  },
+
+  clearSingleTextChild: function() {
+    this.singleTextChild = undefined;
+    this.editor.updateTextEditor();
   }
 });
 
@@ -2199,7 +2292,9 @@ RootContainer.prototype = {
    */
   getChildContainers: function() {
     return [...this.children.children].map(node => node.container);
-  }
+  },
+
+  setExpanded: function(aValue) {}
 };
 
 /**
@@ -2277,7 +2372,10 @@ function TextEditor(aContainer, aNode, aTemplate) {
 }
 
 TextEditor.prototype = {
-  get selected() this._selected,
+  get selected() {
+    return this._selected;
+  },
+
   set selected(aValue) {
     if (aValue === this._selected) {
       return;
@@ -2302,6 +2400,7 @@ TextEditor.prototype = {
         longstr.release().then(null, console.error);
         if (this.selected) {
           this.value.textContent = str;
+          this.markup.emit("text-expand")
         }
       }).then(null, console.error);
     }
@@ -2387,6 +2486,12 @@ function ElementEditor(aContainer, aNode) {
 
 ElementEditor.prototype = {
 
+  set selected(aValue) {
+    if (this.textEditor) {
+      this.textEditor.selected = aValue;
+    }
+  },
+
   flashAttribute: function(attrName) {
     if (this.animationTimers[attrName]) {
       clearTimeout(this.animationTimers[attrName]);
@@ -2438,6 +2543,33 @@ ElementEditor.prototype = {
           this.flashAttribute(attr.name);
         }
       }
+    }
+
+    this.updateTextEditor();
+  },
+
+  /**
+   * Update the inline text editor in case of a single text child node.
+   */
+  updateTextEditor: function() {
+    let node = this.node.singleTextChild;
+
+    if (this.textEditor && this.textEditor.node != node) {
+      this.elt.removeChild(this.textEditor.elt);
+      this.textEditor = null;
+    }
+
+    if (node && !this.textEditor) {
+      // Create a text editor added to this editor.
+      // This editor won't receive an update automatically, so we rely on
+      // child text editors to let us know that we need updating.
+      this.textEditor = new TextEditor(this.container, node, "text");
+      this.elt.insertBefore(this.textEditor.elt,
+                            this.elt.firstChild.nextSibling.nextSibling);
+    }
+
+    if (this.textEditor) {
+      this.textEditor.update();
     }
   },
 

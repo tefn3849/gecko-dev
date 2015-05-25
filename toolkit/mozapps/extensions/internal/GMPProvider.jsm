@@ -18,6 +18,7 @@ Cu.import("resource://gre/modules/osfile.jsm");
 Cu.import("resource://gre/modules/Log.jsm");
 Cu.import("resource://gre/modules/Task.jsm");
 Cu.import("resource://gre/modules/GMPUtils.jsm");
+Cu.import("resource://gre/modules/AppConstants.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(
   this, "GMPInstallManager", "resource://gre/modules/GMPInstallManager.jsm");
@@ -48,7 +49,8 @@ const GMP_PLUGINS = [
     // localisation.
     licenseURL:      "chrome://mozapps/content/extensions/OpenH264-license.txt",
     homepageURL:     "http://www.openh264.org/",
-    optionsURL:      "chrome://mozapps/content/extensions/gmpPrefs.xul"
+    optionsURL:      "chrome://mozapps/content/extensions/gmpPrefs.xul",
+    missingKey:      "VIDEO_OPENH264_GMP_DISAPPEARED",
   },
   {
     id:              EME_ADOBE_ID,
@@ -62,13 +64,16 @@ const GMP_PLUGINS = [
     licenseURL:      "http://help.adobe.com/en_US/primetime/drm/HTML5_CDM_EULA/index.html",
     homepageURL:     "http://help.adobe.com/en_US/primetime/drm/HTML5_CDM",
     optionsURL:      "chrome://mozapps/content/extensions/gmpPrefs.xul",
-    isEME:           true
+    isEME:           true,
+    missingKey:      "VIDEO_ADOBE_GMP_DISAPPEARED",
   }];
 
 XPCOMUtils.defineLazyGetter(this, "pluginsBundle",
   () => Services.strings.createBundle("chrome://global/locale/plugins.properties"));
 XPCOMUtils.defineLazyGetter(this, "gmpService",
   () => Cc["@mozilla.org/gecko-media-plugin-service;1"].getService(Ci.mozIGeckoMediaPluginChromeService));
+
+XPCOMUtils.defineLazyGetter(this, "telemetryService", () => Services.telemetry);
 
 let messageManager = Cc["@mozilla.org/globalmessagemanager;1"]
                        .getService(Ci.nsIMessageListenerManager);
@@ -138,6 +143,10 @@ GMPWrapper.prototype = {
                                                 null, this._plugin.id));
     }
     return this._gmpPath;
+  },
+
+  get missingKey() {
+    return this._plugin.missingKey;
   },
 
   get id() { return this._plugin.id; },
@@ -447,6 +456,26 @@ GMPWrapper.prototype = {
     }
     return this._updateTask;
   },
+
+  _arePluginFilesOnDisk: function () {
+    let fileExists = function(aGmpPath, aFileName) {
+      let f = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
+      let path = OS.Path.join(aGmpPath, aFileName);
+      f.initWithPath(path);
+      return f.exists();
+    };
+
+    let id = this._plugin.id.substring(4);
+    let libName = AppConstants.DLL_PREFIX + id + AppConstants.DLL_SUFFIX;
+
+    return fileExists(this.gmpPath, libName) &&
+           fileExists(this.gmpPath, id + ".info");
+  },
+
+  validate: function() {
+    return !this.isInstalled ||
+           this._arePluginFilesOnDisk();
+  },
 };
 
 let GMPProvider = {
@@ -472,6 +501,13 @@ let GMPProvider = {
                       gmpPath);
 
       if (gmpPath && isEnabled) {
+        if (!wrapper.validate()) {
+          this._log.info("startup - gmp " + plugin.id +
+                         " missing lib and/or info files, uninstalling");
+          telemetryService.getHistogramById(wrapper.missingKey).add(true);
+          wrapper.uninstallPlugin();
+          continue;
+        }
         this._log.info("startup - adding gmp directory " + gmpPath);
         try {
           gmpService.addPluginDirectory(gmpPath);
@@ -587,6 +623,7 @@ let GMPProvider = {
         optionsURL: aPlugin.optionsURL,
         wrapper: null,
         isEME: aPlugin.isEME,
+        missingKey: aPlugin.missingKey,
       };
       plugin.fullDescription = this.generateFullDescription(aPlugin);
       plugin.wrapper = new GMPWrapper(plugin);

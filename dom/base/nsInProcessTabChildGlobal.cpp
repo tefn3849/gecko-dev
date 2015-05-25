@@ -26,6 +26,7 @@
 using mozilla::dom::StructuredCloneData;
 using mozilla::dom::StructuredCloneClosure;
 using namespace mozilla;
+using namespace mozilla::dom;
 
 bool
 nsInProcessTabChildGlobal::DoSendBlockingMessage(JSContext* aCx,
@@ -33,7 +34,7 @@ nsInProcessTabChildGlobal::DoSendBlockingMessage(JSContext* aCx,
                                                  const dom::StructuredCloneData& aData,
                                                  JS::Handle<JSObject *> aCpows,
                                                  nsIPrincipal* aPrincipal,
-                                                 InfallibleTArray<nsString>* aJSONRetVal,
+                                                 nsTArray<OwningSerializedStructuredCloneBuffer>* aRetVal,
                                                  bool aIsSync)
 {
   SameProcessMessageQueue* queue = SameProcessMessageQueue::Get();
@@ -44,7 +45,7 @@ nsInProcessTabChildGlobal::DoSendBlockingMessage(JSContext* aCx,
     nsRefPtr<nsFrameMessageManager> mm = mChromeMessageManager;
     nsCOMPtr<nsIFrameLoader> fl = GetFrameLoader();
     mm->ReceiveMessage(mOwner, fl, aMessage, true, &aData, &cpows, aPrincipal,
-                       aJSONRetVal);
+                       aRetVal);
   }
   return true;
 }

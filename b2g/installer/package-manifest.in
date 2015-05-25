@@ -439,6 +439,10 @@
 @RESPATH@/components/TCPPresentationServer.js
 
 #ifdef MOZ_SECUREELEMENT
+@RESPATH@/components/ACEService.js
+@RESPATH@/components/ACEService.manifest
+@RESPATH@/components/GPAccessRulesManager.js
+@RESPATH@/components/GPAccessRulesManager.manifest
 @RESPATH@/components/SecureElement.js
 @RESPATH@/components/SecureElement.manifest
 @RESPATH@/components/UiccConnector.js
@@ -491,6 +495,8 @@
 #if defined(MOZ_WIDGET_GONK) && defined(MOZ_B2G_RIL)
 @RESPATH@/components/CellBroadcastService.js
 @RESPATH@/components/CellBroadcastService.manifest
+@RESPATH@/components/DataCallManager.js
+@RESPATH@/components/DataCallManager.manifest
 @BINPATH@/components/IccService.js
 @BINPATH@/components/IccService.manifest
 @RESPATH@/components/MmsService.js
@@ -498,6 +504,8 @@
 @RESPATH@/components/MobileMessageDatabaseService.js
 @RESPATH@/components/MobileMessageDatabaseService.manifest
 #ifndef DISABLE_MOZ_RIL_GEOLOC
+@RESPATH@/components/DataCallInterfaceService.js
+@RESPATH@/components/DataCallInterfaceService.manifest
 @RESPATH@/components/MobileConnectionService.js
 @RESPATH@/components/MobileConnectionService.manifest
 @RESPATH@/components/RadioInterfaceLayer.js
@@ -511,6 +519,8 @@
 @RESPATH@/components/RILSystemMessengerHelper.manifest
 @RESPATH@/components/TelephonyAudioService.js
 @RESPATH@/components/TelephonyAudioService.manifest
+@RESPATH@/components/USSDReceivedWrapper.js
+@RESPATH@/components/USSDReceivedWrapper.manifest
 #ifndef DISABLE_MOZ_RIL_GEOLOC
 @RESPATH@/components/TelephonyService.js
 @RESPATH@/components/TelephonyService.manifest

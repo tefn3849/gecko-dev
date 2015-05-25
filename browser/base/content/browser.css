@@ -773,8 +773,8 @@ window[chromehidden~="toolbar"] toolbar:not(#nav-bar):not(#TabsToolbar):not(#pri
   -moz-binding: url("chrome://browser/content/urlbarBindings.xml#click-to-play-plugins-notification");
 }
 
-#password-fill-notification {
-  -moz-binding: url("chrome://browser/content/urlbarBindings.xml#password-fill-notification");
+#login-fill-notification {
+  -moz-binding: url("chrome://browser/content/urlbarBindings.xml#login-fill-notification");
 }
 
 .login-fill-item {
@@ -1033,6 +1033,9 @@ chatbox:-moz-full-screen-ancestor > .chat-titlebar {
 /* Combobox dropdown renderer */
 #ContentSelectDropdown > menupopup {
   max-height: 350px;
+  /* The menupopup itself should always be rendered LTR to ensure the scrollbar aligns with
+   * the dropdown arrow on the dropdown widget. If a menuitem is RTL, its style will be set accordingly */
+  direction: ltr;
 }
 
 .contentSelectDropdown-optgroup {

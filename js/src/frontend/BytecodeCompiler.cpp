@@ -21,6 +21,7 @@
 #include "jsscriptinlines.h"
 
 #include "frontend/Parser-inl.h"
+#include "vm/ScopeObject-inl.h"
 
 using namespace js;
 using namespace js::frontend;
@@ -282,10 +283,8 @@ frontend::CompileScript(ExclusiveContext* cx, LifoAlloc* alloc, HandleObject sco
         return nullptr;
 
     bool savedCallerFun = evalCaller && evalCaller->functionOrCallerFunction();
-    bool allowSuperProperty = savedCallerFun && evalCaller->functionOrCallerFunction()->isMethod();
-
     Directives directives(options.strictOption);
-    GlobalSharedContext globalsc(cx, directives, options.extraWarningsOption, allowSuperProperty);
+    GlobalSharedContext globalsc(cx, directives, evalStaticScope, options.extraWarningsOption);
 
     Rooted<JSScript*> script(cx, JSScript::Create(cx, evalStaticScope, savedCallerFun,
                                                   options, staticLevel, sourceObject, 0,
@@ -298,8 +297,8 @@ frontend::CompileScript(ExclusiveContext* cx, LifoAlloc* alloc, HandleObject sco
     BytecodeEmitter::EmitterMode emitterMode =
         options.selfHostingMode ? BytecodeEmitter::SelfHosting : BytecodeEmitter::Normal;
     BytecodeEmitter bce(/* parent = */ nullptr, &parser, &globalsc, script,
-                        /* lazyScript = */ js::NullPtr(), options.forEval,
-                        evalCaller, evalStaticScope, insideNonGlobalEval,
+                        /* lazyScript = */ nullptr, options.forEval,
+                        evalCaller, insideNonGlobalEval,
                         options.lineno, emitterMode);
     if (!bce.init())
         return nullptr;
@@ -342,7 +341,7 @@ frontend::CompileScript(ExclusiveContext* cx, LifoAlloc* alloc, HandleObject sco
         TokenStream::Position pos(parser.keepAtoms);
         parser.tokenStream.tell(&pos);
 
-        ParseNode* pn = parser.statement(canHaveDirectives);
+        ParseNode* pn = parser.statement(YieldIsName, canHaveDirectives);
         if (!pn) {
             if (parser.hadAbortedSyntaxParse()) {
                 // Parsing inner functions lazily may lead the parser into an
@@ -366,7 +365,7 @@ frontend::CompileScript(ExclusiveContext* cx, LifoAlloc* alloc, HandleObject sco
                     return nullptr;
                 MOZ_ASSERT(parser.pc == pc.ptr());
 
-                pn = parser.statement();
+                pn = parser.statement(YieldIsName);
             }
             if (!pn) {
                 MOZ_ASSERT(!parser.hadAbortedSyntaxParse());
@@ -521,8 +520,7 @@ frontend::CompileLazyFunction(JSContext* cx, Handle<LazyScript*> lazy, const cha
      */
     MOZ_ASSERT(!options.forEval);
     BytecodeEmitter bce(/* parent = */ nullptr, &parser, pn->pn_funbox, script, lazy,
-                        /* insideEval = */ false, /* evalCaller = */ js::NullPtr(),
-                        /* evalStaticScope = */ js::NullPtr(),
+                        /* insideEval = */ false, /* evalCaller = */ nullptr,
                         /* insideNonGlobalEval = */ false, options.lineno,
                         BytecodeEmitter::LazyFunction);
     if (!bce.init())
@@ -648,9 +646,8 @@ CompileFunctionBody(JSContext* cx, MutableHandleFunction fun, const ReadOnlyComp
         script->bindings = fn->pn_funbox->bindings;
 
         BytecodeEmitter funbce(/* parent = */ nullptr, &parser, fn->pn_funbox, script,
-                               /* lazyScript = */ js::NullPtr(), /* insideEval = */ false,
-                               /* evalCaller = */ js::NullPtr(),
-                               /* evalStaticScope = */ js::NullPtr(),
+                               /* lazyScript = */ nullptr, /* insideEval = */ false,
+                               /* evalCaller = */ nullptr,
                                /* insideNonGlobalEval = */ false, options.lineno);
         if (!funbce.init())
             return false;
@@ -683,5 +680,5 @@ frontend::CompileStarGeneratorBody(JSContext* cx, MutableHandleFunction fun,
                                    const ReadOnlyCompileOptions& options, const AutoNameVector& formals,
                                    JS::SourceBufferHolder& srcBuf)
 {
-    return CompileFunctionBody(cx, fun, options, formals, srcBuf, NullPtr(), StarGenerator);
+    return CompileFunctionBody(cx, fun, options, formals, srcBuf, nullptr, StarGenerator);
 }

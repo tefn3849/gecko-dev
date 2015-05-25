@@ -12,7 +12,7 @@
 #include <vector>
 
 #ifdef MOZ_LOGGING
-#include <prlog.h>
+#include "mozilla/Logging.h"
 #endif
 
 #if defined(MOZ_WIDGET_GONK) || defined(MOZ_WIDGET_ANDROID)
@@ -246,7 +246,7 @@ public:
     if (!str.empty()) {
       WriteLog(str);
     }
-    mMessage.clear();
+    mMessage.str("");
   }
 
   Log &operator <<(char aChar) {

@@ -19,25 +19,19 @@
 #include "nsIEventTarget.h"
 #include "nsIRunnable.h"
 #include "nsThreadUtils.h"
-#include "prlog.h"
+#include "mozilla/Logging.h"
 #include <time.h>
 #include "TimeUnits.h"
 
 struct JSContext;
 class JSObject;
 
-#ifdef PR_LOGGING
 extern PRLogModuleInfo* GetMediaSourceLog();
 extern PRLogModuleInfo* GetMediaSourceAPILog();
 
-#define MSE_DEBUG(arg, ...) PR_LOG(GetMediaSourceLog(), PR_LOG_DEBUG, ("SourceBuffer(%p:%s)::%s: " arg, this, mType.get(), __func__, ##__VA_ARGS__))
-#define MSE_DEBUGV(arg, ...) PR_LOG(GetMediaSourceLog(), PR_LOG_DEBUG + 1, ("SourceBuffer(%p:%s)::%s: " arg, this, mType.get(), __func__, ##__VA_ARGS__))
-#define MSE_API(arg, ...) PR_LOG(GetMediaSourceAPILog(), PR_LOG_DEBUG, ("SourceBuffer(%p:%s)::%s: " arg, this, mType.get(), __func__, ##__VA_ARGS__))
-#else
-#define MSE_DEBUG(...)
-#define MSE_DEBUGV(...)
-#define MSE_API(...)
-#endif
+#define MSE_DEBUG(arg, ...) MOZ_LOG(GetMediaSourceLog(), PR_LOG_DEBUG, ("SourceBuffer(%p:%s)::%s: " arg, this, mType.get(), __func__, ##__VA_ARGS__))
+#define MSE_DEBUGV(arg, ...) MOZ_LOG(GetMediaSourceLog(), PR_LOG_DEBUG + 1, ("SourceBuffer(%p:%s)::%s: " arg, this, mType.get(), __func__, ##__VA_ARGS__))
+#define MSE_API(arg, ...) MOZ_LOG(GetMediaSourceAPILog(), PR_LOG_DEBUG, ("SourceBuffer(%p:%s)::%s: " arg, this, mType.get(), __func__, ##__VA_ARGS__))
 
 namespace mozilla {
 
@@ -146,17 +140,14 @@ SourceBuffer::GetBuffered(ErrorResult& aRv)
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return nullptr;
   }
-  nsRefPtr<TimeRanges> ranges = new TimeRanges();
-  double highestEndTime = mTrackBuffer->Buffered(ranges);
-  if (mMediaSource->ReadyState() == MediaSourceReadyState::Ended) {
-    // Set the end time on the last range to highestEndTime by adding a
-    // new range spanning the current end time to highestEndTime, which
-    // Normalize() will then merge with the old last range.
-    ranges->Add(ranges->GetEndTime(), highestEndTime);
-    ranges->Normalize();
-  }
+  // We only manage a single trackbuffer in our source buffer.
+  // As such, there's no need to adjust the end of the trackbuffers as per
+  // Step 4: http://w3c.github.io/media-source/index.html#widl-SourceBuffer-buffered
+  media::TimeIntervals ranges = mTrackBuffer->Buffered();
   MSE_DEBUGV("ranges=%s", DumpTimeRanges(ranges).get());
-  return ranges.forget();
+  nsRefPtr<dom::TimeRanges> tr = new dom::TimeRanges();
+  ranges.ToTimeRanges(tr);
+  return tr.forget();
 }
 
 void
@@ -287,8 +278,8 @@ SourceBuffer::DoRangeRemoval(double aStart, double aEnd)
 {
   MSE_DEBUG("DoRangeRemoval(%f, %f)", aStart, aEnd);
   if (mTrackBuffer && !IsInfinite(aStart)) {
-    mTrackBuffer->RangeRemoval(media::Microseconds::FromSeconds(aStart),
-                               media::Microseconds::FromSeconds(aEnd));
+    mTrackBuffer->RangeRemoval(media::TimeUnit::FromSeconds(aStart),
+                               media::TimeUnit::FromSeconds(aEnd));
   }
 }
 

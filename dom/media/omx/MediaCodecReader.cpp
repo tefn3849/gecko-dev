@@ -334,7 +334,7 @@ MediaCodecReader::DispatchAudioTask()
     RefPtr<nsIRunnable> task =
       NS_NewRunnableMethod(this,
                            &MediaCodecReader::DecodeAudioDataTask);
-    mAudioTrack.mTaskQueue->Dispatch(task);
+    mAudioTrack.mTaskQueue->Dispatch(task.forget());
   }
 }
 
@@ -346,7 +346,7 @@ MediaCodecReader::DispatchVideoTask(int64_t aTimeThreshold)
       NS_NewRunnableMethodWithArg<int64_t>(this,
                                            &MediaCodecReader::DecodeVideoFrameTask,
                                            aTimeThreshold);
-    mVideoTrack.mTaskQueue->Dispatch(task);
+    mVideoTrack.mTaskQueue->Dispatch(task.forget());
   }
 }
 
@@ -426,8 +426,11 @@ MediaCodecReader::DecodeAudioDataSync()
     }
   }
 
-  if (bufferInfo.mBuffer != nullptr && bufferInfo.mSize > 0 &&
-      bufferInfo.mBuffer->data() != nullptr) {
+  if ((bufferInfo.mFlags & MediaCodec::BUFFER_FLAG_EOS) ||
+      (status == ERROR_END_OF_STREAM)) {
+    AudioQueue().Finish();
+  } else if (bufferInfo.mBuffer != nullptr && bufferInfo.mSize > 0 &&
+             bufferInfo.mBuffer->data() != nullptr) {
     // This is the approximate byte position in the stream.
     int64_t pos = mDecoder->GetResource()->Tell();
 
@@ -445,13 +448,7 @@ MediaCodecReader::DecodeAudioDataSync()
         bufferInfo.mSize,
         mInfo.mAudio.mChannels));
   }
-
-  if ((bufferInfo.mFlags & MediaCodec::BUFFER_FLAG_EOS) ||
-      (status == ERROR_END_OF_STREAM)) {
-    AudioQueue().Finish();
-  }
   mAudioTrack.mCodec->releaseOutputBuffer(bufferInfo.mIndex);
-
 }
 
 void
@@ -790,16 +787,9 @@ MediaCodecReader::TextureClientRecycleCallback(TextureClient* aClient)
       return;
     }
 
-#if MOZ_WIDGET_GONK && ANDROID_VERSION >= 17
-    sp<Fence> fence = aClient->GetReleaseFenceHandle().mFence;
-    if (fence.get() && fence->isValid()) {
-      mPendingReleaseItems.AppendElement(ReleaseItem(index, fence));
-    } else {
-      mPendingReleaseItems.AppendElement(ReleaseItem(index, nullptr));
-    }
-#else
-    mPendingReleaseItems.AppendElement(ReleaseItem(index));
-#endif
+    FenceHandle handle = aClient->GetAndResetReleaseFenceHandle();
+    mPendingReleaseItems.AppendElement(ReleaseItem(index, handle));
+
     mTextureClientIndexes.Remove(aClient);
   }
 
@@ -807,7 +797,7 @@ MediaCodecReader::TextureClientRecycleCallback(TextureClient* aClient)
     RefPtr<nsIRunnable> task =
       NS_NewRunnableMethod(this,
                            &MediaCodecReader::WaitFenceAndReleaseOutputBuffer);
-    mVideoTrack.mReleaseBufferTaskQueue->Dispatch(task);
+    mVideoTrack.mReleaseBufferTaskQueue->Dispatch(task.forget());
   }
 }
 
@@ -822,13 +812,13 @@ MediaCodecReader::WaitFenceAndReleaseOutputBuffer()
   }
 
   for (size_t i = 0; i < releasingItems.Length(); i++) {
+    if (releasingItems[i].mReleaseFence.IsValid()) {
 #if MOZ_WIDGET_GONK && ANDROID_VERSION >= 17
-    sp<Fence> fence;
-    fence = releasingItems[i].mReleaseFence;
-    if (fence.get() && fence->isValid()) {
+      nsRefPtr<FenceHandle::FdObj> fdObj = releasingItems[i].mReleaseFence.GetAndResetFdObj();
+      sp<Fence> fence = new Fence(fdObj->GetAndResetFd());
       fence->waitForever("MediaCodecReader");
-    }
 #endif
+    }
     if (mVideoTrack.mCodec != nullptr) {
       mVideoTrack.mCodec->releaseOutputBuffer(releasingItems[i].mReleaseIndex);
     }
@@ -916,6 +906,13 @@ MediaCodecReader::DecodeVideoFrameSync(int64_t aTimeThreshold)
     } else {
       return;
     }
+  }
+
+  if ((bufferInfo.mFlags & MediaCodec::BUFFER_FLAG_EOS) ||
+      (status == ERROR_END_OF_STREAM)) {
+    VideoQueue().Finish();
+    mVideoTrack.mCodec->releaseOutputBuffer(bufferInfo.mIndex);
+    return;
   }
 
   nsRefPtr<VideoData> v;
@@ -1012,11 +1009,6 @@ MediaCodecReader::DecodeVideoFrameSync(int64_t aTimeThreshold)
     } else {
       NS_WARNING("Unable to create VideoData");
     }
-  }
-
-  if ((bufferInfo.mFlags & MediaCodec::BUFFER_FLAG_EOS) ||
-      (status == ERROR_END_OF_STREAM)) {
-    VideoQueue().Finish();
   }
 
   if (v != nullptr && textureClient != nullptr && graphicBuffer != nullptr) {
@@ -1939,7 +1931,7 @@ MediaCodecReader::VideoCodecCanceled()
   if (mVideoTrack.mTaskQueue) {
     RefPtr<nsIRunnable> task =
       NS_NewRunnableMethod(this, &MediaCodecReader::ReleaseCriticalResources);
-    mVideoTrack.mTaskQueue->Dispatch(task);
+    mVideoTrack.mTaskQueue->Dispatch(task.forget());
   }
 }
 

@@ -11,10 +11,10 @@ XPIDL_SOURCES += [
     'nsIContentPolicy.idl',
     'nsIContentPolicyBase.idl',
     'nsIDocumentEncoder.idl',
+    'nsIDOMBlob.idl',
     'nsIDOMDataChannel.idl',
     'nsIDOMDOMCursor.idl',
     'nsIDOMDOMRequest.idl',
-    'nsIDOMFile.idl',
     'nsIDOMFileList.idl',
     'nsIDOMFileReader.idl',
     'nsIDOMFormData.idl',
@@ -53,6 +53,7 @@ EXPORTS += [
     'nsAttrValue.h',
     'nsAttrValueInlines.h',
     'nsCaseTreatment.h',
+    'nsChildContentList.h',
     'nsContentCID.h',
     'nsContentCreatorFunctions.h',
     'nsContentList.h',
@@ -144,6 +145,7 @@ EXPORTS.mozilla += [
     'CORSMode.h',
     'FeedWriterEnabled.h',
     'TextInputProcessor.h',
+    'UseCounter.h',
 ]
 
 EXPORTS.mozilla.dom += [
@@ -237,7 +239,7 @@ UNIFIED_SOURCES += [
     'Link.cpp',
     'MessageChannel.cpp',
     'MessagePortList.cpp',
-    'MultipartFileImpl.cpp',
+    'MultipartBlobImpl.cpp',
     'Navigator.cpp',
     'NodeInfo.cpp',
     'NodeIterator.cpp',
@@ -382,8 +384,6 @@ EXTRA_COMPONENTS += [
     'contentAreaDropListener.manifest',
     'messageWakeupService.js',
     'messageWakeupService.manifest',
-    'SiteSpecificUserAgent.js',
-    'SiteSpecificUserAgent.manifest',
     'SlowScriptDebug.js',
     'SlowScriptDebug.manifest',
 ]
@@ -423,7 +423,7 @@ LOCAL_INCLUDES += [
     '/dom/xslt/xpath',
     '/dom/xul',
     '/gfx/2d',
-    '/image/src',
+    '/image',
     '/js/xpconnect/src',
     '/js/xpconnect/wrappers',
     '/layout/base',
@@ -469,3 +469,16 @@ if CONFIG['MOZ_BUILD_APP'] in ['browser', 'mobile/android', 'xulrunner']:
 
 if CONFIG['MOZ_X11']:
     CXXFLAGS += CONFIG['TK_CFLAGS']
+
+GENERATED_FILES += [
+    'PropertyUseCounterMap.inc',
+    'UseCounterList.h',
+]
+
+countermap = GENERATED_FILES['PropertyUseCounterMap.inc']
+countermap.script = 'gen-usecounters.py:property_map'
+countermap.inputs = ['UseCounters.conf']
+
+counterlist = GENERATED_FILES['UseCounterList.h']
+counterlist.script = 'gen-usecounters.py:use_counter_list'
+counterlist.inputs = ['UseCounters.conf']

@@ -10,6 +10,7 @@
 #include "nsIBinaryInputStream.h"
 #include "nsIBinaryOutputStream.h"
 #include "nsIFile.h"
+#include "nsIIdleService.h"
 #include "nsIObserverService.h"
 #include "nsIOfflineStorage.h"
 #include "nsIPermissionManager.h"
@@ -111,12 +112,12 @@ const char kChromeOrigin[] = "chrome";
 const char kAboutHomeOrigin[] = "moz-safe-about:home";
 const char kIndexedDBOriginPrefix[] = "indexeddb://";
 
-const char kIndexedDBDirectoryName[] = "indexedDB";
-const char kStorageDirectoryName[] = "storage";
-const char kPersistentDirectoryName[] = "persistent";
-const char kPermanentDirectoryName[] = "permanent";
-const char kTemporaryDirectoryName[] = "temporary";
-const char kDefaultDirectoryName[] = "default";
+#define INDEXEDDB_DIRECTORY_NAME "indexedDB"
+#define STORAGE_DIRECTORY_NAME "storage"
+#define PERSISTENT_DIRECTORY_NAME "persistent"
+#define PERMANENT_DIRECTORY_NAME "permanent"
+#define TEMPORARY_DIRECTORY_NAME "temporary"
+#define DEFAULT_DIRECTORY_NAME "default"
 
 enum AppId {
   kNoAppId = nsIScriptSecurityManager::NO_APP_ID,
@@ -801,7 +802,7 @@ IsTreatedAsTemporary(PersistenceType aPersistenceType,
 
 nsresult
 CloneStoragePath(nsIFile* aBaseDir,
-                 const nsACString& aStorageName,
+                 const nsAString& aStorageName,
                  nsAString& aStoragePath)
 {
   nsresult rv;
@@ -812,8 +813,7 @@ CloneStoragePath(nsIFile* aBaseDir,
     return rv;
   }
 
-  NS_ConvertASCIItoUTF16 dirName(aStorageName);
-  rv = storageDir->Append(dirName);
+  rv = storageDir->Append(aStorageName);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
   }
@@ -1079,7 +1079,7 @@ nsresult
 GetDirectoryMetadataInputStream(nsIFile* aDirectory,
                                 nsIBinaryInputStream** aStream)
 {
-  AssertIsOnIOThread();
+  MOZ_ASSERT(!NS_IsMainThread());
   MOZ_ASSERT(aDirectory);
   MOZ_ASSERT(aStream);
 
@@ -1110,51 +1110,6 @@ GetDirectoryMetadataInputStream(nsIFile* aDirectory,
 }
 
 nsresult
-GetDirectoryMetadata(nsIFile* aDirectory,
-                     int64_t* aTimestamp,
-                     nsACString& aGroup,
-                     nsACString& aOrigin,
-                     bool* aIsApp)
-{
-  AssertIsOnIOThread();
-  MOZ_ASSERT(aDirectory);
-  MOZ_ASSERT(aTimestamp);
-
-  nsCOMPtr<nsIBinaryInputStream> binaryStream;
-  nsresult rv =
-    GetDirectoryMetadataInputStream(aDirectory, getter_AddRefs(binaryStream));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  uint64_t timestamp;
-  rv = binaryStream->Read64(&timestamp);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCString group;
-  rv = binaryStream->ReadCString(group);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCString origin;
-  rv = binaryStream->ReadCString(origin);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  bool isApp;
-  if (aIsApp) {
-    rv = binaryStream->ReadBoolean(&isApp);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      return rv;
-    }
-  }
-
-  *aTimestamp = timestamp;
-  aGroup = group;
-  aOrigin = origin;
-  if (aIsApp) {
-    *aIsApp = isApp;
-  }
-  return NS_OK;
-}
-
-nsresult
 GetDirectoryMetadataWithRestore(nsIFile* aDirectory,
                                 bool aPersistent,
                                 int64_t* aTimestamp,
@@ -1162,22 +1117,22 @@ GetDirectoryMetadataWithRestore(nsIFile* aDirectory,
                                 nsACString& aOrigin,
                                 bool* aIsApp)
 {
-  nsresult rv = GetDirectoryMetadata(aDirectory,
-                                     aTimestamp,
-                                     aGroup,
-                                     aOrigin,
-                                     aIsApp);
+  nsresult rv = QuotaManager::GetDirectoryMetadata(aDirectory,
+                                                   aTimestamp,
+                                                   aGroup,
+                                                   aOrigin,
+                                                   aIsApp);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     rv = RestoreDirectoryMetadata(aDirectory, aPersistent);
     if (NS_WARN_IF(NS_FAILED(rv))) {
       return rv;
     }
 
-    rv = GetDirectoryMetadata(aDirectory,
-                              aTimestamp,
-                              aGroup,
-                              aOrigin,
-                              aIsApp);
+    rv = QuotaManager::GetDirectoryMetadata(aDirectory,
+                                            aTimestamp,
+                                            aGroup,
+                                            aOrigin,
+                                            aIsApp);
     if (NS_WARN_IF(NS_FAILED(rv))) {
       return rv;
     }
@@ -1427,29 +1382,28 @@ QuotaManager::Init()
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = CloneStoragePath(baseDir,
-                          NS_LITERAL_CSTRING(kIndexedDBDirectoryName),
+                          NS_LITERAL_STRING(INDEXEDDB_DIRECTORY_NAME),
                           mIndexedDBPath);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    NS_ConvertASCIItoUTF16 dirName(NS_LITERAL_CSTRING(kStorageDirectoryName));
-    rv = baseDir->Append(dirName);
+    rv = baseDir->Append(NS_LITERAL_STRING(STORAGE_DIRECTORY_NAME));
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = baseDir->GetPath(mStoragePath);
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = CloneStoragePath(baseDir,
-                          NS_LITERAL_CSTRING(kPermanentDirectoryName),
+                          NS_LITERAL_STRING(PERMANENT_DIRECTORY_NAME),
                           mPermanentStoragePath);
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = CloneStoragePath(baseDir,
-                          NS_LITERAL_CSTRING(kTemporaryDirectoryName),
+                          NS_LITERAL_STRING(TEMPORARY_DIRECTORY_NAME),
                           mTemporaryStoragePath);
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = CloneStoragePath(baseDir,
-                          NS_LITERAL_CSTRING(kDefaultDirectoryName),
+                          NS_LITERAL_STRING(DEFAULT_DIRECTORY_NAME),
                           mDefaultStoragePath);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1484,10 +1438,8 @@ QuotaManager::Init()
   NS_ASSERTION(mClients.Capacity() == Client::TYPE_MAX,
                "Should be using an auto array with correct capacity!");
 
-  nsRefPtr<Client> idbClient = indexedDB::CreateQuotaClient();
-
   // Register clients.
-  mClients.AppendElement(idbClient);
+  mClients.AppendElement(indexedDB::CreateQuotaClient());
   mClients.AppendElement(asmjscache::CreateClient());
   mClients.AppendElement(cache::CreateQuotaClient());
 
@@ -2017,6 +1969,37 @@ QuotaManager::InitializeRepository(PersistenceType aPersistenceType)
   return NS_OK;
 }
 
+namespace {
+
+// The Cache API was creating top level morgue directories by accident for
+// a short time in nightly.  This unfortunately prevents all storage from
+// working.  So recover these profiles by removing these corrupt directories.
+// This should be removed at some point in the future.
+bool
+MaybeRemoveCorruptDirectory(const nsAString& aLeafName, nsIFile* aDir)
+{
+#ifdef NIGHTLY_BUILD
+  MOZ_ASSERT(aDir);
+
+  if (aLeafName != NS_LITERAL_STRING("morgue")) {
+    return false;
+  }
+
+  NS_WARNING("QuotaManager removing corrupt morgue directory!");
+
+  nsresult rv = aDir->Remove(true /* recursive */);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return false;
+  }
+
+  return true;
+#else
+  return false
+#endif // NIGHTLY_BUILD
+}
+
+} // anonymous namespace
+
 nsresult
 QuotaManager::InitializeOrigin(PersistenceType aPersistenceType,
                                const nsACString& aGroup,
@@ -2072,6 +2055,10 @@ QuotaManager::InitializeOrigin(PersistenceType aPersistenceType,
     if (!isDirectory) {
       NS_WARNING("Unknown file found!");
       return NS_ERROR_UNEXPECTED;
+    }
+
+    if (MaybeRemoveCorruptDirectory(leafName, file)) {
+      continue;
     }
 
     Client::Type clientType;
@@ -2133,8 +2120,7 @@ QuotaManager::MaybeUpgradeIndexedDBDirectory()
   rv = persistentStorageDir->InitWithPath(mStoragePath);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  NS_ConvertASCIItoUTF16 dirName(NS_LITERAL_CSTRING(kPersistentDirectoryName));
-  rv = persistentStorageDir->Append(dirName);
+  rv = persistentStorageDir->Append(NS_LITERAL_STRING(PERSISTENT_DIRECTORY_NAME));
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = persistentStorageDir->Exists(&exists);
@@ -2155,7 +2141,7 @@ QuotaManager::MaybeUpgradeIndexedDBDirectory()
   // However there's a theoretical possibility that the indexedDB directory
   // is on different volume, but it should be rare enough that we don't have
   // to worry about it.
-  rv = indexedDBDir->MoveTo(storageDir, dirName);
+  rv = indexedDBDir->MoveTo(storageDir, NS_LITERAL_STRING(PERSISTENT_DIRECTORY_NAME));
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -2179,8 +2165,7 @@ QuotaManager::MaybeUpgradePersistentStorageDirectory()
     return rv;
   }
 
-  NS_ConvertASCIItoUTF16 dirName(NS_LITERAL_CSTRING(kPersistentDirectoryName));
-  rv = persistentStorageDir->Append(dirName);
+  rv = persistentStorageDir->Append(NS_LITERAL_STRING(PERSISTENT_DIRECTORY_NAME));
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
   }
@@ -2275,8 +2260,7 @@ QuotaManager::MaybeUpgradePersistentStorageDirectory()
   }
 
   // And finally rename persistent to default.
-  NS_ConvertASCIItoUTF16 defDirName(NS_LITERAL_CSTRING(kDefaultDirectoryName));
-  rv = persistentStorageDir->RenameTo(nullptr, defDirName);
+  rv = persistentStorageDir->RenameTo(nullptr, NS_LITERAL_STRING(DEFAULT_DIRECTORY_NAME));
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
   }
@@ -2485,7 +2469,7 @@ QuotaManager::GetStorageId(PersistenceType aPersistenceType,
   str.Append('*');
   str.AppendInt(aClientType);
   str.Append('*');
-  str.Append(NS_ConvertUTF16toUTF8(aName));
+  AppendUTF16toUTF8(aName, str);
 
   aDatabaseId = str;
 }
@@ -2606,7 +2590,7 @@ QuotaManager::GetInfoFromPrincipal(nsIPrincipal* aPrincipal,
   }
 
   nsCString origin;
-  rv = aPrincipal->GetOrigin(getter_Copies(origin));
+  rv = aPrincipal->GetOriginNoSuffix(origin);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (origin.EqualsLiteral(kChromeOrigin)) {
@@ -2744,6 +2728,52 @@ void
 QuotaManager::ChromeOrigin(nsACString& aOrigin)
 {
   aOrigin.AssignLiteral(kChromeOrigin);
+}
+
+// static
+nsresult
+QuotaManager::GetDirectoryMetadata(nsIFile* aDirectory,
+                                   int64_t* aTimestamp,
+                                   nsACString& aGroup,
+                                   nsACString& aOrigin,
+                                   bool* aIsApp)
+{
+  MOZ_ASSERT(!NS_IsMainThread());
+  MOZ_ASSERT(aDirectory);
+  MOZ_ASSERT(aTimestamp);
+
+  nsCOMPtr<nsIBinaryInputStream> binaryStream;
+  nsresult rv =
+    GetDirectoryMetadataInputStream(aDirectory, getter_AddRefs(binaryStream));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  uint64_t timestamp;
+  rv = binaryStream->Read64(&timestamp);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCString group;
+  rv = binaryStream->ReadCString(group);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCString origin;
+  rv = binaryStream->ReadCString(origin);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  bool isApp;
+  if (aIsApp) {
+    rv = binaryStream->ReadBoolean(&isApp);
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      return rv;
+    }
+  }
+
+  *aTimestamp = timestamp;
+  aGroup = group;
+  aOrigin = origin;
+  if (aIsApp) {
+    *aIsApp = isApp;
+  }
+  return NS_OK;
 }
 
 NS_IMPL_ISUPPORTS(QuotaManager, nsIQuotaManager, nsIObserver)
@@ -3028,6 +3058,13 @@ QuotaManager::Observe(nsISupports* aSubject,
     rv = ClearStoragesForApp(appId, browserOnly);
     NS_ENSURE_SUCCESS(rv, rv);
 
+    return NS_OK;
+  }
+
+  if (!strcmp(aTopic, OBSERVER_TOPIC_IDLE_DAILY)) {
+    for (auto& client : mClients) {
+      client->PerformIdleMaintenance();
+    }
     return NS_OK;
   }
 
@@ -4176,6 +4213,10 @@ AsyncUsageRunnable::AddToUsage(QuotaManager* aQuotaManager,
           NS_WARNING("Unknown file found!");
           return NS_ERROR_UNEXPECTED;
         }
+      }
+
+      if (MaybeRemoveCorruptDirectory(leafName, file)) {
+        continue;
       }
 
       Client::Type clientType;

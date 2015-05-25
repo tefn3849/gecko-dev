@@ -25,7 +25,7 @@
 #include "nsPIWindowRoot.h"
 #include "nsRDFCID.h"
 #include "nsXULCommandDispatcher.h"
-#include "prlog.h"
+#include "mozilla/Logging.h"
 #include "nsContentUtils.h"
 #include "nsReadableUtils.h"
 #include "nsCRT.h"
@@ -37,9 +37,7 @@
 
 using namespace mozilla;
 
-#ifdef PR_LOGGING
 static PRLogModuleInfo* gCommandLog;
-#endif
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -47,10 +45,8 @@ nsXULCommandDispatcher::nsXULCommandDispatcher(nsIDocument* aDocument)
     : mDocument(aDocument), mUpdaters(nullptr)
 {
 
-#ifdef PR_LOGGING
   if (! gCommandLog)
     gCommandLog = PR_NewLogModule("nsXULCommandDispatcher");
-#endif
 }
 
 nsXULCommandDispatcher::~nsXULCommandDispatcher()
@@ -278,7 +274,7 @@ nsXULCommandDispatcher::AddCommandUpdater(nsIDOMElement* aElement,
         targetsC.AssignWithConversion(updater->mTargets);
         CopyUTF16toUTF8(aEvents, aeventsC);
         CopyUTF16toUTF8(aTargets, atargetsC);
-        PR_LOG(gCommandLog, PR_LOG_NOTICE,
+        MOZ_LOG(gCommandLog, PR_LOG_NOTICE,
                ("xulcmd[%p] replace %p(events=%s targets=%s) with (events=%s targets=%s)",
                 this, aElement,
                 eventsC.get(),
@@ -305,7 +301,7 @@ nsXULCommandDispatcher::AddCommandUpdater(nsIDOMElement* aElement,
     CopyUTF16toUTF8(aEvents, aeventsC);
     CopyUTF16toUTF8(aTargets, atargetsC);
 
-    PR_LOG(gCommandLog, PR_LOG_NOTICE,
+    MOZ_LOG(gCommandLog, PR_LOG_NOTICE,
            ("xulcmd[%p] add     %p(events=%s targets=%s)",
             this, aElement,
             aeventsC.get(),
@@ -339,7 +335,7 @@ nsXULCommandDispatcher::RemoveCommandUpdater(nsIDOMElement* aElement)
         nsAutoCString eventsC, targetsC; 
         eventsC.AssignWithConversion(updater->mEvents);
         targetsC.AssignWithConversion(updater->mTargets);
-        PR_LOG(gCommandLog, PR_LOG_NOTICE,
+        MOZ_LOG(gCommandLog, PR_LOG_NOTICE,
                ("xulcmd[%p] remove  %p(events=%s targets=%s)",
                 this, aElement,
                 eventsC.get(),
@@ -398,7 +394,7 @@ nsXULCommandDispatcher::UpdateCommands(const nsAString& aEventName)
     if (PR_LOG_TEST(gCommandLog, PR_LOG_NOTICE)) {
       nsAutoCString aeventnameC; 
       CopyUTF16toUTF8(aEventName, aeventnameC);
-      PR_LOG(gCommandLog, PR_LOG_NOTICE,
+      MOZ_LOG(gCommandLog, PR_LOG_NOTICE,
              ("xulcmd[%p] update %p event=%s",
               this, content,
               aeventnameC.get()));

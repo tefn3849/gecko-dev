@@ -498,7 +498,7 @@ ParseVarOrConstStatement(AsmJSParser& parser, ParseNode** var)
         return true;
     }
 
-    *var = parser.statement();
+    *var = parser.statement(YieldIsName);
     if (!*var)
         return false;
 
@@ -7604,7 +7604,7 @@ ParseFunction(ModuleCompiler& m, ParseNode** fnOut)
     if (!funpc.init(tokenStream))
         return false;
 
-    if (!m.parser().functionArgsAndBodyGeneric(fn, fun, Normal, Statement)) {
+    if (!m.parser().functionArgsAndBodyGeneric(InAllowed, YieldIsName, fn, fun, Statement)) {
         if (tokenStream.hadError() || directives == newDirectives)
             return false;
 
@@ -7769,7 +7769,7 @@ CheckFunctionsSequential(ModuleCompiler& m)
 
         JitContext jcx(m.cx(), &mir->alloc());
 
-        IonSpewNewFunction(&mir->graph(), NullPtr());
+        IonSpewNewFunction(&mir->graph(), nullptr);
 
         if (!OptimizeMIR(mir))
             return m.failOffset(func->srcBegin(), "internal compiler failure (probably out of memory)");
@@ -8182,7 +8182,7 @@ CheckModuleReturn(ModuleCompiler& m)
         return m.fail(nullptr, "invalid asm.js statement");
     }
 
-    ParseNode* returnStmt = m.parser().statement();
+    ParseNode* returnStmt = m.parser().statement(YieldIsName);
     if (!returnStmt)
         return false;
 

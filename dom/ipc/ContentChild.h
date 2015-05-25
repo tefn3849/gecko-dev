@@ -345,6 +345,7 @@ public:
     virtual bool RecvAppInfo(const nsCString& version, const nsCString& buildID,
                              const nsCString& name, const nsCString& UAName,
                              const nsCString& ID, const nsCString& vendor) override;
+    virtual bool RecvAppInit() override;
 
     virtual bool RecvLastPrivateDocShellDestroyed() override;
 
@@ -377,8 +378,6 @@ public:
     virtual bool RecvUnregisterSheet(const URIParams& aURI, const uint32_t& aType) override;
 
     virtual bool RecvNotifyPhoneStateChange(const nsString& state) override;
-
-    virtual bool RecvNuwaFreeze() override;
 
     void AddIdleObserver(nsIObserver* aObserver, uint32_t aIdleTimeInS);
     void RemoveIdleObserver(nsIObserver* aObserver, uint32_t aIdleTimeInS);

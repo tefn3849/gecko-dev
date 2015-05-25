@@ -204,7 +204,8 @@ gfxContext::ClosePath()
 TemporaryRef<Path> gfxContext::GetPath()
 {
   EnsurePath();
-  return mPath;
+  RefPtr<Path> path(mPath);
+  return path.forget();
 }
 
 void gfxContext::SetPath(Path* path)
@@ -461,7 +462,7 @@ gfxContext::CurrentDash(FallibleTArray<gfxFloat>& dashes, gfxFloat* offset) cons
   const AzureState &state = CurrentState();
   int count = state.strokeOptions.mDashLength;
 
-  if (count <= 0 || !dashes.SetLength(count)) {
+  if (count <= 0 || !dashes.SetLength(count, fallible)) {
     return false;
   }
 
@@ -616,6 +617,23 @@ gfxContext::GetClipExtents()
   rect = mat.TransformBounds(rect);
 
   return ThebesRect(rect);
+}
+
+bool
+gfxContext::HasComplexClip() const
+{
+  for (int i = mStateStack.Length() - 1; i >= 0; i--) {
+    for (unsigned int c = 0; c < mStateStack[i].pushedClips.Length(); c++) {
+      const AzureState::PushedClip &clip = mStateStack[i].pushedClips[c];
+      if (clip.path || !clip.transform.IsRectilinear()) {
+        return true;
+      }
+    }
+    if (mStateStack[i].clipWasReset) {
+      break;
+    }
+  }
+  return false;
 }
 
 bool
@@ -932,7 +950,7 @@ gfxContext::PopGroupToSurface(Matrix* aTransform)
   deviceOffsetTranslation.PreTranslate(deviceOffset.x, deviceOffset.y);
 
   *aTransform = deviceOffsetTranslation * mat;
-  return src;
+  return src.forget();
 }
 
 void

@@ -9,16 +9,12 @@
 #include "mozilla/StaticPtr.h"
 #include "MediaDecoder.h"
 #include "SharedThreadPool.h"
-#include "prlog.h"
+#include "mozilla/Logging.h"
 
 namespace mozilla {
 
-#ifdef PR_LOGGING
 extern PRLogModuleInfo* gMediaDecoderLog;
-#define DECODER_LOG(type, msg) PR_LOG(gMediaDecoderLog, type, msg)
-#else
-#define DECODER_LOG(type, msg)
-#endif
+#define DECODER_LOG(type, msg) MOZ_LOG(gMediaDecoderLog, type, msg)
 
 NS_IMPL_ISUPPORTS(MediaShutdownManager, nsIObserver)
 

@@ -208,45 +208,43 @@ FetchDriver::BasicFetch()
   }
 
   if (scheme.LowerCaseEqualsLiteral("blob")) {
-    nsRefPtr<FileImpl> blobImpl;
+    nsRefPtr<BlobImpl> blobImpl;
     rv = NS_GetBlobForBlobURI(uri, getter_AddRefs(blobImpl));
-    FileImpl* blob = static_cast<FileImpl*>(blobImpl.get());
+    BlobImpl* blob = static_cast<BlobImpl*>(blobImpl.get());
     if (NS_WARN_IF(NS_FAILED(rv))) {
       FailWithNetworkError();
       return rv;
     }
 
     nsRefPtr<InternalResponse> response = new InternalResponse(200, NS_LITERAL_CSTRING("OK"));
-    {
-      ErrorResult result;
-      uint64_t size = blob->GetSize(result);
-      if (NS_WARN_IF(result.Failed())) {
-        FailWithNetworkError();
-        return result.StealNSResult();
-      }
+    ErrorResult result;
+    uint64_t size = blob->GetSize(result);
+    if (NS_WARN_IF(result.Failed())) {
+      FailWithNetworkError();
+      return result.StealNSResult();
+    }
 
-      nsAutoString sizeStr;
-      sizeStr.AppendInt(size);
-      response->Headers()->Append(NS_LITERAL_CSTRING("Content-Length"), NS_ConvertUTF16toUTF8(sizeStr), result);
-      if (NS_WARN_IF(result.Failed())) {
-        FailWithNetworkError();
-        return result.StealNSResult();
-      }
+    nsAutoString sizeStr;
+    sizeStr.AppendInt(size);
+    response->Headers()->Append(NS_LITERAL_CSTRING("Content-Length"), NS_ConvertUTF16toUTF8(sizeStr), result);
+    if (NS_WARN_IF(result.Failed())) {
+      FailWithNetworkError();
+      return result.StealNSResult();
+    }
 
-      nsAutoString type;
-      blob->GetType(type);
-      response->Headers()->Append(NS_LITERAL_CSTRING("Content-Type"), NS_ConvertUTF16toUTF8(type), result);
-      if (NS_WARN_IF(result.Failed())) {
-        FailWithNetworkError();
-        return result.StealNSResult();
-      }
+    nsAutoString type;
+    blob->GetType(type);
+    response->Headers()->Append(NS_LITERAL_CSTRING("Content-Type"), NS_ConvertUTF16toUTF8(type), result);
+    if (NS_WARN_IF(result.Failed())) {
+      FailWithNetworkError();
+      return result.StealNSResult();
     }
 
     nsCOMPtr<nsIInputStream> stream;
-    rv = blob->GetInternalStream(getter_AddRefs(stream));
-    if (NS_WARN_IF(NS_FAILED(rv))) {
+    blob->GetInternalStream(getter_AddRefs(stream), result);
+    if (NS_WARN_IF(result.Failed())) {
       FailWithNetworkError();
-      return rv;
+      return result.StealNSResult();
     }
 
     response->SetBody(stream);

@@ -23,7 +23,7 @@
 #include "prthread.h"
 #include "prerror.h"
 #include "prtime.h"
-#include "prlog.h"
+#include "mozilla/Logging.h"
 #include "pldhash.h"
 #include "plstr.h"
 #include "nsURLHelper.h"
@@ -70,7 +70,7 @@ PR_STATIC_ASSERT (HighThreadThreshold <= MAX_RESOLVER_THREADS);
 //----------------------------------------------------------------------------
 
 static PRLogModuleInfo *gHostResolverLog = nullptr;
-#define LOG(args) PR_LOG(gHostResolverLog, PR_LOG_DEBUG, args)
+#define LOG(args) MOZ_LOG(gHostResolverLog, PR_LOG_DEBUG, args)
 
 #define LOG_HOST(host, interface) host,                                        \
                  (interface && interface[0] != '\0') ? " on interface " : "",  \

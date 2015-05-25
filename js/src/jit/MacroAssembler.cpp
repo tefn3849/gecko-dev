@@ -888,6 +888,20 @@ template void
 MacroAssembler::loadUnboxedProperty(BaseIndex address, JSValueType type,
                                     TypedOrValueRegister output);
 
+static void
+StoreUnboxedFailure(MacroAssembler& masm, Label* failure)
+{
+    // Storing a value to an unboxed property is a fallible operation and
+    // the caller must provide a failure label if a particular unboxed store
+    // might fail. Sometimes, however, a store that cannot succeed (such as
+    // storing a string to an int32 property) will be marked as infallible.
+    // This can only happen if the code involved is unreachable.
+    if (failure)
+        masm.jump(failure);
+    else
+        masm.assumeUnreachable("Incompatible write to unboxed property");
+}
+
 template <typename T>
 void
 MacroAssembler::storeUnboxedProperty(T address, JSValueType type,
@@ -899,12 +913,12 @@ MacroAssembler::storeUnboxedProperty(T address, JSValueType type,
             if (value.value().isBoolean())
                 store8(Imm32(value.value().toBoolean()), address);
             else
-                jump(failure);
+                StoreUnboxedFailure(*this, failure);
         } else if (value.reg().hasTyped()) {
             if (value.reg().type() == MIRType_Boolean)
                 store8(value.reg().typedReg().gpr(), address);
             else
-                jump(failure);
+                StoreUnboxedFailure(*this, failure);
         } else {
             if (failure)
                 branchTestBoolean(Assembler::NotEqual, value.reg().valueReg(), failure);
@@ -917,12 +931,12 @@ MacroAssembler::storeUnboxedProperty(T address, JSValueType type,
             if (value.value().isInt32())
                 store32(Imm32(value.value().toInt32()), address);
             else
-                jump(failure);
+                StoreUnboxedFailure(*this, failure);
         } else if (value.reg().hasTyped()) {
             if (value.reg().type() == MIRType_Int32)
                 store32(value.reg().typedReg().gpr(), address);
             else
-                jump(failure);
+                StoreUnboxedFailure(*this, failure);
         } else {
             if (failure)
                 branchTestInt32(Assembler::NotEqual, value.reg().valueReg(), failure);
@@ -936,7 +950,7 @@ MacroAssembler::storeUnboxedProperty(T address, JSValueType type,
                 loadConstantDouble(value.value().toNumber(), ScratchDoubleReg);
                 storeDouble(ScratchDoubleReg, address);
             } else {
-                jump(failure);
+                StoreUnboxedFailure(*this, failure);
             }
         } else if (value.reg().hasTyped()) {
             if (value.reg().type() == MIRType_Int32) {
@@ -945,7 +959,7 @@ MacroAssembler::storeUnboxedProperty(T address, JSValueType type,
             } else if (value.reg().type() == MIRType_Double) {
                 storeDouble(value.reg().typedReg().fpu(), address);
             } else {
-                jump(failure);
+                StoreUnboxedFailure(*this, failure);
             }
         } else {
             ValueOperand reg = value.reg().valueReg();
@@ -967,13 +981,13 @@ MacroAssembler::storeUnboxedProperty(T address, JSValueType type,
             if (value.value().isObjectOrNull())
                 storePtr(ImmGCPtr(value.value().toObjectOrNull()), address);
             else
-                jump(failure);
+                StoreUnboxedFailure(*this, failure);
         } else if (value.reg().hasTyped()) {
             MOZ_ASSERT(value.reg().type() != MIRType_Null);
             if (value.reg().type() == MIRType_Object)
                 storePtr(value.reg().typedReg().gpr(), address);
             else
-                jump(failure);
+                StoreUnboxedFailure(*this, failure);
         } else {
             if (failure) {
                 Label ok;
@@ -990,12 +1004,12 @@ MacroAssembler::storeUnboxedProperty(T address, JSValueType type,
             if (value.value().isString())
                 storePtr(ImmGCPtr(value.value().toString()), address);
             else
-                jump(failure);
+                StoreUnboxedFailure(*this, failure);
         } else if (value.reg().hasTyped()) {
             if (value.reg().type() == MIRType_String)
                 storePtr(value.reg().typedReg().gpr(), address);
             else
-                jump(failure);
+                StoreUnboxedFailure(*this, failure);
         } else {
             if (failure)
                 branchTestString(Assembler::NotEqual, value.reg().valueReg(), failure);
@@ -2387,51 +2401,14 @@ MacroAssembler::branchIfNotInterpretedConstructor(Register fun, Register scratch
     MOZ_ASSERT(JSFunction::offsetOfNargs() % sizeof(uint32_t) == 0);
     MOZ_ASSERT(JSFunction::offsetOfFlags() == JSFunction::offsetOfNargs() + 2);
 
-    // Emit code for the following test:
-    //
-    // bool isInterpretedConstructor() const {
-    //     return isInterpreted() && !isFunctionPrototype() && !isArrow() &&
-    //         (!isSelfHostedBuiltin() || isSelfHostedConstructor());
-    // }
-
     // First, ensure it's a scripted function.
     load32(Address(fun, JSFunction::offsetOfNargs()), scratch);
     int32_t bits = IMM32_16ADJ(JSFunction::INTERPRETED);
     branchTest32(Assembler::Zero, scratch, Imm32(bits), label);
 
-    // Common case: if IS_FUN_PROTO, ARROW and SELF_HOSTED are not set,
-    // the function is an interpreted constructor and we're done.
-    Label done, moreChecks;
-
-    // Start with the easy ones. Check IS_FUN_PROTO and SELF_HOSTED.
-    bits = IMM32_16ADJ( (JSFunction::IS_FUN_PROTO | JSFunction::SELF_HOSTED) );
-    branchTest32(Assembler::NonZero, scratch, Imm32(bits), &moreChecks);
-
-    // Check !isArrow()
-    bits = IMM32_16ADJ(JSFunction::FUNCTION_KIND_MASK);
-    and32(Imm32(bits), scratch);
-
-    bits = IMM32_16ADJ(JSFunction::ARROW_KIND);
-    branch32(Assembler::NotEqual, scratch, Imm32(bits), &done);
-
-    // Reload the smashed flags and nargs for more checks.
-    load32(Address(fun, JSFunction::offsetOfNargs()), scratch);
-
-    {
-        bind(&moreChecks);
-        // The callee is either Function.prototype, an arrow function or
-        // self-hosted. None of these are constructible, except self-hosted
-        // constructors, so branch to |label| if SELF_HOSTED_CTOR is not set.
-        bits = IMM32_16ADJ(JSFunction::SELF_HOSTED_CTOR);
-        branchTest32(Assembler::Zero, scratch, Imm32(bits), label);
-
-#ifdef DEBUG
-        bits = IMM32_16ADJ(JSFunction::IS_FUN_PROTO);
-        branchTest32(Assembler::Zero, scratch, Imm32(bits), &done);
-        assumeUnreachable("Function.prototype should not have the SELF_HOSTED_CTOR flag");
-#endif
-    }
-    bind(&done);
+    // Check if the CONSTRUCTOR bit is set.
+    bits = IMM32_16ADJ(JSFunction::CONSTRUCTOR);
+    branchTest32(Assembler::Zero, scratch, Imm32(bits), label);
 }
 
 void

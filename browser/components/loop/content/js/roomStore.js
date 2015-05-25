@@ -2,8 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/* global loop:true */
-
 var loop = loop || {};
 loop.store = loop.store || {};
 
@@ -334,7 +332,8 @@ loop.store = loop.store || {};
      * @param  {sharedActions.EmailRoomUrl} actionData The action data.
      */
     emailRoomUrl: function(actionData) {
-      loop.shared.utils.composeCallUrlEmail(actionData.roomUrl);
+      loop.shared.utils.composeCallUrlEmail(actionData.roomUrl, null,
+        actionData.roomDescription);
       this._mozLoop.notifyUITour("Loop:RoomURLEmailed");
     },
 

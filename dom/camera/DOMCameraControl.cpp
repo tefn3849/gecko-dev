@@ -1374,7 +1374,7 @@ nsDOMCameraControl::OnFacesDetected(const nsTArray<ICameraControl::Face>& aFaces
   Sequence<OwningNonNull<DOMCameraDetectedFace> > faces;
   uint32_t len = aFaces.Length();
 
-  if (faces.SetCapacity(len)) {
+  if (faces.SetCapacity(len, fallible)) {
     for (uint32_t i = 0; i < len; ++i) {
       *faces.AppendElement() =
         new DOMCameraDetectedFace(static_cast<DOMMediaStream*>(this), aFaces[i]);
@@ -1405,7 +1405,7 @@ nsDOMCameraControl::OnTakePictureComplete(nsIDOMBlob* aPicture)
     promise->MaybeResolve(picture);
   }
 
-  nsRefPtr<File> blob = static_cast<File*>(aPicture);
+  nsRefPtr<Blob> blob = static_cast<Blob*>(aPicture);
   BlobEventInit eventInit;
   eventInit.mData = blob;
 

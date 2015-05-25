@@ -2,16 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/*jshint newcap:false*/
-/*global loop, sinon */
-
-var expect = chai.expect;
-var TestUtils = React.addons.TestUtils;
-var sharedActions = loop.shared.actions;
-var sharedUtils = loop.shared.utils;
-
 describe("loop.panel", function() {
   "use strict";
+
+  var expect = chai.expect;
+  var TestUtils = React.addons.TestUtils;
+  var sharedActions = loop.shared.actions;
+  var sharedUtils = loop.shared.utils;
 
   var sandbox, notifications;
   var fakeXHR, fakeWindow, fakeMozLoop;
@@ -205,7 +202,7 @@ describe("loop.panel", function() {
         .to.have.length.of(0);
     });
 
-    describe('TabView', function() {
+    describe("TabView", function() {
       var view, callTab, roomsTab, contactsTab;
 
       beforeEach(function() {
@@ -390,8 +387,10 @@ describe("loop.panel", function() {
       beforeEach(function() {
         supportUrl = "https://example.com";
         navigator.mozLoop.getLoopPref = function(pref) {
-          if (pref === "support_url")
+          if (pref === "support_url") {
             return supportUrl;
+          }
+
           return "unseen";
         };
       });
@@ -792,10 +791,12 @@ describe("loop.panel", function() {
     it("should dispatch a CreateRoom action with context when clicking on the " +
        "Start a conversation button", function() {
       fakeMozLoop.userProfile = {email: fakeEmail};
+      var favicon = "data:image/x-icon;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
       fakeMozLoop.getSelectedTabMetadata = function (callback) {
         callback({
           url: "http://invalid.com",
           description: "fakeSite",
+          favicon: favicon,
           previews: ["fakeimage.png"]
         });
       };
@@ -808,8 +809,7 @@ describe("loop.panel", function() {
       var node = view.getDOMNode();
 
       // Select the checkbox
-      TestUtils.Simulate.change(node.querySelector(".context-checkbox"),
-        {"target": {"checked": true}});
+      TestUtils.Simulate.click(node.querySelector(".checkbox-wrapper"));
 
       TestUtils.Simulate.click(node.querySelector(".new-room-button"));
 
@@ -819,7 +819,7 @@ describe("loop.panel", function() {
         urls: [{
           location: "http://invalid.com",
           description: "fakeSite",
-          thumbnail: "fakeimage.png"
+          thumbnail: favicon
         }]
       }));
     });
@@ -846,8 +846,8 @@ describe("loop.panel", function() {
       // Simulate being visible
       view.onDocumentVisible();
 
-      var contextEnabledCheckbox = view.getDOMNode().querySelector(".context-enabled");
-      expect(contextEnabledCheckbox).to.not.equal(null);
+      var contextContent = view.getDOMNode().querySelector(".context-content");
+      expect(contextContent).to.not.equal(null);
     });
 
     it("should not show context information when a URL is unavailable", function() {
@@ -884,9 +884,29 @@ describe("loop.panel", function() {
       var contextHostname = view.getDOMNode().querySelector(".context-url");
       expect(contextHostname.textContent).eql("www.example.com");
     });
+
+    it("should show the favicon when available", function() {
+      var favicon = "data:image/x-icon;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
+      fakeMozLoop.getSelectedTabMetadata = function (callback) {
+        callback({
+          url: "https://www.example.com:1234",
+          description: "fake description",
+          favicon: favicon,
+          previews: ["foo.gif"]
+        });
+      };
+
+      var view = createTestComponent();
+
+      // Simulate being visible.
+      view.onDocumentVisible();
+
+      var contextPreview = view.getDOMNode().querySelector(".context-preview");
+      expect(contextPreview.src).eql(favicon);
+    });
   });
 
-  describe('loop.panel.ToSView', function() {
+  describe("loop.panel.ToSView", function() {
 
     it("should render when the value of loop.seenToS is not set", function() {
       navigator.mozLoop.getLoopPref = function(key) {
@@ -902,8 +922,7 @@ describe("loop.panel", function() {
       TestUtils.findRenderedDOMComponentWithClass(view, "terms-service");
     });
 
-    it("should not render when the value of loop.seenToS is set to 'seen'",
-      function(done) {
+    it("should not render when the value of loop.seenToS is set to 'seen'", function() {
         navigator.mozLoop.getLoopPref = function(key) {
           return {
             "gettingStarted.seen": true,
@@ -911,11 +930,12 @@ describe("loop.panel", function() {
           }[key];
         };
 
-        try {
+        var view = TestUtils.renderIntoDocument(
+          React.createElement(loop.panel.ToSView));
+
+        expect(function() {
           TestUtils.findRenderedDOMComponentWithClass(view, "terms-service");
-        } catch (err) {
-          done();
-        }
+        }).to.Throw(/not find/);
     });
 
     it("should render when the value of loop.gettingStarted.seen is false",

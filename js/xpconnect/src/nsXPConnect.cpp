@@ -216,9 +216,7 @@ xpc::ErrorReport::Init(JSErrorReport* aReport, const char* aFallbackMessage,
     mIsMuted = aReport->isMuted;
 }
 
-#ifdef PR_LOGGING
 static PRLogModuleInfo* gJSDiagnostics;
-#endif
 
 void
 xpc::ErrorReport::LogToConsole()
@@ -243,17 +241,15 @@ xpc::ErrorReport::LogToConsole()
         fflush(stderr);
     }
 
-#ifdef PR_LOGGING
     // Log to the PR Log Module.
     if (!gJSDiagnostics)
         gJSDiagnostics = PR_NewLogModule("JSDiagnostics");
     if (gJSDiagnostics) {
-        PR_LOG(gJSDiagnostics,
+        MOZ_LOG(gJSDiagnostics,
                 JSREPORT_IS_WARNING(mFlags) ? PR_LOG_WARNING : PR_LOG_ERROR,
                 ("file %s, line %u\n%s", NS_LossyConvertUTF16toASCII(mFileName).get(),
                  mLineNumber, NS_LossyConvertUTF16toASCII(mErrorMsg).get()));
     }
-#endif
 
     // Log to the console. We do this last so that we can simply return if
     // there's no console service without affecting the other reporting
@@ -376,7 +372,7 @@ CreateGlobalObject(JSContext* cx, const JSClass* clasp, nsIPrincipal* principal,
     if (!((const js::Class*)clasp)->ext.isWrappedNative)
     {
         VerifyTraceProtoAndIfaceCacheCalledTracer trc(JS_GetRuntime(cx));
-        JS_TraceChildren(&trc, global, JSTRACE_OBJECT);
+        JS_TraceChildren(&trc, global, JS::TraceKind::Object);
         MOZ_ASSERT(trc.ok, "Trace hook on global needs to call TraceXPCGlobal for XPConnect compartments.");
     }
 #endif
@@ -1264,7 +1260,7 @@ ReadScriptOrFunction(nsIObjectInputStream* stream, JSContext* cx,
 NS_IMETHODIMP
 nsXPConnect::WriteScript(nsIObjectOutputStream* stream, JSContext* cx, JSScript* script)
 {
-    return WriteScriptOrFunction(stream, cx, script, NullPtr());
+    return WriteScriptOrFunction(stream, cx, script, nullptr);
 }
 
 NS_IMETHODIMP

@@ -1,11 +1,6 @@
-/** @jsx React.DOM */
-
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-/* jshint newcap:false */
-/* global loop:true, React */
 
 var loop = loop || {};
 loop.roomViews = (function(mozL10n) {
@@ -194,8 +189,13 @@ loop.roomViews = (function(mozL10n) {
     handleEmailButtonClick: function(event) {
       event.preventDefault();
 
+      var roomData = this.props.roomData;
+      var contextURL = roomData.roomContextUrls && roomData.roomContextUrls[0];
       this.props.dispatcher.dispatch(
-        new sharedActions.EmailRoomUrl({roomUrl: this.props.roomData.roomUrl}));
+        new sharedActions.EmailRoomUrl({
+          roomUrl: roomData.roomUrl,
+          roomDescription: contextURL && contextURL.description
+        }));
     },
 
     handleCopyButtonClick: function(event) {
@@ -307,8 +307,8 @@ loop.roomViews = (function(mozL10n) {
         // checkbox will be disabled in that case.
         if (nextProps.editMode) {
           this.props.mozLoop.getSelectedTabMetadata(function(metadata) {
-            var previewImage = metadata.previews.length ? metadata.previews[0] : "";
-            var description = metadata.description || metadata.title;
+            var previewImage = metadata.favicon || "";
+            var description = metadata.title || metadata.description;
             var url = metadata.url;
             this.setState({
               availableContext: {
@@ -461,8 +461,9 @@ loop.roomViews = (function(mozL10n) {
     },
 
     render: function() {
-      if (!this.state.show && !this.state.editMode)
+      if (!this.state.show && !this.state.editMode) {
         return null;
+      }
 
       var url = this._getURL();
       var thumbnail = url && url.thumbnail || "";
@@ -474,8 +475,10 @@ loop.roomViews = (function(mozL10n) {
         locationData = checkboxLabel = sharedUtils.formatURL(location);
       }
       if (!checkboxLabel) {
-        checkboxLabel = sharedUtils.formatURL((this.state.availableContext ?
-          this.state.availableContext.url : ""));
+        try {
+          checkboxLabel = sharedUtils.formatURL((this.state.availableContext ?
+            this.state.availableContext.url : ""));
+        } catch (ex) {}
       }
 
       var cx = React.addons.classSet;
@@ -662,6 +665,7 @@ loop.roomViews = (function(mozL10n) {
         default: {
           return (
             <div className="room-conversation-wrapper">
+              <sharedViews.TextChatView dispatcher={this.props.dispatcher} />
               <DesktopRoomInvitationView
                 dispatcher={this.props.dispatcher}
                 error={this.state.error}

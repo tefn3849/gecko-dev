@@ -17,7 +17,7 @@
 
 #include "nsNativeModuleLoader.h"
 
-#include "prlog.h"
+#include "mozilla/Logging.h"
 #include "prinit.h"
 #include "prerror.h"
 
@@ -59,7 +59,7 @@ GetNativeModuleLoaderLog()
   return sLog;
 }
 
-#define LOG(level, args) PR_LOG(GetNativeModuleLoaderLog(), level, args)
+#define LOG(level, args) MOZ_LOG(GetNativeModuleLoaderLog(), level, args)
 
 nsresult
 nsNativeModuleLoader::Init()

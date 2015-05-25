@@ -11,7 +11,7 @@
 #include "nsArrayEnumerator.h"
 #include "nsCOMArray.h"
 #include "nsCOMPtr.h"
-#include "prlog.h"
+#include "mozilla/Logging.h"
 #include "nsString.h"
 #include "nsTArray.h"
 #include "mozilla/Atomics.h"
@@ -41,7 +41,7 @@ using namespace mozilla::net;
 static PRLogModuleInfo* gLoadGroupLog = nullptr;
 
 #undef LOG
-#define LOG(args) PR_LOG(gLoadGroupLog, PR_LOG_DEBUG, args)
+#define LOG(args) MOZ_LOG(gLoadGroupLog, PR_LOG_DEBUG, args)
 
 ////////////////////////////////////////////////////////////////////////////////
 

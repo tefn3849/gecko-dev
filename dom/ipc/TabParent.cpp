@@ -84,6 +84,8 @@
 #include "gfxPrefs.h"
 #include "nsILoginManagerPrompter.h"
 #include "nsPIWindowRoot.h"
+#include "gfxDrawable.h"
+#include "ImageOps.h"
 #include <algorithm>
 
 using namespace mozilla::dom;
@@ -187,7 +189,7 @@ private:
     }
 
     // Helper method to avoid gnarly control flow for failures.
-    void OpenFileImpl()
+    void OpenBlobImpl()
     {
         MOZ_ASSERT(!NS_IsMainThread());
         MOZ_ASSERT(!mFD);
@@ -207,7 +209,7 @@ private:
     {
         MOZ_ASSERT(!NS_IsMainThread());
 
-        OpenFileImpl();
+        OpenBlobImpl();
 
         if (NS_FAILED(NS_DispatchToMainThread(this))) {
             NS_WARNING("Failed to dispatch to main thread!");
@@ -284,6 +286,7 @@ TabParent::TabParent(nsIContentParent* aManager,
   , mNeedLayerTreeReadyNotification(false)
   , mCursor(nsCursor(-1))
   , mTabSetsCursor(false)
+  , mHasContentOpener(false)
 {
   MOZ_ASSERT(aManager);
 }
@@ -609,6 +612,11 @@ TabParent::RecvCreateWindow(PBrowserParent* aNewTab,
   NS_ENSURE_SUCCESS(rv, false);
 
   TabParent* newTab = TabParent::GetFrom(aNewTab);
+  MOZ_ASSERT(newTab);
+
+  // Content has requested that we open this new content window, so
+  // we must have an opener.
+  newTab->SetHasContentOpener(true);
 
   nsCOMPtr<nsIContent> frame(do_QueryInterface(mFrameElement));
 
@@ -1223,7 +1231,9 @@ bool TabParent::SendRealMouseEvent(WidgetMouseEvent& event)
     if (event.message == NS_MOUSE_ENTER_WIDGET ||
         event.message == NS_MOUSE_OVER) {
       mTabSetsCursor = true;
-      if (mCursor != nsCursor(-1)) {
+      if (mCustomCursor) {
+        widget->SetCursor(mCustomCursor, mCustomCursorHotspotX, mCustomCursorHotspotY);
+      } else if (mCursor != nsCursor(-1)) {
         widget->SetCursor(mCursor);
       }
       // We don't actually want to forward NS_MOUSE_ENTER_WIDGET messages.
@@ -1303,7 +1313,7 @@ bool TabParent::SendMouseWheelEvent(WidgetWheelEvent& event)
 
   ScrollableLayerGuid guid;
   uint64_t blockId;
-  ApzAwareEventRoutingToChild(&guid, &blockId);
+  ApzAwareEventRoutingToChild(&guid, &blockId, nullptr);
   event.refPoint += GetChildProcessOffset();
   return PBrowserParent::SendMouseWheelEvent(event, guid, blockId);
 }
@@ -1618,7 +1628,8 @@ bool TabParent::SendRealTouchEvent(WidgetTouchEvent& event)
 
   ScrollableLayerGuid guid;
   uint64_t blockId;
-  ApzAwareEventRoutingToChild(&guid, &blockId);
+  nsEventStatus apzResponse;
+  ApzAwareEventRoutingToChild(&guid, &blockId, &apzResponse);
 
   if (mIsDestroyed) {
     return false;
@@ -1630,8 +1641,8 @@ bool TabParent::SendRealTouchEvent(WidgetTouchEvent& event)
   }
 
   return (event.message == NS_TOUCH_MOVE) ?
-    PBrowserParent::SendRealTouchMoveEvent(event, guid, blockId) :
-    PBrowserParent::SendRealTouchEvent(event, guid, blockId);
+    PBrowserParent::SendRealTouchMoveEvent(event, guid, blockId, apzResponse) :
+    PBrowserParent::SendRealTouchEvent(event, guid, blockId, apzResponse);
 }
 
 bool
@@ -1639,7 +1650,7 @@ TabParent::RecvSyncMessage(const nsString& aMessage,
                            const ClonedMessageData& aData,
                            InfallibleTArray<CpowEntry>&& aCpows,
                            const IPC::Principal& aPrincipal,
-                           InfallibleTArray<nsString>* aJSONRetVal)
+                           nsTArray<OwningSerializedStructuredCloneBuffer>* aRetVal)
 {
   // FIXME Permission check for TabParent in Content process
   nsIPrincipal* principal = aPrincipal;
@@ -1653,7 +1664,7 @@ TabParent::RecvSyncMessage(const nsString& aMessage,
 
   StructuredCloneData cloneData = ipc::UnpackClonedMessageDataForParent(aData);
   CrossProcessCpowHolder cpows(Manager(), aCpows);
-  return ReceiveMessage(aMessage, true, &cloneData, &cpows, aPrincipal, aJSONRetVal);
+  return ReceiveMessage(aMessage, true, &cloneData, &cpows, aPrincipal, aRetVal);
 }
 
 bool
@@ -1661,7 +1672,7 @@ TabParent::RecvRpcMessage(const nsString& aMessage,
                           const ClonedMessageData& aData,
                           InfallibleTArray<CpowEntry>&& aCpows,
                           const IPC::Principal& aPrincipal,
-                          InfallibleTArray<nsString>* aJSONRetVal)
+                          nsTArray<OwningSerializedStructuredCloneBuffer>* aRetVal)
 {
   // FIXME Permission check for TabParent in Content process
   nsIPrincipal* principal = aPrincipal;
@@ -1675,7 +1686,7 @@ TabParent::RecvRpcMessage(const nsString& aMessage,
 
   StructuredCloneData cloneData = ipc::UnpackClonedMessageDataForParent(aData);
   CrossProcessCpowHolder cpows(Manager(), aCpows);
-  return ReceiveMessage(aMessage, true, &cloneData, &cpows, aPrincipal, aJSONRetVal);
+  return ReceiveMessage(aMessage, true, &cloneData, &cpows, aPrincipal, aRetVal);
 }
 
 bool
@@ -1703,6 +1714,7 @@ bool
 TabParent::RecvSetCursor(const uint32_t& aCursor, const bool& aForce)
 {
   mCursor = static_cast<nsCursor>(aCursor);
+  mCustomCursor = nullptr;
 
   nsCOMPtr<nsIWidget> widget = GetWidget();
   if (widget) {
@@ -1713,6 +1725,46 @@ TabParent::RecvSetCursor(const uint32_t& aCursor, const bool& aForce)
       widget->SetCursor(mCursor);
     }
   }
+  return true;
+}
+
+bool
+TabParent::RecvSetCustomCursor(const nsCString& aCursorData,
+                               const uint32_t& aWidth,
+                               const uint32_t& aHeight,
+                               const uint32_t& aStride,
+                               const uint8_t& aFormat,
+                               const uint32_t& aHotspotX,
+                               const uint32_t& aHotspotY,
+                               const bool& aForce)
+{
+  mCursor = nsCursor(-1);
+
+  nsCOMPtr<nsIWidget> widget = GetWidget();
+  if (widget) {
+    if (aForce) {
+      widget->ClearCachedCursor();
+    }
+
+    if (mTabSetsCursor) {
+      const gfxIntSize size(aWidth, aHeight);
+
+      mozilla::RefPtr<gfx::DataSourceSurface> customCursor = new mozilla::gfx::SourceSurfaceRawData();
+      mozilla::gfx::SourceSurfaceRawData* raw = static_cast<mozilla::gfx::SourceSurfaceRawData*>(customCursor.get());
+      raw->InitWrappingData(
+        reinterpret_cast<uint8_t*>(const_cast<nsCString&>(aCursorData).BeginWriting()),
+        size, aStride, static_cast<mozilla::gfx::SurfaceFormat>(aFormat), false);
+      raw->GuaranteePersistance();
+
+      nsRefPtr<gfxDrawable> drawable = new gfxSurfaceDrawable(customCursor, size);
+      nsCOMPtr<imgIContainer> cursorImage(image::ImageOps::CreateFromDrawable(drawable));
+      widget->SetCursor(cursorImage, aHotspotX, aHotspotY);
+      mCustomCursor = cursorImage;
+      mCustomCursorHotspotX = aHotspotX;
+      mCustomCursorHotspotY = aHotspotY;
+    }
+  }
+
   return true;
 }
 
@@ -1894,6 +1946,15 @@ TabParent::RecvNotifyIMESelection(const uint32_t& aSeqno,
         (updatePreference.WantChangesCausedByComposition() ||
          !aCausedByComposition)) {
       IMENotification notification(NOTIFY_IME_OF_SELECTION_CHANGE);
+      notification.mSelectionChangeData.mOffset =
+        std::min(mIMESelectionAnchor, mIMESelectionFocus);
+      notification.mSelectionChangeData.mLength =
+        mIMESelectionAnchor > mIMESelectionFocus ?
+          mIMESelectionAnchor - mIMESelectionFocus :
+          mIMESelectionFocus - mIMESelectionAnchor;
+      notification.mSelectionChangeData.mReversed =
+        mIMESelectionFocus < mIMESelectionAnchor;
+      notification.mSelectionChangeData.SetWritingMode(mWritingMode);
       notification.mSelectionChangeData.mCausedByComposition =
         aCausedByComposition;
       widget->NotifyIME(notification);
@@ -2496,6 +2557,18 @@ TabParent::RecvGetDefaultScale(double* aValue)
 }
 
 bool
+TabParent::RecvGetMaxTouchPoints(uint32_t* aTouchPoints)
+{
+  nsCOMPtr<nsIWidget> widget = GetWidget();
+  if (widget) {
+    *aTouchPoints = widget->GetMaxTouchPoints();
+  } else {
+    *aTouchPoints = 0;
+  }
+  return true;
+}
+
+bool
 TabParent::RecvGetWidgetNativeData(WindowsHandle* aValue)
 {
   *aValue = 0;
@@ -2521,7 +2594,7 @@ TabParent::ReceiveMessage(const nsString& aMessage,
                           const StructuredCloneData* aCloneData,
                           CpowHolder* aCpows,
                           nsIPrincipal* aPrincipal,
-                          InfallibleTArray<nsString>* aJSONRetVal)
+                          nsTArray<OwningSerializedStructuredCloneBuffer>* aRetVal)
 {
   nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader(true);
   if (frameLoader && frameLoader->GetFrameMessageManager()) {
@@ -2535,7 +2608,7 @@ TabParent::ReceiveMessage(const nsString& aMessage,
                             aCloneData,
                             aCpows,
                             aPrincipal,
-                            aJSONRetVal);
+                            aRetVal);
   }
   return true;
 }
@@ -2700,7 +2773,8 @@ TabParent::GetWidget() const
 
 void
 TabParent::ApzAwareEventRoutingToChild(ScrollableLayerGuid* aOutTargetGuid,
-                                       uint64_t* aOutInputBlockId)
+                                       uint64_t* aOutInputBlockId,
+                                       nsEventStatus* aOutApzResponse)
 {
   if (gfxPrefs::AsyncPanZoomEnabled()) {
     if (aOutTargetGuid) {
@@ -2719,6 +2793,9 @@ TabParent::ApzAwareEventRoutingToChild(ScrollableLayerGuid* aOutTargetGuid,
     }
     if (aOutInputBlockId) {
       *aOutInputBlockId = InputAPZContext::GetInputBlockId();
+    }
+    if (aOutApzResponse) {
+      *aOutApzResponse = InputAPZContext::GetApzResponse();
     }
 
     // Let the widget know that the event will be sent to the child process,
@@ -2897,6 +2974,19 @@ TabParent::GetTabId(uint64_t* aId)
   return NS_OK;
 }
 
+NS_IMETHODIMP
+TabParent::GetHasContentOpener(bool* aResult)
+{
+  *aResult = mHasContentOpener;
+  return NS_OK;
+}
+
+void
+TabParent::SetHasContentOpener(bool aHasContentOpener)
+{
+  mHasContentOpener = aHasContentOpener;
+}
+
 class LayerTreeUpdateRunnable final
   : public nsRunnable
 {
@@ -3069,15 +3159,16 @@ public:
   NS_IMETHOD SetOriginalURI(nsIURI*) NO_IMPL
   NS_IMETHOD GetURI(nsIURI** aUri) override
   {
-    NS_IF_ADDREF(mUri);
-    *aUri = mUri;
+    nsCOMPtr<nsIURI> copy = mUri;
+    copy.forget(aUri);
     return NS_OK;
   }
   NS_IMETHOD GetOwner(nsISupports**) NO_IMPL
   NS_IMETHOD SetOwner(nsISupports*) NO_IMPL
   NS_IMETHOD GetLoadInfo(nsILoadInfo** aLoadInfo) override
   {
-    NS_IF_ADDREF(*aLoadInfo = mLoadInfo);
+    nsCOMPtr<nsILoadInfo> copy = mLoadInfo;
+    copy.forget(aLoadInfo);
     return NS_OK;
   }
   NS_IMETHOD SetLoadInfo(nsILoadInfo* aLoadInfo) override

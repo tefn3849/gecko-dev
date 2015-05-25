@@ -6,19 +6,27 @@
 var FullScreen = {
   _XULNS: "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul",
 
+  _MESSAGES: [
+    "DOMFullscreen:Entered",
+    "DOMFullscreen:NewOrigin",
+    "DOMFullscreen:Exited"
+  ],
+
   init: function() {
     // called when we go into full screen, even if initiated by a web page script
     window.addEventListener("fullscreen", this, true);
-    window.messageManager.addMessageListener("MozEnteredDomFullscreen", this);
-    window.messageManager.addMessageListener("MozExitedDomFullscreen", this);
+    for (let type of this._MESSAGES) {
+      window.messageManager.addMessageListener(type, this);
+    }
 
     if (window.fullScreen)
       this.toggle();
   },
 
   uninit: function() {
-    window.messageManager.removeMessageListener("MozEnteredDomFullscreen", this);
-    window.messageManager.removeMessageListener("MozExitedDomFullscreen", this);
+    for (let type of this._MESSAGES) {
+      window.messageManager.removeMessageListener(type, this);
+    }
     this.cleanup();
   },
 
@@ -48,21 +56,6 @@ var FullScreen = {
       this._fullScrToggler = document.getElementById("fullscr-toggler");
       this._fullScrToggler.addEventListener("mouseover", this._expandCallback, false);
       this._fullScrToggler.addEventListener("dragenter", this._expandCallback, false);
-    }
-
-    // On OS X Lion we don't want to hide toolbars when entering fullscreen, unless
-    // we're entering DOM fullscreen, in which case we should hide the toolbars.
-    // If we're leaving fullscreen, then we'll go through the exit code below to
-    // make sure toolbars are made visible in the case of DOM fullscreen.
-    if (enterFS && this.useLionFullScreen) {
-      if (document.mozFullScreen) {
-        this.showXULChrome("toolbar", false);
-      }
-      else {
-        gNavToolbox.setAttribute("inFullscreen", true);
-        document.documentElement.setAttribute("inFullscreen", true);
-      }
-      return;
     }
 
     // show/hide menubars, toolbars (except the full screen toolbar)
@@ -108,34 +101,45 @@ var FullScreen = {
   },
 
   receiveMessage: function(aMessage) {
-    if (aMessage.name == "MozEnteredDomFullscreen") {
-      // If we're a multiprocess browser, then the request to enter fullscreen
-      // did not bubble up to the root browser document - it stopped at the root
-      // of the content document. That means we have to kick off the switch to
-      // fullscreen here at the operating system level in the parent process
-      // ourselves.
-      let data = aMessage.data;
-      let browser = aMessage.target;
-      if (gMultiProcessBrowser && browser.getAttribute("remote") == "true") {
-        let windowUtils = window.QueryInterface(Ci.nsIInterfaceRequestor)
-                                .getInterface(Ci.nsIDOMWindowUtils);
-        windowUtils.remoteFrameFullscreenChanged(browser, data.origin);
+    let browser = aMessage.target;
+    switch (aMessage.name) {
+      case "DOMFullscreen:Entered": {
+        // If we're a multiprocess browser, then the request to enter
+        // fullscreen did not bubble up to the root browser document -
+        // it stopped at the root of the content document. That means
+        // we have to kick off the switch to fullscreen here at the
+        // operating system level in the parent process ourselves.
+        if (this._isRemoteBrowser(browser)) {
+          this._windowUtils.remoteFrameFullscreenChanged(browser);
+        }
+        this.enterDomFullscreen(browser);
+        break;
       }
-      this.enterDomFullscreen(browser, data.origin);
-    } else if (aMessage.name == "MozExitedDomFullscreen") {
-      document.documentElement.removeAttribute("inDOMFullscreen");
-      this.cleanupDomFullscreen();
-      this.showNavToolbox();
-      // If we are still in fullscreen mode, re-hide
-      // the toolbox with animation.
-      if (window.fullScreen) {
-        this._shouldAnimate = true;
-        this.hideNavToolbox();
+      case "DOMFullscreen:NewOrigin": {
+        this.showWarning(aMessage.data.origin);
+        break;
+      }
+      case "DOMFullscreen:Exited": {
+        // Like entering DOM fullscreen, we also need to exit fullscreen
+        // at the operating system level in the parent process here.
+        if (this._isRemoteBrowser(browser)) {
+          this._windowUtils.remoteFrameFullscreenReverted();
+        }
+        document.documentElement.removeAttribute("inDOMFullscreen");
+        this.cleanupDomFullscreen();
+        this.showNavToolbox();
+        // If we are still in fullscreen mode, re-hide
+        // the toolbox with animation.
+        if (window.fullScreen) {
+          this._shouldAnimate = true;
+          this.hideNavToolbox();
+        }
+        break;
       }
     }
   },
 
-  enterDomFullscreen : function(aBrowser, aOrigin) {
+  enterDomFullscreen : function(aBrowser) {
     if (!document.mozFullScreen)
       return;
 
@@ -160,8 +164,6 @@ var FullScreen = {
 
     if (gFindBarInitialized)
       gFindBar.close();
-
-    this.showWarning(aOrigin);
 
     // Exit DOM full-screen mode upon open, close, or change tab.
     gBrowser.tabContainer.addEventListener("TabOpen", this.exitDomFullScreen);
@@ -201,7 +203,16 @@ var FullScreen = {
       window.removeEventListener("activate", this);
 
     window.messageManager
-          .broadcastAsyncMessage("DOMFullscreen:Cleanup");
+          .broadcastAsyncMessage("DOMFullscreen:CleanUp");
+  },
+
+  _isRemoteBrowser: function (aBrowser) {
+    return gMultiProcessBrowser && aBrowser.getAttribute("remote") == "true";
+  },
+
+  get _windowUtils() {
+    return window.QueryInterface(Ci.nsIInterfaceRequestor)
+                 .getInterface(Ci.nsIDOMWindowUtils);
   },
 
   getMouseTargetRect: function()
@@ -238,9 +249,14 @@ var FullScreen = {
     if (!gPrefService.getBoolPref("browser.fullscreen.autohide"))
       return false;
 
-    // a popup menu is open in chrome: don't collapse chrome
-    if (!forceHide && this._isPopupOpen)
-      return false;
+    if (!forceHide) {
+      // a popup menu is open in chrome: don't collapse chrome
+      if (this._isPopupOpen)
+        return false;
+      // On OS X Lion we don't want to hide toolbars.
+      if (this.useLionFullScreen)
+        return false;
+    }
 
     // a textbox in chrome is focused (location bar anyone?): don't collapse chrome
     if (document.commandDispatcher.focusedElement &&
@@ -448,7 +464,7 @@ var FullScreen = {
 
     // Track whether mouse is near the toolbox
     this._isChromeCollapsed = false;
-    if (trackMouse) {
+    if (trackMouse && !this.useLionFullScreen) {
       let rect = gBrowser.mPanelContainer.getBoundingClientRect();
       this._mouseTargetRect = {
         top: rect.top + 50,
@@ -547,6 +563,16 @@ var FullScreen = {
       document.documentElement.setAttribute("inFullscreen", true);
     }
 
+    ToolbarIconColor.inferFromText();
+
+    // For Lion fullscreen, all fullscreen controls are hidden, don't
+    // bother to touch them. If we don't stop here, the following code
+    // could cause the native fullscreen button be shown unexpectedly.
+    // See bug 1165570.
+    if (this.useLionFullScreen) {
+      return;
+    }
+
     var fullscreenctls = document.getElementById("window-controls");
     var navbar = document.getElementById("nav-bar");
     var ctlsOnTabbar = window.toolbar.visible;
@@ -559,8 +585,6 @@ var FullScreen = {
       navbar.appendChild(fullscreenctls);
     }
     fullscreenctls.hidden = aShow;
-
-    ToolbarIconColor.inferFromText();
   }
 };
 XPCOMUtils.defineLazyGetter(FullScreen, "useLionFullScreen", function() {

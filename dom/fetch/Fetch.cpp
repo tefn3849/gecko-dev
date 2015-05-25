@@ -446,13 +446,14 @@ ExtractFromArrayBufferView(const ArrayBufferView& aBuffer,
 }
 
 nsresult
-ExtractFromBlob(const File& aFile, nsIInputStream** aStream,
+ExtractFromBlob(const Blob& aBlob, nsIInputStream** aStream,
                 nsCString& aContentType)
 {
-  nsRefPtr<FileImpl> impl = aFile.Impl();
-  nsresult rv = impl->GetInternalStream(aStream);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return rv;
+  nsRefPtr<BlobImpl> impl = aBlob.Impl();
+  ErrorResult rv;
+  impl->GetInternalStream(aStream, rv);
+  if (NS_WARN_IF(rv.Failed())) {
+    return rv.StealNSResult();
   }
 
   nsAutoString type;
@@ -773,7 +774,7 @@ private:
       }
       p = nullptr;
 
-      nsRefPtr<File> file =
+      nsRefPtr<Blob> file =
         File::CreateMemoryFile(mParentObject,
                                reinterpret_cast<void *>(copy), body.Length(),
                                NS_ConvertUTF8toUTF16(mFilename),
@@ -910,7 +911,7 @@ ExtractByteStreamFromBody(const OwningArrayBufferOrArrayBufferViewOrBlobOrFormDa
     const ArrayBufferView& buf = aBodyInit.GetAsArrayBufferView();
     return ExtractFromArrayBufferView(buf, aStream);
   } else if (aBodyInit.IsBlob()) {
-    const File& blob = aBodyInit.GetAsBlob();
+    const Blob& blob = aBodyInit.GetAsBlob();
     return ExtractFromBlob(blob, aStream, aContentType);
   } else if (aBodyInit.IsFormData()) {
     nsFormData& form = aBodyInit.GetAsFormData();
@@ -942,7 +943,7 @@ ExtractByteStreamFromBody(const ArrayBufferOrArrayBufferViewOrBlobOrFormDataOrUS
     const ArrayBufferView& buf = aBodyInit.GetAsArrayBufferView();
     return ExtractFromArrayBufferView(buf, aStream);
   } else if (aBodyInit.IsBlob()) {
-    const File& blob = aBodyInit.GetAsBlob();
+    const Blob& blob = aBodyInit.GetAsBlob();
     return ExtractFromBlob(blob, aStream, aContentType);
   } else if (aBodyInit.IsFormData()) {
     nsFormData& form = aBodyInit.GetAsFormData();
@@ -1507,9 +1508,10 @@ FetchBody<Derived>::ContinueConsumeBody(nsresult aStatus, uint32_t aResultLength
       return;
     }
     case CONSUME_BLOB: {
-      nsRefPtr<File> blob =
-        File::CreateMemoryFile(DerivedClass()->GetParentObject(),
-                               reinterpret_cast<void *>(aResult), aResultLength, NS_ConvertUTF8toUTF16(mMimeType));
+      nsRefPtr<dom::Blob> blob =
+        Blob::CreateMemoryBlob(DerivedClass()->GetParentObject(),
+                               reinterpret_cast<void *>(aResult), aResultLength,
+                               NS_ConvertUTF8toUTF16(mMimeType));
 
       if (!blob) {
         localPromise->MaybeReject(NS_ERROR_DOM_UNKNOWN_ERR);
@@ -1526,7 +1528,7 @@ FetchBody<Derived>::ContinueConsumeBody(nsresult aStatus, uint32_t aResultLength
       data.Adopt(reinterpret_cast<char*>(aResult), aResultLength);
       autoFree.Reset();
 
-      NS_NAMED_LITERAL_CSTRING(formDataMimeType, NS_LITERAL_CSTRING("multipart/form-data"));
+      NS_NAMED_LITERAL_CSTRING(formDataMimeType, "multipart/form-data");
 
       // Allow semicolon separated boundary/encoding suffix like multipart/form-data; boundary=
       // but disallow multipart/form-datafoobar.
@@ -1549,7 +1551,7 @@ FetchBody<Derived>::ContinueConsumeBody(nsresult aStatus, uint32_t aResultLength
         MOZ_ASSERT(fd);
         localPromise->MaybeResolve(fd);
       } else {
-        NS_NAMED_LITERAL_CSTRING(urlDataMimeType, NS_LITERAL_CSTRING("application/x-www-form-urlencoded"));
+        NS_NAMED_LITERAL_CSTRING(urlDataMimeType, "application/x-www-form-urlencoded");
         bool isValidUrlEncodedMimeType = StringBeginsWith(mMimeType, urlDataMimeType);
 
         if (isValidUrlEncodedMimeType && mMimeType.Length() > urlDataMimeType.Length()) {

@@ -12,7 +12,7 @@
 #include "nsEventQueue.h"
 #include "nsCOMPtr.h"
 #include "prinrval.h"
-#include "prlog.h"
+#include "mozilla/Logging.h"
 #include "prinit.h"
 #include "nsIObserver.h"
 #include "mozilla/Mutex.h"
@@ -29,7 +29,7 @@ struct PRPollDesc;
 // set NSPR_LOG_MODULES=nsSocketTransport:5
 //
 extern PRLogModuleInfo *gSocketTransportLog;
-#define SOCKET_LOG(args)     PR_LOG(gSocketTransportLog, PR_LOG_DEBUG, args)
+#define SOCKET_LOG(args)     MOZ_LOG(gSocketTransportLog, PR_LOG_DEBUG, args)
 #define SOCKET_LOG_ENABLED() PR_LOG_TEST(gSocketTransportLog, PR_LOG_DEBUG)
 
 //-----------------------------------------------------------------------------

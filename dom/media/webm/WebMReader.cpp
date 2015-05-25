@@ -10,7 +10,6 @@
 #include "SoftwareWebMVideoDecoder.h"
 #include "WebMReader.h"
 #include "WebMBufferedParser.h"
-#include "mozilla/dom/TimeRanges.h"
 #include "VorbisUtils.h"
 #include "gfx2DGlue.h"
 #include "Layers.h"
@@ -35,16 +34,11 @@
 
 #undef LOG
 
-#ifdef PR_LOGGING
 #include "prprf.h"
-#define LOG(type, msg) PR_LOG(gMediaDecoderLog, type, msg)
+#define LOG(type, msg) MOZ_LOG(gMediaDecoderLog, type, msg)
 #ifdef SEEK_LOGGING
-#define SEEK_LOG(type, msg) PR_LOG(gMediaDecoderLog, type, msg)
+#define SEEK_LOG(type, msg) MOZ_LOG(gMediaDecoderLog, type, msg)
 #else
-#define SEEK_LOG(type, msg)
-#endif
-#else
-#define LOG(type, msg)
 #define SEEK_LOG(type, msg)
 #endif
 
@@ -110,7 +104,10 @@ static void webm_log(nestegg * context,
                      unsigned int severity,
                      char const * format, ...)
 {
-#ifdef PR_LOGGING
+  if (!PR_LOG_TEST(gNesteggLog, PR_LOG_DEBUG)) {
+    return;
+  }
+
   va_list args;
   char msg[256];
   const char * sevStr;
@@ -140,10 +137,9 @@ static void webm_log(nestegg * context,
 
   PR_snprintf(msg, sizeof(msg), "%p [Nestegg-%s] ", context, sevStr);
   PR_vsnprintf(msg+strlen(msg), sizeof(msg)-strlen(msg), format, args);
-  PR_LOG(gNesteggLog, PR_LOG_DEBUG, (msg));
+  MOZ_LOG(gNesteggLog, PR_LOG_DEBUG, (msg));
 
   va_end(args);
-#endif
 }
 
 ogg_packet InitOggPacket(const unsigned char* aData, size_t aLength,
@@ -184,11 +180,9 @@ WebMReader::WebMReader(AbstractMediaDecoder* aDecoder)
   , mPaddingDiscarded(false)
 {
   MOZ_COUNT_CTOR(WebMReader);
-#ifdef PR_LOGGING
   if (!gNesteggLog) {
     gNesteggLog = PR_NewLogModule("Nestegg");
   }
-#endif
   // Zero these member vars to avoid crashes in VP8 destroy and Vorbis clear
   // functions when destructor is called before |Init|.
   memset(&mVorbisBlock, 0, sizeof(vorbis_block));
@@ -1048,7 +1042,7 @@ bool WebMReader::ShouldSkipVideoFrame(int64_t aTimeThreshold)
 bool WebMReader::DecodeVideoFrame(bool &aKeyframeSkip, int64_t aTimeThreshold)
 {
   if (!(aKeyframeSkip && ShouldSkipVideoFrame(aTimeThreshold))) {
-    LOG(PR_LOG_DEBUG, ("Reader [%p]: set the aKeyframeSkip to false.",this));
+    LOG(PR_LOG_DEBUG+1, ("Reader [%p]: set the aKeyframeSkip to false.",this));
     aKeyframeSkip = false;
   }
   return mVideoDecoder->DecodeVideoFrame(aKeyframeSkip, aTimeThreshold);
@@ -1112,21 +1106,20 @@ nsresult WebMReader::SeekInternal(int64_t aTarget)
   return NS_OK;
 }
 
-nsresult WebMReader::GetBuffered(dom::TimeRanges* aBuffered)
+media::TimeIntervals WebMReader::GetBuffered()
 {
   MOZ_ASSERT(mStartTime != -1, "Need to finish metadata decode first");
-  if (aBuffered->Length() != 0) {
-    return NS_ERROR_FAILURE;
-  }
-
   AutoPinned<MediaResource> resource(mDecoder->GetResource());
 
+  media::TimeIntervals buffered;
   // Special case completely cached files.  This also handles local files.
   if (mContext && resource->IsDataCachedToEndOfResource(0)) {
     uint64_t duration = 0;
     if (nestegg_duration(mContext, &duration) == 0) {
-      aBuffered->Add(0, duration / NS_PER_S);
-      return NS_OK;
+      buffered +=
+        media::TimeInterval(media::TimeUnit::FromSeconds(0),
+                            media::TimeUnit::FromSeconds(duration / NS_PER_S));
+      return buffered;
     }
   }
 
@@ -1134,7 +1127,7 @@ nsresult WebMReader::GetBuffered(dom::TimeRanges* aBuffered)
   // the WebM bitstream.
   nsTArray<MediaByteRange> ranges;
   nsresult res = resource->GetCachedRanges(ranges);
-  NS_ENSURE_SUCCESS(res, res);
+  NS_ENSURE_SUCCESS(res, media::TimeIntervals::Invalid());
 
   for (uint32_t index = 0; index < ranges.Length(); index++) {
     uint64_t start, end;
@@ -1159,12 +1152,12 @@ nsresult WebMReader::GetBuffered(dom::TimeRanges* aBuffered)
           endTime = duration / NS_PER_S;
         }
       }
-
-      aBuffered->Add(startTime, endTime);
+      buffered += media::TimeInterval(media::TimeUnit::FromSeconds(startTime),
+                                      media::TimeUnit::FromSeconds(endTime));
     }
   }
 
-  return NS_OK;
+  return buffered;
 }
 
 void WebMReader::NotifyDataArrived(const char* aBuffer, uint32_t aLength,

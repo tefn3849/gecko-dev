@@ -72,26 +72,6 @@ using namespace mozilla::widget;
 
 static nsWindow *gFocusedWindow = nullptr;
 
-NS_IMPL_ISUPPORTS_INHERITED0(nsWindow, nsBaseWidget)
-
-nsWindow::nsWindow()
-{
-    mFramebuffer = nullptr;
-
-    nsRefPtr<nsScreenManagerGonk> screenManager = nsScreenManagerGonk::GetInstance();
-    screenManager->Initialize();
-
-    // This is a hack to force initialization of the compositor
-    // resources, if we're going to use omtc.
-    //
-    // NB: GetPlatform() will create the gfxPlatform, which wants
-    // to know the color depth, which asks our native window.
-    // This has to happen after other init has finished.
-    gfxPlatform::GetPlatform();
-    if (!ShouldUseOffMainThreadCompositing()) {
-        MOZ_CRASH("How can we render apps, then?");
-    }
-}
 
 nsWindow::~nsWindow()
 {
@@ -683,7 +663,8 @@ nsWindow::StartRemoteDrawing()
         mBackBuffer = mFramebufferTarget->CreateSimilarDrawTarget(
             mFramebufferTarget->GetSize(), mFramebufferTarget->GetFormat());
     }
-    return mBackBuffer;
+    RefPtr<DrawTarget> buffer(mBackBuffer);
+    return buffer.forget();
 }
 
 void

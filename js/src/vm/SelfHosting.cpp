@@ -177,7 +177,7 @@ ThrowErrorWithType(JSContext* cx, JSExnType type, const CallArgs& args)
             errorArgs[i - 1].encodeLatin1(cx, val.toString());
         } else {
             UniquePtr<char[], JS::FreePolicy> bytes =
-                DecompileValueGenerator(cx, JSDVG_SEARCH_STACK, val, NullPtr());
+                DecompileValueGenerator(cx, JSDVG_SEARCH_STACK, val, nullptr);
             if (!bytes)
                 return;
             errorArgs[i - 1].initBytes(bytes.release());
@@ -240,6 +240,7 @@ intrinsic_MakeConstructible(JSContext* cx, unsigned argc, Value* vp)
     MOZ_ASSERT(args.length() == 2);
     MOZ_ASSERT(args[0].isObject());
     MOZ_ASSERT(args[0].toObject().is<JSFunction>());
+    MOZ_ASSERT(args[0].toObject().as<JSFunction>().isSelfHostedBuiltin());
     MOZ_ASSERT(args[1].isObject());
 
     // Normal .prototype properties aren't enumerable.  But for this to clone
@@ -252,7 +253,7 @@ intrinsic_MakeConstructible(JSContext* cx, unsigned argc, Value* vp)
         return false;
     }
 
-    ctor->as<JSFunction>().setIsSelfHostedConstructor();
+    ctor->as<JSFunction>().setIsConstructor();
     args.rval().setUndefined();
     return true;
 }
@@ -308,18 +309,18 @@ js::intrinsic_NewDenseArray(JSContext* cx, unsigned argc, Value* vp)
         return false;
     buffer->setGroup(newgroup);
 
-    NativeObject::EnsureDenseResult edr = buffer->ensureDenseElements(cx, length, 0);
+    DenseElementResult edr = buffer->ensureDenseElements(cx, length, 0);
     switch (edr) {
-      case NativeObject::ED_OK:
+      case DenseElementResult::Success:
         args.rval().setObject(*buffer);
         return true;
 
-      case NativeObject::ED_SPARSE: // shouldn't happen!
+      case DenseElementResult::Incomplete: // shouldn't happen!
         MOZ_ASSERT(!"%EnsureDenseArrayElements() would yield sparse array");
         JS_ReportError(cx, "%EnsureDenseArrayElements() would yield sparse array");
         break;
 
-      case NativeObject::ED_FAILED:
+      case DenseElementResult::Failure:
         break;
     }
     return false;
@@ -1634,13 +1635,13 @@ JSRuntime::markSelfHostingGlobal(JSTracer* trc)
 }
 
 bool
-JSRuntime::isSelfHostingCompartment(JSCompartment* comp)
+JSRuntime::isSelfHostingCompartment(JSCompartment* comp) const
 {
     return selfHostingGlobal_->compartment() == comp;
 }
 
 bool
-JSRuntime::isSelfHostingZone(JS::Zone* zone)
+JSRuntime::isSelfHostingZone(const JS::Zone* zone) const
 {
     return selfHostingGlobal_ && selfHostingGlobal_->zoneFromAnyThread() == zone;
 }
@@ -1672,14 +1673,14 @@ GetUnclonedValue(JSContext* cx, HandleNativeObject selfHostedObject,
         MOZ_ASSERT(selfHostedObject->is<GlobalObject>());
         RootedValue value(cx, IdToValue(id));
         return ReportValueErrorFlags(cx, JSREPORT_ERROR, JSMSG_NO_SUCH_SELF_HOSTED_PROP,
-                                     JSDVG_IGNORE_STACK, value, NullPtr(), nullptr, nullptr);
+                                     JSDVG_IGNORE_STACK, value, nullptr, nullptr, nullptr);
     }
 
     RootedShape shape(cx, selfHostedObject->lookupPure(id));
     if (!shape) {
         RootedValue value(cx, IdToValue(id));
         return ReportValueErrorFlags(cx, JSREPORT_ERROR, JSMSG_NO_SUCH_SELF_HOSTED_PROP,
-                                     JSDVG_IGNORE_STACK, value, NullPtr(), nullptr, nullptr);
+                                     JSDVG_IGNORE_STACK, value, nullptr, nullptr, nullptr);
     }
 
     MOZ_ASSERT(shape->hasSlot() && shape->hasDefaultGetter());
@@ -1808,10 +1809,10 @@ CloneObject(JSContext* cx, HandleNativeObject selfHostedObject)
             return nullptr;
         clone = StringObject::create(cx, str);
     } else if (selfHostedObject->is<ArrayObject>()) {
-        clone = NewDenseEmptyArray(cx, NullPtr(), TenuredObject);
+        clone = NewDenseEmptyArray(cx, nullptr, TenuredObject);
     } else {
         MOZ_ASSERT(selfHostedObject->isNative());
-        clone = NewObjectWithGivenProto(cx, selfHostedObject->getClass(), NullPtr(),
+        clone = NewObjectWithGivenProto(cx, selfHostedObject->getClass(), nullptr,
                                         selfHostedObject->asTenured().getAllocKind(),
                                         SingletonObject);
     }
@@ -1871,7 +1872,7 @@ JSRuntime::cloneSelfHostedFunctionScript(JSContext* cx, HandlePropertyName name,
     if (!sourceScript)
         return false;
     MOZ_ASSERT(!sourceScript->enclosingStaticScope());
-    JSScript* cscript = CloneScript(cx, NullPtr(), targetFun, sourceScript);
+    JSScript* cscript = CloneScript(cx, nullptr, targetFun, sourceScript);
     if (!cscript)
         return false;
     cscript->setFunction(targetFun);

@@ -44,7 +44,7 @@ function promiseTab(aURL) {
     addTab(aURL, resolve));
 }
 
-registerCleanupFunction(function tearDown() {
+registerCleanupFunction(function* tearDown() {
   let target = TargetFactory.forTab(gBrowser.selectedTab);
   yield gDevTools.closeToolbox(target);
 
@@ -126,7 +126,9 @@ function waitForValue(aOptions)
       successFn(aOptions, lastValue);
     }
     else {
-      setTimeout(function() wait(validatorFn, successFn, failureFn), 100);
+      setTimeout(() => {
+        wait(validatorFn, successFn, failureFn);
+      }, 100);
     }
   }
 
@@ -242,6 +244,24 @@ function* openAndCloseToolbox(nbOfTimes, usageTime, toolId) {
     info("Closing toolbox " + (i + 1));
     yield gDevTools.closeToolbox(target);
   }
+}
+
+/**
+ * Synthesize a profile for testing.
+ */
+function synthesizeProfileForTest(samples) {
+  const { RecordingUtils } = devtools.require("devtools/performance/recording-utils");
+
+  samples.unshift({
+    time: 0,
+    frames: []
+  });
+
+  let uniqueStacks = new RecordingUtils.UniqueStacks();
+  return RecordingUtils.deflateThread({
+    samples: samples,
+    markers: []
+  }, uniqueStacks);
 }
 
 /**

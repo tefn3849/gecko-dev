@@ -1,7 +1,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-/* 
+/*
  * ManifestProcessor
  * Implementation of processing algorithms from:
  * http://www.w3.org/2008/webapps/manifest/
@@ -12,6 +12,9 @@
  *
  *   .process({jsonText,manifestURL,docURL});
  *
+ * Depends on ManifestImageObjectProcessor to process things like
+ * icons and splash_screens.
+ *
  * TODO: The constructor should accept the UA's supported orientations.
  * TODO: The constructor should accept the UA's supported display modes.
  * TODO: hook up developer tools to console. (1086997).
@@ -20,46 +23,15 @@
 /*JSLint options in comment below: */
 /*globals Components, XPCOMUtils*/
 'use strict';
-this.EXPORTED_SYMBOLS = ['ManifestProcessor'];
+this.EXPORTED_SYMBOLS = ['ManifestProcessor']; // jshint ignore:line
 const imports = {};
 const {
-  utils: Cu,
-  classes: Cc,
-  interfaces: Ci
+  utils: Cu
 } = Components;
 Cu.import('resource://gre/modules/XPCOMUtils.jsm');
 Cu.importGlobalProperties(['URL']);
 XPCOMUtils.defineLazyModuleGetter(imports, 'Services',
   'resource://gre/modules/Services.jsm');
-imports.netutil = Cc['@mozilla.org/network/util;1'].getService(Ci.nsINetUtil);
-// Helper function extracts values from manifest members
-// and reports conformance violations.
-function extractValue({
-  objectName,
-  object,
-  property,
-  expectedType,
-  trim
-}, console) {
-  const value = object[property];
-  const isArray = Array.isArray(value);
-  // We need to special-case "array", as it's not a JS primitive.
-  const type = (isArray) ? 'array' : typeof value;
-  if (type !== expectedType) {
-    if (type !== 'undefined') {
-      let msg = `Expected the ${objectName}'s ${property} `;
-      msg += `member to a be a ${expectedType}.`;
-      console.log(msg);
-    }
-    return undefined;
-  }
-  // Trim string and returned undefined if the empty string.
-  const shouldTrim = expectedType === 'string' && value && trim;
-  if (shouldTrim) {
-    return value.trim() || undefined;
-  }
-  return value;
-}
 const displayModes = new Set(['fullscreen', 'standalone', 'minimal-ui',
   'browser'
 ]);
@@ -70,6 +42,13 @@ const orientationTypes = new Set(['any', 'natural', 'landscape', 'portrait',
 const {
   ConsoleAPI
 } = Cu.import('resource://gre/modules/devtools/Console.jsm');
+const {
+  ManifestImageObjectProcessor: ImgObjProcessor
+} = Cu.import('resource://gre/modules/ManifestImageObjectProcessor.jsm');
+
+const {
+  ManifestValueExtractor
+} = Cu.import('resource://gre/modules/ManifestValueExtractor.jsm');
 
 function ManifestProcessor() {}
 
@@ -93,23 +72,22 @@ Object.defineProperties(ManifestProcessor, {
 });
 
 ManifestProcessor.prototype = {
-
-  // process method: processes json text into a clean manifest
+  // process() method processes JSON text into a clean manifest
   // that conforms with the W3C specification. Takes an object
   // expecting the following dictionary items:
-  //  * jsonText: the JSON string to be processd.
-  //  * manifestURL: the URL of the manifest, to resolve URLs.
-  //  * docURL: the URL of the owner doc, for security checks.
+  //  * aJsonText: the JSON string to be processed.
+  //  * aManifestURL: the URL of the manifest, to resolve URLs.
+  //  * aDocURL: the URL of the owner doc, for security checks
   process({
     jsonText: aJsonText,
     manifestURL: aManifestURL,
     docURL: aDocURL
   }) {
-    const manifestURL = new URL(aManifestURL);
-    const docURL = new URL(aDocURL);
     const console = new ConsoleAPI({
       prefix: 'Web Manifest: '
     });
+    const manifestURL = new URL(aManifestURL);
+    const docURL = new URL(aDocURL);
     let rawManifest = {};
     try {
       rawManifest = JSON.parse(aJsonText);
@@ -119,16 +97,24 @@ ManifestProcessor.prototype = {
       console.warn(msg);
       rawManifest = {};
     }
+    const extractor = new ManifestValueExtractor(console);
+    const imgObjProcessor = new ImgObjProcessor(console, extractor);
     const processedManifest = {
-      start_url: processStartURLMember(rawManifest, manifestURL, docURL),
-      display: processDisplayMember(rawManifest),
-      orientation: processOrientationMember(rawManifest),
-      name: processNameMember(rawManifest),
-      icons: IconsProcessor.process(rawManifest, manifestURL, console),
-      short_name: processShortNameMember(rawManifest),
+      'start_url': processStartURLMember(rawManifest, manifestURL, docURL),
+      'display': processDisplayMember(rawManifest),
+      'orientation': processOrientationMember(rawManifest),
+      'name': processNameMember(rawManifest),
+      'icons': imgObjProcessor.process(
+        rawManifest, manifestURL, 'icons'
+      ),
+      'splash_screens': imgObjProcessor.process(
+        rawManifest, manifestURL, 'splash_screens'
+      ),
+      'short_name': processShortNameMember(rawManifest),
+      'theme_color': processThemeColorMember(rawManifest),
     };
     processedManifest.scope = processScopeMember(rawManifest, manifestURL,
-      docURL, new URL(processedManifest.start_url));
+      docURL, new URL(processedManifest['start_url'])); // jshint ignore:line
 
     return processedManifest;
 
@@ -140,7 +126,7 @@ ManifestProcessor.prototype = {
         expectedType: 'string',
         trim: true
       };
-      return extractValue(spec, console);
+      return extractor.extractValue(spec);
     }
 
     function processShortNameMember(aManifest) {
@@ -151,7 +137,7 @@ ManifestProcessor.prototype = {
         expectedType: 'string',
         trim: true
       };
-      return extractValue(spec, console);
+      return extractor.extractValue(spec);
     }
 
     function processOrientationMember(aManifest) {
@@ -162,7 +148,7 @@ ManifestProcessor.prototype = {
         expectedType: 'string',
         trim: true
       };
-      const value = extractValue(spec, console);
+      const value = extractor.extractValue(spec);
       if (ManifestProcessor.orientationTypes.has(value)) {
         return value;
       }
@@ -178,7 +164,7 @@ ManifestProcessor.prototype = {
         expectedType: 'string',
         trim: true
       };
-      const value = extractValue(spec, console);
+      const value = extractor.extractValue(spec);
       if (ManifestProcessor.displayModes.has(value)) {
         return value;
       }
@@ -194,7 +180,7 @@ ManifestProcessor.prototype = {
         trim: false
       };
       let scopeURL;
-      const value = extractValue(spec, console);
+      const value = extractor.extractValue(spec);
       if (value === undefined || value === '') {
         return undefined;
       }
@@ -230,7 +216,7 @@ ManifestProcessor.prototype = {
         trim: false
       };
       let result = new URL(aDocURL).href;
-      const value = extractValue(spec, console);
+      const value = extractor.extractValue(spec);
       if (value === undefined || value === '') {
         return result;
       }
@@ -249,128 +235,18 @@ ManifestProcessor.prototype = {
       }
       return result;
     }
-  }
-};
-this.ManifestProcessor = ManifestProcessor;
 
-function IconsProcessor() {}
-
-// Static getters
-Object.defineProperties(IconsProcessor, {
-  'onlyDecimals': {
-    get: function() {
-      return /^\d+$/;
-    }
-  },
-  'anyRegEx': {
-    get: function() {
-      return new RegExp('any', 'i');
-    }
-  }
-});
-
-IconsProcessor.process = function(aManifest, aBaseURL, console) {
-  const spec = {
-    objectName: 'manifest',
-    object: aManifest,
-    property: 'icons',
-    expectedType: 'array',
-    trim: false
-  };
-  const icons = [];
-  const value = extractValue(spec, console);
-  if (Array.isArray(value)) {
-    // Filter out icons whose "src" is not useful.
-    value.filter(item => !!processSrcMember(item, aBaseURL))
-      .map(toIconObject)
-      .forEach(icon => icons.push(icon));
-  }
-  return icons;
-
-  function toIconObject(aIconData) {
-    return {
-      src: processSrcMember(aIconData, aBaseURL),
-      type: processTypeMember(aIconData),
-      sizes: processSizesMember(aIconData),
-      density: processDensityMember(aIconData)
-    };
-  }
-
-  function processTypeMember(aIcon) {
-    const charset = {};
-    const hadCharset = {};
-    const spec = {
-      objectName: 'icon',
-      object: aIcon,
-      property: 'type',
-      expectedType: 'string',
-      trim: true
-    };
-    let value = extractValue(spec, console);
-    if (value) {
-      value = imports.netutil.parseContentType(value, charset, hadCharset);
-    }
-    return value || undefined;
-  }
-
-  function processDensityMember(aIcon) {
-    const value = parseFloat(aIcon.density);
-    const validNum = Number.isNaN(value) || value === +Infinity || value <=
-      0;
-    return (validNum) ? 1.0 : value;
-  }
-
-  function processSrcMember(aIcon, aBaseURL) {
-    const spec = {
-      objectName: 'icon',
-      object: aIcon,
-      property: 'src',
-      expectedType: 'string',
-      trim: false
-    };
-    const value = extractValue(spec, console);
-    let url;
-    if (value && value.length) {
-      try {
-        url = new URL(value, aBaseURL).href;
-      } catch (e) {}
-    }
-    return url;
-  }
-
-  function processSizesMember(aIcon) {
-    const sizes = new Set(),
-      spec = {
-        objectName: 'icon',
-        object: aIcon,
-        property: 'sizes',
+    function processThemeColorMember(aManifest) {
+      const spec = {
+        objectName: 'manifest',
+        object: aManifest,
+        property: 'theme_color',
         expectedType: 'string',
         trim: true
-      },
-      value = extractValue(spec, console);
-    if (value) {
-      // Split on whitespace and filter out invalid values.
-      value.split(/\s+/)
-        .filter(isValidSizeValue)
-        .forEach(size => sizes.add(size));
-    }
-    return sizes;
-    // Implementation of HTML's link@size attribute checker.
-    function isValidSizeValue(aSize) {
-      const size = aSize.toLowerCase();
-      if (IconsProcessor.anyRegEx.test(aSize)) {
-        return true;
-      }
-      if (!size.includes('x') || size.indexOf('x') !== size.lastIndexOf('x')) {
-        return false;
-      }
-      // Split left of x for width, after x for height.
-      const widthAndHeight = size.split('x');
-      const w = widthAndHeight.shift();
-      const h = widthAndHeight.join('x');
-      const validStarts = !w.startsWith('0') && !h.startsWith('0');
-      const validDecimals = IconsProcessor.onlyDecimals.test(w + h);
-      return (validStarts && validDecimals);
+      };
+      return extractor.extractColorValue(spec);
     }
   }
 };
+
+this.ManifestProcessor = ManifestProcessor; // jshint ignore:line

@@ -1297,13 +1297,9 @@ CompositorOGL::SetDispAcquireFence(Layer* aLayer)
   if (!aLayer) {
     return;
   }
-
   nsWindow* window = static_cast<nsWindow*>(mWidget);
-  android::sp<android::Fence> fence = new android::Fence(window->GetPrevDispAcquireFd());
-  if (fence.get() && fence->isValid()) {
-    FenceHandle handle = FenceHandle(fence);
-    mReleaseFenceHandle.Merge(handle);
-  }
+  RefPtr<FenceHandle::FdObj> fence = new FenceHandle::FdObj(window->GetPrevDispAcquireFd());
+  mReleaseFenceHandle.Merge(FenceHandle(fence));
 }
 
 FenceHandle
@@ -1312,7 +1308,9 @@ CompositorOGL::GetReleaseFence()
   if (!mReleaseFenceHandle.IsValid()) {
     return FenceHandle();
   }
-  return FenceHandle(new android::Fence(mReleaseFenceHandle.mFence->dup()));
+
+  nsRefPtr<FenceHandle::FdObj> fdObj = mReleaseFenceHandle.GetDupFdObj();
+  return FenceHandle(fdObj);
 }
 
 #else
@@ -1427,9 +1425,7 @@ CompositorOGL::Resume()
 TemporaryRef<DataTextureSource>
 CompositorOGL::CreateDataTextureSource(TextureFlags aFlags)
 {
-  RefPtr<DataTextureSource> result =
-    new TextureImageTextureSourceOGL(this, aFlags);
-  return result;
+  return MakeAndAddRef<TextureImageTextureSourceOGL>(this, aFlags);
 }
 
 bool

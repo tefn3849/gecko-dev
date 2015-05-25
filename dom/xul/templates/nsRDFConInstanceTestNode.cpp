@@ -11,8 +11,7 @@
 #include "nsRDFConInstanceTestNode.h"
 #include "nsResourceSet.h"
 
-#include "prlog.h"
-#ifdef PR_LOGGING
+#include "mozilla/Logging.h"
 #include "nsXULContentUtils.h"
 extern PRLogModuleInfo* gXULTemplateLog;
 
@@ -25,7 +24,6 @@ TestToString(nsRDFConInstanceTestNode::Test aTest) {
     }
     return "?";
 }
-#endif
 
 nsRDFConInstanceTestNode::nsRDFConInstanceTestNode(TestNode* aParent,
                                                    nsXULTemplateQueryProcessorRDF* aProcessor,
@@ -38,7 +36,6 @@ nsRDFConInstanceTestNode::nsRDFConInstanceTestNode(TestNode* aParent,
       mContainer(aContainer),
       mEmpty(aEmpty)
 {
-#ifdef PR_LOGGING
     if (PR_LOG_TEST(gXULTemplateLog, PR_LOG_DEBUG)) {
         nsAutoCString props;
 
@@ -61,7 +58,7 @@ nsRDFConInstanceTestNode::nsRDFConInstanceTestNode(TestNode* aParent,
         if (mContainerVariable)
             mContainerVariable->ToString(cvar);
 
-        PR_LOG(gXULTemplateLog, PR_LOG_DEBUG,
+        MOZ_LOG(gXULTemplateLog, PR_LOG_DEBUG,
                ("nsRDFConInstanceTestNode[%p]: parent=%p member-props=(%s) container-var=%s container=%s empty=%s",
                 this,
                 aParent,
@@ -70,7 +67,6 @@ nsRDFConInstanceTestNode::nsRDFConInstanceTestNode(TestNode* aParent,
                 TestToString(aContainer),
                 TestToString(aEmpty)));
     }
-#endif
 }
 
 nsresult
@@ -104,16 +100,14 @@ nsRDFConInstanceTestNode::FilterInstantiations(InstantiationSet& aInstantiations
             continue;
         }
 
-#ifdef PR_LOGGING
         if (PR_LOG_TEST(gXULTemplateLog, PR_LOG_DEBUG)) {
             const char* container = "(unbound)";
             valueres->GetValueConst(&container);
 
-            PR_LOG(gXULTemplateLog, PR_LOG_DEBUG,
+            MOZ_LOG(gXULTemplateLog, PR_LOG_DEBUG,
                    ("nsRDFConInstanceTestNode[%p]::FilterInstantiations() container=[%s]",
                     this, container));
         }
-#endif
 
         nsCOMPtr<nsIRDFContainer> rdfcontainer;
 
@@ -198,11 +192,11 @@ nsRDFConInstanceTestNode::FilterInstantiations(InstantiationSet& aInstantiations
                 }
             }
 
-            PR_LOG(gXULTemplateLog, PR_LOG_DEBUG,
+            MOZ_LOG(gXULTemplateLog, PR_LOG_DEBUG,
                    ("    empty => %s",
                     (empty == mEmpty) ? "consistent" : "inconsistent"));
 
-            PR_LOG(gXULTemplateLog, PR_LOG_DEBUG,
+            MOZ_LOG(gXULTemplateLog, PR_LOG_DEBUG,
                    ("    container => %s",
                     (container == mContainer) ? "consistent" : "inconsistent"));
 
@@ -251,7 +245,6 @@ nsRDFConInstanceTestNode::CanPropagate(nsIRDFResource* aSource,
         canpropagate = mProcessor->ContainmentProperties().Contains(aProperty);
     }
 
-#ifdef PR_LOGGING
     if (PR_LOG_TEST(gXULTemplateLog, PR_LOG_DEBUG)) {
         const char* source;
         aSource->GetValueConst(&source);
@@ -262,12 +255,11 @@ nsRDFConInstanceTestNode::CanPropagate(nsIRDFResource* aSource,
         nsAutoString target;
         nsXULContentUtils::GetTextForNode(aTarget, target);
 
-        PR_LOG(gXULTemplateLog, PR_LOG_DEBUG,
+        MOZ_LOG(gXULTemplateLog, PR_LOG_DEBUG,
                ("nsRDFConInstanceTestNode[%p]: CanPropagate([%s]==[%s]=>[%s]) => %s",
                 this, source, property, NS_ConvertUTF16toUTF8(target).get(),
                 canpropagate ? "true" : "false"));
     }
-#endif
 
     if (canpropagate) {
         aInitialBindings.AddAssignment(mContainerVariable, aSource);

@@ -17,7 +17,7 @@
 #include "nsString.h"
 #include "nsXULAppAPI.h"
 #include "prprf.h"
-#include "prlog.h"
+#include "mozilla/Logging.h"
 #include "nsError.h"
 #include "prerror.h"
 #include "prerr.h"
@@ -105,7 +105,7 @@ static const char* sMultiprocessDescription = nullptr;
 
 static Atomic<int32_t> gAssertionCount;
 
-NS_IMPL_QUERY_INTERFACE(nsDebugImpl, nsIDebug, nsIDebug2)
+NS_IMPL_QUERY_INTERFACE(nsDebugImpl, nsIDebug2)
 
 NS_IMETHODIMP_(MozExternalRefCountType)
 nsDebugImpl::AddRef()
@@ -372,7 +372,7 @@ NS_DebugBreak(uint32_t aSeverity, const char* aStr, const char* aExpr,
 #  undef PrintToBuffer
 
   // Write out the message to the debug log
-  PR_LOG(gDebugLog, ll, ("%s", buf.buffer));
+  MOZ_LOG(gDebugLog, ll, ("%s", buf.buffer));
   PR_LogFlush();
 
   // errors on platforms without a debugdlg ring a bell on stderr
@@ -579,16 +579,20 @@ Break(const char* aMsg)
 #endif
 }
 
-static const nsDebugImpl kImpl;
-
 nsresult
 nsDebugImpl::Create(nsISupports* aOuter, const nsIID& aIID, void** aInstancePtr)
 {
+  static const nsDebugImpl* sImpl;
+
   if (NS_WARN_IF(aOuter)) {
     return NS_ERROR_NO_AGGREGATION;
   }
 
-  return const_cast<nsDebugImpl*>(&kImpl)->QueryInterface(aIID, aInstancePtr);
+  if (!sImpl) {
+    sImpl = new nsDebugImpl();
+  }
+
+  return const_cast<nsDebugImpl*>(sImpl)->QueryInterface(aIID, aInstancePtr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -5,7 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "pk11pub.h"
-#include "prlog.h"
+#include "mozilla/Logging.h"
 #include "ScopedNSSTypes.h"
 #include "secoidt.h"
 
@@ -34,7 +34,7 @@ namespace net {
 
 // NSPR_LOG_MODULES=BackgroundFileSaver:5
 PRLogModuleInfo *BackgroundFileSaver::prlog = nullptr;
-#define LOG(args) PR_LOG(BackgroundFileSaver::prlog, PR_LOG_DEBUG, args)
+#define LOG(args) MOZ_LOG(BackgroundFileSaver::prlog, PR_LOG_DEBUG, args)
 #define LOG_ENABLED() PR_LOG_TEST(BackgroundFileSaver::prlog, 4)
 
 ////////////////////////////////////////////////////////////////////////////////

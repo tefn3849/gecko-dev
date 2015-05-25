@@ -4,7 +4,8 @@
 // Tests that the text displayed is the function name, file name and line number
 // if applicable.
 
-let {FlameGraphUtils, FLAME_GRAPH_BLOCK_HEIGHT} = devtools.require("devtools/shared/widgets/FlameGraph");
+let {FlameGraphUtils} = devtools.require("devtools/shared/widgets/FlameGraph");
+let {PALLETTE_SIZE} = devtools.require("devtools/shared/widgets/FlameGraph");
 
 add_task(function*() {
   yield promiseTab("about:blank");
@@ -13,12 +14,12 @@ add_task(function*() {
 });
 
 function* performTest() {
-  let out = FlameGraphUtils.createFlameGraphDataFromSamples(TEST_DATA, {
+  let out = FlameGraphUtils.createFlameGraphDataFromThread(TEST_DATA, {
     flattenRecursion: true
   });
 
   ok(out, "Some data was outputted properly");
-  is(out.length, 10, "The outputted length is correct.");
+  is(out.length, PALLETTE_SIZE, "The outputted length is correct.");
 
   info("Got flame graph data:\n" + out.toSource() + "\n");
 
@@ -44,14 +45,14 @@ function* performTest() {
   }
 }
 
-let TEST_DATA = [{
+let TEST_DATA = synthesizeProfileForTest([{
   frames: [{
     location: "A (http://path/to/file.js:10:5"
   }, {
     location: "B (http://path/to/file.js:100:5"
   }],
   time: 50,
-}];
+}]);
 
 let EXPECTED_OUTPUT = [{
   blocks: []
@@ -63,18 +64,44 @@ let EXPECTED_OUTPUT = [{
   blocks: []
 }, {
   blocks: [{
-    srcData: {
-      startTime: 0,
-      rawLocation: "A (http://path/to/file.js:10:5)"
-    },
+    startTime: 0,
+    frameKey: "A (http://path/to/file.js:10:5",
     x: 0,
     y: 0,
     width: 50,
-    height: FLAME_GRAPH_BLOCK_HEIGHT,
+    height: 15,
     text: "A (file.js:10)"
   }]
 }, {
   blocks: []
+}, {
+  blocks: []
+}, {
+  blocks: []
+}, {
+  blocks: []
+}, {
+  blocks: []
+}, {
+  blocks: []
+}, {
+  blocks: []
+}, {
+  blocks: []
+}, {
+  blocks: []
+}, {
+  blocks: []
+}, {
+  blocks: [{
+    startTime: 0,
+    frameKey: "B (http://path/to/file.js:100:5",
+    x: 0,
+    y: 15,
+    width: 50,
+    height: 15,
+    text: "B (file.js:100)"
+  }]
 }, {
   blocks: []
 }, {

@@ -288,7 +288,7 @@ public:
     RefPtr<gfx::SourceSurface> surf = BorrowDrawTarget()->Snapshot();
     RefPtr<gfx::DataSourceSurface> data = surf->GetDataSurface();
     Unlock();
-    return data;
+    return data.forget();
   }
 
   virtual void PrintInfo(std::stringstream& aStream, const char* aPrefix);
@@ -428,17 +428,19 @@ public:
    */
   void ForceRemove(bool sync = false);
 
-  virtual void SetReleaseFenceHandle(FenceHandle aReleaseFenceHandle)
+  virtual void SetReleaseFenceHandle(const FenceHandle& aReleaseFenceHandle)
   {
     mReleaseFenceHandle.Merge(aReleaseFenceHandle);
   }
 
-  const FenceHandle& GetReleaseFenceHandle() const
+  FenceHandle GetAndResetReleaseFenceHandle()
   {
-    return mReleaseFenceHandle;
+    FenceHandle fence;
+    mReleaseFenceHandle.TransferToAnotherFenceHandle(fence);
+    return fence;
   }
 
-  virtual void SetAcquireFenceHandle(FenceHandle aAcquireFenceHandle)
+  virtual void SetAcquireFenceHandle(const FenceHandle& aAcquireFenceHandle)
   {
     mAcquireFenceHandle = aAcquireFenceHandle;
   }

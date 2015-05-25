@@ -60,7 +60,7 @@ GetFontInfoLog()
 }
 
 #undef LOG
-#define LOG(args) PR_LOG(GetFontInfoLog(), PR_LOG_DEBUG, args)
+#define LOG(args) MOZ_LOG(GetFontInfoLog(), PR_LOG_DEBUG, args)
 #define LOG_ENABLED() PR_LOG_TEST(GetFontInfoLog(), PR_LOG_DEBUG)
 
 static cairo_user_data_key_t sFTUserFontDataKey;
@@ -617,9 +617,18 @@ FT2FontFamily::AddFacesToFontList(InfallibleTArray<FontListEntry>* aFontList,
 class FontNameCache {
 public:
     FontNameCache()
-        : mMap(&sMapOps, sizeof(FNCMapEntry), 0)
-        , mWriteNeeded(false)
+        : mWriteNeeded(false)
     {
+        mOps = (PLDHashTableOps) {
+            StringHash,
+            HashMatchEntry,
+            MoveEntry,
+            PL_DHashClearEntryStub,
+            nullptr
+        };
+
+        PL_DHashTableInit(&mMap, &mOps, sizeof(FNCMapEntry), 0);
+
         MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default,
                    "StartupCacheFontNameCache should only be used in chrome "
                    "process");
@@ -630,12 +639,17 @@ public:
 
     ~FontNameCache()
     {
+        if (!mMap.IsInitialized()) {
+            return;
+        }
         if (!mWriteNeeded || !mCache) {
+            PL_DHashTableFinish(&mMap);
             return;
         }
 
         nsAutoCString buf;
         PL_DHashTableEnumerate(&mMap, WriteOutMap, &buf);
+        PL_DHashTableFinish(&mMap);
         mCache->PutBuffer(CACHE_KEY, buf.get(), buf.Length() + 1);
     }
 
@@ -737,7 +751,7 @@ private:
     PLDHashTable mMap;
     bool mWriteNeeded;
 
-    static const PLDHashTableOps sMapOps;
+    PLDHashTableOps mOps;
 
     static PLDHashOperator WriteOutMap(PLDHashTable *aTable,
                                        PLDHashEntryHdr *aHdr,
@@ -794,15 +808,6 @@ private:
         to->mFaces.Assign(from->mFaces);
         to->mFileExists = from->mFileExists;
     }
-};
-
-/* static */ const PLDHashTableOps FontNameCache::sMapOps =
-{
-    FontNameCache::StringHash,
-    FontNameCache::HashMatchEntry,
-    FontNameCache::MoveEntry,
-    PL_DHashClearEntryStub,
-    nullptr
 };
 
 /***************************************************************
@@ -1352,7 +1357,7 @@ AddHiddenFamilyToFontList(nsStringHashKey::KeyType aKey,
 }
 
 void
-gfxFT2FontList::GetFontList(InfallibleTArray<FontListEntry>* retValue)
+gfxFT2FontList::GetSystemFontList(InfallibleTArray<FontListEntry>* retValue)
 {
     mFontFamilies.Enumerate(AddFamilyToFontList, retValue);
     mHiddenFontFamilies.Enumerate(AddHiddenFamilyToFontList, retValue);

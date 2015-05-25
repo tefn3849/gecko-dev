@@ -12,7 +12,7 @@
 #include "nsIApplicationCacheContainer.h"
 #include "nsIChannel.h"
 #include "nsIDocument.h"
-#include "prlog.h"
+#include "mozilla/Logging.h"
 
 //
 // To enable logging (see prlog.h for full details):
@@ -26,7 +26,7 @@
 extern PRLogModuleInfo *gOfflineCacheUpdateLog;
 
 #undef LOG
-#define LOG(args) PR_LOG(gOfflineCacheUpdateLog, 4, args)
+#define LOG(args) MOZ_LOG(gOfflineCacheUpdateLog, 4, args)
 
 #undef LOG_ENABLED
 #define LOG_ENABLED() PR_LOG_TEST(gOfflineCacheUpdateLog, 4)

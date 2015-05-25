@@ -357,6 +357,8 @@ NativeObject::setLastPropertyMakeNative(ExclusiveContext* cx, Shape* shape)
     size_t oldSpan = shape->numFixedSlots();
     size_t newSpan = shape->slotSpan();
 
+    initializeSlotRange(0, oldSpan);
+
     // A failure at this point will leave the object as a mutant, and we
     // can't recover.
     if (oldSpan != newSpan && !updateSlotsForSpan(cx, oldSpan, newSpan))
@@ -526,7 +528,7 @@ NativeObject::willBeSparseElements(uint32_t requiredCapacity, uint32_t newElemen
     return true;
 }
 
-/* static */ NativeObject::EnsureDenseResult
+/* static */ DenseElementResult
 NativeObject::maybeDensifySparseElements(js::ExclusiveContext* cx, HandleNativeObject obj)
 {
     /*
@@ -535,7 +537,7 @@ NativeObject::maybeDensifySparseElements(js::ExclusiveContext* cx, HandleNativeO
      * (see PropertyTree::MAX_HEIGHT).
      */
     if (!obj->inDictionaryMode())
-        return ED_SPARSE;
+        return DenseElementResult::Incomplete;
 
     /*
      * Only measure the number of indexed properties every log(n) times when
@@ -543,11 +545,11 @@ NativeObject::maybeDensifySparseElements(js::ExclusiveContext* cx, HandleNativeO
      */
     uint32_t slotSpan = obj->slotSpan();
     if (slotSpan != RoundUpPow2(slotSpan))
-        return ED_SPARSE;
+        return DenseElementResult::Incomplete;
 
     /* Watch for conditions under which an object's elements cannot be dense. */
     if (!obj->nonProxyIsExtensible() || obj->watched())
-        return ED_SPARSE;
+        return DenseElementResult::Incomplete;
 
     /*
      * The indexes in the object need to be sufficiently dense before they can
@@ -571,17 +573,17 @@ NativeObject::maybeDensifySparseElements(js::ExclusiveContext* cx, HandleNativeO
                  * For simplicity, only densify the object if all indexed
                  * properties can be converted to dense elements.
                  */
-                return ED_SPARSE;
+                return DenseElementResult::Incomplete;
             }
         }
         shape = shape->previous();
     }
 
     if (numDenseElements * SPARSE_DENSITY_RATIO < newInitializedLength)
-        return ED_SPARSE;
+        return DenseElementResult::Incomplete;
 
     if (newInitializedLength >= NELEMENTS_LIMIT)
-        return ED_SPARSE;
+        return DenseElementResult::Incomplete;
 
     /*
      * This object meets all necessary restrictions, convert all indexed
@@ -589,11 +591,11 @@ NativeObject::maybeDensifySparseElements(js::ExclusiveContext* cx, HandleNativeO
      */
 
     if (!obj->maybeCopyElementsForWrite(cx))
-        return ED_FAILED;
+        return DenseElementResult::Failure;
 
     if (newInitializedLength > obj->getDenseCapacity()) {
         if (!obj->growElements(cx, newInitializedLength))
-            return ED_FAILED;
+            return DenseElementResult::Failure;
     }
 
     obj->ensureDenseInitializedLength(cx, newInitializedLength, 0);
@@ -617,10 +619,10 @@ NativeObject::maybeDensifySparseElements(js::ExclusiveContext* cx, HandleNativeO
             if (shape != obj->lastProperty()) {
                 shape = shape->previous();
                 if (!obj->removeProperty(cx, id))
-                    return ED_FAILED;
+                    return DenseElementResult::Failure;
             } else {
                 if (!obj->removeProperty(cx, id))
-                    return ED_FAILED;
+                    return DenseElementResult::Failure;
                 shape = obj->lastProperty();
             }
 
@@ -636,9 +638,9 @@ NativeObject::maybeDensifySparseElements(js::ExclusiveContext* cx, HandleNativeO
      * to grow the object.
      */
     if (!obj->clearFlag(cx, BaseShape::INDEXED))
-        return ED_FAILED;
+        return DenseElementResult::Failure;
 
-    return ED_OK;
+    return DenseElementResult::Success;
 }
 
 // Round up |reqAllocated| to a good size. Up to 1 Mebi (i.e. 1,048,576) the
@@ -1126,10 +1128,10 @@ AddOrChangeProperty(ExclusiveContext* cx, HandleNativeObject obj, HandleId id,
         !IsAnyTypedArray(obj))
     {
         uint32_t index = JSID_TO_INT(id);
-        NativeObject::EnsureDenseResult edResult = obj->ensureDenseElements(cx, index, 1);
-        if (edResult == NativeObject::ED_FAILED)
+        DenseElementResult edResult = obj->ensureDenseElements(cx, index, 1);
+        if (edResult == DenseElementResult::Failure)
             return false;
-        if (edResult == NativeObject::ED_OK) {
+        if (edResult == DenseElementResult::Success) {
             obj->setDenseElementWithType(cx, index, desc.value());
             if (!CallAddPropertyHookDense(cx, obj, index, desc.value()))
                 return false;
@@ -1153,11 +1155,11 @@ AddOrChangeProperty(ExclusiveContext* cx, HandleNativeObject obj, HandleId id,
 
         uint32_t index = JSID_TO_INT(id);
         NativeObject::removeDenseElementForSparseIndex(cx, obj, index);
-        NativeObject::EnsureDenseResult edResult =
+        DenseElementResult edResult =
             NativeObject::maybeDensifySparseElements(cx, obj);
-        if (edResult == NativeObject::ED_FAILED)
+        if (edResult == DenseElementResult::Failure)
             return false;
-        if (edResult == NativeObject::ED_OK) {
+        if (edResult == DenseElementResult::Success) {
             MOZ_ASSERT(!desc.setter());
             return CallAddPropertyHookDense(cx, obj, index, desc.value());
         }
@@ -1438,7 +1440,7 @@ js::NativeDefineProperty(ExclusiveContext* cx, HandleNativeObject obj, HandleId 
                          ObjectOpResult& result)
 {
     Rooted<PropertyDescriptor> desc(cx);
-    desc.initFields(NullPtr(), value, attrs, getter, setter);
+    desc.initFields(nullptr, value, attrs, getter, setter);
     return NativeDefineProperty(cx, obj, id, desc, result);
 }
 
@@ -1756,7 +1758,7 @@ GetNonexistentProperty(JSContext* cx, HandleNativeObject obj, HandleId id,
     // Ok, bad undefined property reference: whine about it.
     RootedValue val(cx, IdToValue(id));
     return ReportValueErrorFlags(cx, flags, JSMSG_UNDEFINED_PROP, JSDVG_IGNORE_STACK, val,
-                                    js::NullPtr(), nullptr, nullptr);
+                                    nullptr, nullptr, nullptr);
 }
 
 /* The NoGC version of GetNonexistentProperty, present only to make types line up. */
@@ -1974,26 +1976,43 @@ js::SetPropertyByDefining(JSContext* cx, HandleObject obj, HandleId id, HandleVa
         return result.fail(JSMSG_SET_NON_OBJECT_RECEIVER);
     RootedObject receiver(cx, &receiverValue.toObject());
 
-    // Step 5.c-d: Test whether receiver has an existing own property
-    // receiver[id]. The spec calls [[GetOwnProperty]]; js::HasOwnProperty is
-    // the same thing except faster in the non-proxy case. Sometimes we can
-    // even optimize away the HasOwnProperty call.
     bool existing;
     if (receiver == obj) {
+        // Steps 5.c-e.ii.
         // The common case. The caller has necessarily done a property lookup
         // on obj and passed us the answer as objHasOwn.
+        // We also know that the property is a data property and writable
+        // if it exists.
 #ifdef DEBUG
         // Check that objHasOwn is correct. This could fail if receiver or a
         // native object on its prototype chain has a nondeterministic resolve
         // hook. We shouldn't have any that are quite that badly behaved.
-        if (!HasOwnProperty(cx, receiver, id, &existing))
+        Rooted<PropertyDescriptor> desc(cx);
+        if (!GetOwnPropertyDescriptor(cx, receiver, id, &desc))
             return false;
-        MOZ_ASSERT(existing == objHasOwn);
+        MOZ_ASSERT(!!desc.object() == objHasOwn);
+        MOZ_ASSERT_IF(desc.object(), desc.isDataDescriptor());
+        MOZ_ASSERT_IF(desc.object(), desc.writable());
 #endif
         existing = objHasOwn;
     } else {
-        if (!HasOwnProperty(cx, receiver, id, &existing))
+        // Steps 5.c-d.
+        Rooted<PropertyDescriptor> desc(cx);
+        if (!GetOwnPropertyDescriptor(cx, receiver, id, &desc))
             return false;
+
+        existing = !!desc.object();
+
+        // Step 5.e.
+        if (existing) {
+            // Step 5.e.i.
+            if (desc.isAccessorDescriptor())
+                return result.fail(JSMSG_OVERWRITING_ACCESSOR);
+
+            // Step 5.e.ii.
+            if (!desc.writable())
+                return result.fail(JSMSG_READ_ONLY);
+        }
     }
 
     // Invalidate SpiderMonkey-specific caches or bail.
@@ -2003,7 +2022,7 @@ js::SetPropertyByDefining(JSContext* cx, HandleObject obj, HandleId id, HandleVa
     if (!PurgeScopeChain(cx, receiver, id))
         return false;
 
-    // Step 5.e-f. Define the new data property.
+    // Steps 5.e.iii-iv. and 5.f.i. Define the new data property.
     unsigned attrs =
         existing
         ? JSPROP_IGNORE_ENUMERATE | JSPROP_IGNORE_READONLY | JSPROP_IGNORE_PERMANENT

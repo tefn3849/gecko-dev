@@ -10,9 +10,7 @@
 #define logging_h__
 
 #include <sstream>
-#include <prlog.h>
-
-#if defined(PR_LOGGING)
+#include "mozilla/Logging.h"
 
 #define ML_EMERG            1
 #define ML_ERROR            2
@@ -21,7 +19,6 @@
 #define ML_INFO             5
 #define ML_DEBUG            6
 
-// PR_LOGGING is on --> make useful MTLOG macros
 #define MOZ_MTLOG_MODULE(n) \
   static PRLogModuleInfo* getLogModule() {      \
     static PRLogModuleInfo* log;                \
@@ -32,14 +29,11 @@
 
 #define MOZ_MTLOG(level, b) \
   do {                                                                  \
-    std::stringstream str;                                              \
-    str << b;                                                           \
-    PR_LOG(getLogModule(), level, ("%s", str.str().c_str())); } while(0)
-
-#else
-// PR_LOGGING is off --> make no-op MTLOG macros
-#define MOZ_MTLOG_MODULE(n)
-#define MOZ_MTLOG(level, b)
-#endif // defined(PR_LOGGING)
+    if (PR_LOG_TEST(getLogModule(), level)) {                           \
+      std::stringstream str;                                            \
+      str << b;                                                         \
+      MOZ_LOG(getLogModule(), level, ("%s", str.str().c_str()));         \
+    }                                                                   \
+  } while(0)
 
 #endif // logging_h__

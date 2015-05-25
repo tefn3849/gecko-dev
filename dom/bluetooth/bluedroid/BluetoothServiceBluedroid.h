@@ -130,7 +130,7 @@ public:
 
   virtual void
   SendFile(const nsAString& aDeviceAddress,
-           nsIDOMBlob* aBlob,
+           Blob* aBlob,
            BluetoothReplyRunnable* aRunnable);
 
   virtual void
@@ -312,7 +312,6 @@ public:
 protected:
   static nsresult StartGonkBluetooth();
   static nsresult StopGonkBluetooth();
-  static bool EnsureBluetoothHalLoad();
 
   static void ConnectDisconnect(bool aConnect,
                                 const nsAString& aDeviceAddress,
@@ -435,7 +434,7 @@ public:
 
   virtual void
   SendFile(const nsAString& aDeviceAddress,
-           nsIDOMBlob* aBlob,
+           Blob* aBlob,
            BluetoothReplyRunnable* aRunnable);
 
   virtual void

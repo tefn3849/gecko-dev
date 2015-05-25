@@ -128,6 +128,7 @@ struct WebGLContextOptions
     bool premultipliedAlpha;
     bool antialias;
     bool preserveDrawingBuffer;
+    bool failIfMajorPerformanceCaveat;
 };
 
 // From WebGLContextUtils
@@ -309,6 +310,8 @@ public:
     gl::GLContext* GL() const { return gl; }
 
     bool IsPremultAlpha() const { return mOptions.premultipliedAlpha; }
+
+    bool IsPreservingDrawingBuffer() const { return mOptions.preserveDrawingBuffer; }
 
     bool PresentScreenBuffer();
 

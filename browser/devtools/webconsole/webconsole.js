@@ -1334,6 +1334,11 @@ WebConsoleFrame.prototype = {
         break;
       }
 
+      case "timeStamp": {
+        // console.timeStamp() doesn't need to display anything.
+        return null;
+      }
+
       default:
         Cu.reportError("Unknown Console API log level: " + level);
         return null;
@@ -2869,7 +2874,7 @@ WebConsoleFrame.prototype = {
       }
     }
 
-    clipboardHelper.copyString(strings.join("\n"), this.document);
+    clipboardHelper.copyString(strings.join("\n"));
   },
 
   /**

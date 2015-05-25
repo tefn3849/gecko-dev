@@ -10,7 +10,6 @@
 #include "WMFByteStream.h"
 #include "WMFSourceReaderCallback.h"
 #include "mozilla/ArrayUtils.h"
-#include "mozilla/dom/TimeRanges.h"
 #include "mozilla/dom/HTMLMediaElement.h"
 #include "mozilla/Preferences.h"
 #include "DXVA2Manager.h"
@@ -34,12 +33,8 @@ using mozilla::layers::LayersBackend;
 
 namespace mozilla {
 
-#ifdef PR_LOGGING
 extern PRLogModuleInfo* gMediaDecoderLog;
-#define DECODER_LOG(...) PR_LOG(gMediaDecoderLog, PR_LOG_DEBUG, (__VA_ARGS__))
-#else
-#define DECODER_LOG(...)
-#endif
+#define DECODER_LOG(...) MOZ_LOG(gMediaDecoderLog, PR_LOG_DEBUG, (__VA_ARGS__))
 
 // Uncomment to enable verbose per-sample logging.
 //#define LOG_SAMPLE_DECODE 1
@@ -108,7 +103,6 @@ WMFReader::InitializeDXVA()
 
   LayersBackend backend = layerManager->GetCompositorBackendType();
   if (backend != LayersBackend::LAYERS_D3D9 &&
-      backend != LayersBackend::LAYERS_D3D10 &&
       backend != LayersBackend::LAYERS_D3D11) {
     return false;
   }

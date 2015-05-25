@@ -7,11 +7,9 @@
 #include "nsString.h"
 #include "nsXULContentUtils.h"
 
-#include "prlog.h"
-#ifdef PR_LOGGING
+#include "mozilla/Logging.h"
 extern PRLogModuleInfo* gXULTemplateLog;
 #include "nsIRDFLiteral.h"
-#endif
 
 nsRDFPropertyTestNode::nsRDFPropertyTestNode(TestNode* aParent,
                                              nsXULTemplateQueryProcessorRDF* aProcessor,
@@ -26,7 +24,6 @@ nsRDFPropertyTestNode::nsRDFPropertyTestNode(TestNode* aParent,
       mTargetVariable(aTargetVariable),
       mTarget(nullptr)
 {
-#ifdef PR_LOGGING
     if (PR_LOG_TEST(gXULTemplateLog, PR_LOG_DEBUG)) {
         const char* prop = "(null)";
         if (aProperty)
@@ -40,11 +37,10 @@ nsRDFPropertyTestNode::nsRDFPropertyTestNode(TestNode* aParent,
         if (mTargetVariable)
             mTargetVariable->ToString(tvar);
 
-        PR_LOG(gXULTemplateLog, PR_LOG_DEBUG,
+        MOZ_LOG(gXULTemplateLog, PR_LOG_DEBUG,
                ("nsRDFPropertyTestNode[%p]: parent=%p source=%s property=%s target=%s",
                 this, aParent, NS_ConvertUTF16toUTF8(svar).get(), prop, NS_ConvertUTF16toUTF8(tvar).get()));
     }
-#endif
 }
 
 
@@ -61,7 +57,6 @@ nsRDFPropertyTestNode::nsRDFPropertyTestNode(TestNode* aParent,
       mTargetVariable(aTargetVariable),
       mTarget(nullptr)
 {
-#ifdef PR_LOGGING
     if (PR_LOG_TEST(gXULTemplateLog, PR_LOG_DEBUG)) {
         const char* source = "(null)";
         if (aSource)
@@ -75,11 +70,10 @@ nsRDFPropertyTestNode::nsRDFPropertyTestNode(TestNode* aParent,
         if (mTargetVariable)
             mTargetVariable->ToString(tvar);
 
-        PR_LOG(gXULTemplateLog, PR_LOG_DEBUG,
+        MOZ_LOG(gXULTemplateLog, PR_LOG_DEBUG,
                ("nsRDFPropertyTestNode[%p]: parent=%p source=%s property=%s target=%s",
                 this, aParent, source, prop, NS_ConvertUTF16toUTF8(tvar).get()));
     }
-#endif
 }
 
 
@@ -96,7 +90,6 @@ nsRDFPropertyTestNode::nsRDFPropertyTestNode(TestNode* aParent,
       mTargetVariable(0),
       mTarget(aTarget)
 {
-#ifdef PR_LOGGING
     if (PR_LOG_TEST(gXULTemplateLog, PR_LOG_DEBUG)) {
         nsAutoString svar(NS_LITERAL_STRING("(none)"));
         if (mSourceVariable)
@@ -109,11 +102,10 @@ nsRDFPropertyTestNode::nsRDFPropertyTestNode(TestNode* aParent,
         nsAutoString target;
         nsXULContentUtils::GetTextForNode(aTarget, target);
 
-        PR_LOG(gXULTemplateLog, PR_LOG_DEBUG,
+        MOZ_LOG(gXULTemplateLog, PR_LOG_DEBUG,
                ("nsRDFPropertyTestNode[%p]: parent=%p source=%s property=%s target=%s",
                 this, aParent, NS_ConvertUTF16toUTF8(svar).get(), prop, NS_ConvertUTF16toUTF8(target).get()));
     }
-#endif
 }
 
 
@@ -156,7 +148,6 @@ nsRDFPropertyTestNode::FilterInstantiations(InstantiationSet& aInstantiations,
                                                                    getter_AddRefs(targetValue));
         }
 
-#ifdef PR_LOGGING
         if (PR_LOG_TEST(gXULTemplateLog, PR_LOG_DEBUG)) {
             const char* source = "(unbound)";
             if (hasSourceBinding)
@@ -166,11 +157,10 @@ nsRDFPropertyTestNode::FilterInstantiations(InstantiationSet& aInstantiations,
             if (hasTargetBinding)
                 nsXULContentUtils::GetTextForNode(targetValue, target);
 
-            PR_LOG(gXULTemplateLog, PR_LOG_DEBUG,
+            MOZ_LOG(gXULTemplateLog, PR_LOG_DEBUG,
                    ("nsRDFPropertyTestNode[%p]: FilterInstantiations() source=[%s] target=[%s]",
                     this, source, NS_ConvertUTF16toUTF8(target).get()));
         }
-#endif
 
         if (hasSourceBinding && hasTargetBinding) {
             // it's a consistency check. see if we have a assignment that is consistent
@@ -179,10 +169,8 @@ nsRDFPropertyTestNode::FilterInstantiations(InstantiationSet& aInstantiations,
                                   true, &hasAssertion);
             if (NS_FAILED(rv)) return rv;
 
-#ifdef PR_LOGGING
-            PR_LOG(gXULTemplateLog, PR_LOG_DEBUG,
+            MOZ_LOG(gXULTemplateLog, PR_LOG_DEBUG,
                    ("    consistency check => %s", hasAssertion ? "passed" : "failed"));
-#endif
 
             if (hasAssertion) {
                 // it's consistent.
@@ -241,16 +229,14 @@ nsRDFPropertyTestNode::FilterInstantiations(InstantiationSet& aInstantiations,
                     value = do_QueryInterface(isupports);
                     NS_ASSERTION(value != nullptr, "target is not an nsIRDFNode");
 
-#ifdef PR_LOGGING
                     if (PR_LOG_TEST(gXULTemplateLog, PR_LOG_DEBUG)) {
                         nsAutoString s(NS_LITERAL_STRING("(none found)"));
                         if (value)
                             nsXULContentUtils::GetTextForNode(value, s);
 
-                        PR_LOG(gXULTemplateLog, PR_LOG_DEBUG,
+                        MOZ_LOG(gXULTemplateLog, PR_LOG_DEBUG,
                                ("    target => %s", NS_ConvertUTF16toUTF8(s).get()));
                     }
-#endif
 
                     if (! value) continue;
 
@@ -262,16 +248,14 @@ nsRDFPropertyTestNode::FilterInstantiations(InstantiationSet& aInstantiations,
                     nsCOMPtr<nsIRDFResource> source = do_QueryInterface(isupports);
                     NS_ASSERTION(source != nullptr, "source is not an nsIRDFResource");
 
-#ifdef PR_LOGGING
                     if (PR_LOG_TEST(gXULTemplateLog, PR_LOG_DEBUG)) {
                         const char* s = "(none found)";
                         if (source)
                             source->GetValueConst(&s);
 
-                        PR_LOG(gXULTemplateLog, PR_LOG_DEBUG,
+                        MOZ_LOG(gXULTemplateLog, PR_LOG_DEBUG,
                                ("    source => %s", s));
                     }
-#endif
 
                     if (! source) continue;
 
@@ -337,7 +321,6 @@ nsRDFPropertyTestNode::CanPropagate(nsIRDFResource* aSource,
         result = true;
     }
 
-#ifdef PR_LOGGING
     if (PR_LOG_TEST(gXULTemplateLog, PR_LOG_DEBUG)) {
         const char* source;
         aSource->GetValueConst(&source);
@@ -348,12 +331,11 @@ nsRDFPropertyTestNode::CanPropagate(nsIRDFResource* aSource,
         nsAutoString target;
         nsXULContentUtils::GetTextForNode(aTarget, target);
 
-        PR_LOG(gXULTemplateLog, PR_LOG_DEBUG,
+        MOZ_LOG(gXULTemplateLog, PR_LOG_DEBUG,
                ("nsRDFPropertyTestNode[%p]: CanPropagate([%s]==[%s]=>[%s]) => %s",
                 this, source, property, NS_ConvertUTF16toUTF8(target).get(),
                 result ? "true" : "false"));
     }
-#endif
 
     return result;
 }
@@ -364,7 +346,6 @@ nsRDFPropertyTestNode::Retract(nsIRDFResource* aSource,
                                nsIRDFNode* aTarget) const
 {
     if (aProperty == mProperty.get()) {
-#ifdef PR_LOGGING
         if (PR_LOG_TEST(gXULTemplateLog, PR_LOG_DEBUG)) {
             const char* source;
             aSource->GetValueConst(&source);
@@ -375,11 +356,10 @@ nsRDFPropertyTestNode::Retract(nsIRDFResource* aSource,
             nsAutoString target;
             nsXULContentUtils::GetTextForNode(aTarget, target);
 
-            PR_LOG(gXULTemplateLog, PR_LOG_DEBUG,
+            MOZ_LOG(gXULTemplateLog, PR_LOG_DEBUG,
                    ("nsRDFPropertyTestNode[%p]: Retract([%s]==[%s]=>[%s])",
                     this, source, property, NS_ConvertUTF16toUTF8(target).get()));
         }
-#endif
 
         mProcessor->RetractElement(Element(aSource, aProperty, aTarget));
     }

@@ -7,6 +7,7 @@
 "use strict";
 
 Cu.import("resource://gre/modules/TelemetryController.jsm", this);
+Cu.import("resource://gre/modules/TelemetrySession.jsm", this);
 Cu.import("resource://gre/modules/TelemetryArchive.jsm", this);
 Cu.import("resource://gre/modules/XPCOMUtils.jsm", this);
 Cu.import("resource://gre/modules/osfile.jsm", this);
@@ -17,9 +18,12 @@ XPCOMUtils.defineLazyGetter(this, "gPingsArchivePath", function() {
   return OS.Path.join(OS.Constants.Path.profileDir, "datareporting", "archived");
 });
 
+const PREF_TELEMETRY_ENABLED = "toolkit.telemetry.enabled";
+const Telemetry = Cc["@mozilla.org/base/telemetry;1"].getService(Ci.nsITelemetry);
 
 function run_test() {
   do_get_profile(true);
+  Services.prefs.setBoolPref(PREF_TELEMETRY_ENABLED, true);
   run_next_test();
 }
 
@@ -71,7 +75,7 @@ add_task(function* test_archivedPings() {
   yield checkLoadingPings();
 
   // Check that we find the archived pings again by scanning after a restart.
-  TelemetryArchive._testReset();
+  TelemetryController.reset();
 
   let pingList = yield TelemetryArchive.promiseArchivedPingList();
   Assert.deepEqual(expectedPingList, pingList,
@@ -125,7 +129,7 @@ add_task(function* test_archivedPings() {
   expectedPingList.sort((a, b) => a.timestampCreated - b.timestampCreated);
 
   // Reset the TelemetryArchive so we scan the archived dir again.
-  yield TelemetryArchive._testReset();
+  yield TelemetryController.reset();
 
   // Check that we are still picking up the valid archived pings on disk,
   // plus the valid ones above.
@@ -138,6 +142,53 @@ add_task(function* test_archivedPings() {
             "Should have rejected invalid ping");
   Assert.ok((yield promiseRejects(TelemetryArchive.promiseArchivedPingById(FAKE_ID2))),
             "Should have rejected invalid ping");
+});
+
+add_task(function* test_archiveCleanup() {
+  const PING_TYPE = "foo";
+
+  // Create a ping which should be pruned because it is past the retention period.
+  fakeNow(2010, 1, 1, 1, 0, 0);
+  const PING_ID1 = yield TelemetryController.submitExternalPing(PING_TYPE, {}, {});
+  // Create a ping which should be kept because it is within the retention period.
+  fakeNow(2010, 2, 1, 1, 0, 0);
+  const PING_ID2 = yield TelemetryController.submitExternalPing(PING_TYPE, {}, {});
+  // Create a ping which should be kept because it is within the retention period.
+  fakeNow(2010, 3, 1, 1, 0, 0);
+  const PING_ID3 = yield TelemetryController.submitExternalPing(PING_TYPE, {}, {});
+
+  // Move the current date 180 days ahead of the PING_ID1 ping.
+  fakeNow(2010, 7, 1, 1, 0, 0);
+  // Reset TelemetryArchive and TelemetryController to start the startup cleanup.
+  yield TelemetryController.reset();
+  // Wait for the cleanup to finish.
+  yield TelemetryStorage.testCleanupTaskPromise();
+  // Then scan the archived dir.
+  let pingList = yield TelemetryArchive.promiseArchivedPingList();
+
+  // The PING_ID1 ping should be removed and the other 2 kept.
+  Assert.ok((yield promiseRejects(TelemetryArchive.promiseArchivedPingById(PING_ID1))),
+            "Old pings should be removed from the archive");
+  Assert.ok((yield TelemetryArchive.promiseArchivedPingById(PING_ID2)),
+            "Recent pings should be kept in the archive");
+  Assert.ok((yield TelemetryArchive.promiseArchivedPingById(PING_ID3)),
+            "Recent pings should be kept in the archive");
+
+  // Move the current date 180 days ahead of the PING_ID2 ping.
+  fakeNow(2010, 8, 1, 1, 0, 0);
+  // Reset TelemetryController but not the TelemetryArchive: the cleanup task will update
+  // the existing archive cache.
+  yield TelemetryController.reset();
+  // Wait for the cleanup to finish.
+  yield TelemetryStorage.testCleanupTaskPromise();
+  // Then scan the archived dir again.
+  pingList = yield TelemetryArchive.promiseArchivedPingList();
+
+  // The PING_ID2 ping should be removed and PING_ID3 kept.
+  Assert.ok((yield promiseRejects(TelemetryArchive.promiseArchivedPingById(PING_ID2))),
+            "Old pings should be removed from the archive");
+  Assert.ok((yield TelemetryArchive.promiseArchivedPingById(PING_ID3)),
+            "Recent pings should be kept in the archive");
 });
 
 add_task(function* test_clientId() {
@@ -164,4 +215,56 @@ add_task(function* test_clientId() {
 
   // Finish setup.
   yield promiseSetup;
+});
+
+add_task(function* test_InvalidPingType() {
+  const TYPES = [
+    "a",
+    "-",
+    "¿€€€?",
+    "-foo-",
+    "-moo",
+    "zoo-",
+    ".bar",
+    "asfd.asdf",
+  ];
+
+  for (let type of TYPES) {
+    let histogram = Telemetry.getKeyedHistogramById("TELEMETRY_INVALID_PING_TYPE_SUBMITTED");
+    Assert.equal(histogram.snapshot(type).sum, 0,
+                 "Should not have counted this invalid ping yet: " + type);
+    Assert.ok(promiseRejects(TelemetryController.submitExternalPing(type, {})),
+              "Ping type should have been rejected.");
+    Assert.equal(histogram.snapshot(type).sum, 1,
+                 "Should have counted this as an invalid ping type.");
+  }
+});
+
+add_task(function* test_currentPingData() {
+  yield TelemetrySession.setup();
+
+  // Setup test data.
+  let h = Telemetry.getHistogramById("TELEMETRY_TEST_RELEASE_OPTOUT");
+  h.clear();
+  h.add(1);
+  let k = Telemetry.getKeyedHistogramById("TELEMETRY_TEST_KEYED_RELEASE_OPTOUT");
+  k.clear();
+  k.add("a", 1);
+
+  // Get current ping data objects and check that their data is sane.
+  for (let subsession of [true, false]) {
+    let ping = TelemetryController.getCurrentPingData(subsession);
+
+    Assert.ok(!!ping, "Should have gotten a ping.");
+    Assert.equal(ping.type, "main", "Ping should have correct type.");
+    const expectedReason = subsession ? "gather-subsession-payload" : "gather-payload";
+    Assert.equal(ping.payload.info.reason, expectedReason, "Ping should have the correct reason.");
+
+    let id = "TELEMETRY_TEST_RELEASE_OPTOUT";
+    Assert.ok(id in ping.payload.histograms, "Payload should have test count histogram.");
+    Assert.equal(ping.payload.histograms[id].sum, 1, "Test count value should match.");
+    id = "TELEMETRY_TEST_KEYED_RELEASE_OPTOUT";
+    Assert.ok(id in ping.payload.keyedHistograms, "Payload should have keyed test histogram.");
+    Assert.equal(ping.payload.keyedHistograms[id]["a"].sum, 1, "Keyed test value should match.");
+  }
 });

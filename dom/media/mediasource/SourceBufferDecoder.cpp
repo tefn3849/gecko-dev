@@ -6,22 +6,17 @@
 
 #include "MediaSourceUtils.h"
 #include "SourceBufferDecoder.h"
-#include "prlog.h"
+#include "mozilla/Logging.h"
 #include "AbstractMediaDecoder.h"
 #include "MediaDecoderReader.h"
-#include "mozilla/dom/TimeRanges.h"
 
-#ifdef PR_LOGGING
 extern PRLogModuleInfo* GetMediaSourceLog();
 /* Polyfill __func__ on MSVC to pass to the log. */
 #ifdef _MSC_VER
 #define __func__ __FUNCTION__
 #endif
 
-#define MSE_DEBUG(arg, ...) PR_LOG(GetMediaSourceLog(), PR_LOG_DEBUG, ("SourceBufferDecoder(%p:%s)::%s: " arg, this, mResource->GetContentType().get(), __func__, ##__VA_ARGS__))
-#else
-#define MSE_DEBUG(...)
-#endif
+#define MSE_DEBUG(arg, ...) MOZ_LOG(GetMediaSourceLog(), PR_LOG_DEBUG, ("SourceBufferDecoder(%p:%s)::%s: " arg, this, mResource->GetContentType().get(), __func__, ##__VA_ARGS__))
 
 namespace mozilla {
 
@@ -238,24 +233,23 @@ SourceBufferDecoder::NotifyDataArrived(const char* aBuffer, uint32_t aLength, in
   mParentDecoder->NotifyDataArrived(nullptr, 0, 0);
 }
 
-nsresult
-SourceBufferDecoder::GetBuffered(dom::TimeRanges* aBuffered)
+media::TimeIntervals
+SourceBufferDecoder::GetBuffered()
 {
-  nsresult rv = mReader->GetBuffered(aBuffered);
-  if (NS_FAILED(rv)) {
-    return rv;
+  media::TimeIntervals buffered = mReader->GetBuffered();
+  if (buffered.IsInvalid()) {
+    return buffered;
   }
 
   // Adjust buffered range according to timestamp offset.
-  aBuffered->Shift((double)mTimestampOffset / USECS_PER_S);
+  buffered.Shift(media::TimeUnit::FromMicroseconds(mTimestampOffset));
 
   if (!WasTrimmed()) {
-    return NS_OK;
+    return buffered;
   }
-  nsRefPtr<dom::TimeRanges> tr = new dom::TimeRanges();
-  tr->Add(0, mTrimmedOffset);
-  aBuffered->Intersection(tr);
-  return NS_OK;
+  media::TimeInterval filter(media::TimeUnit::FromSeconds(0),
+                             media::TimeUnit::FromSeconds(mTrimmedOffset));
+  return buffered.Intersection(filter);
 }
 
 int64_t
