@@ -130,7 +130,6 @@ nsScreenGonk::nsScreenGonk(uint32_t aId,
     }
 
     mColorDepth = SurfaceFormatToColorDepth(mSurfaceFormat);
-    mIsBlanked = aDisplayType == GonkDisplay::DISPLAY_PRIMARY;
 }
 
 nsScreenGonk::~nsScreenGonk()
@@ -337,17 +336,6 @@ nsScreenGonk::GetDisplayType()
     return mDisplayType;
 }
 
-bool
-nsScreenGonk::IsBlanked()
-{
-    return mIsBlanked;
-}
-void
-nsScreenGonk::SetIsBlanked()
-{
-    mIsBlanked = true;
-}
-
 int
 nsScreenGonk::GetPrevDispAcquireFd()
 {
@@ -546,15 +534,10 @@ NS_IMPL_ISUPPORTS(DisplayInfo, nsIDisplayInfo, nsISupports)
 
 class NotifyTask : public nsRunnable {
 public:
-    NS_DECL_ISUPPORTS
-
-public:
     NotifyTask(uint32_t aId, bool aConnected)
         : mDisplayInfo(new DisplayInfo(aId, aConnected))
     {
     }
-
-    virtual ~NotifyTask() {}
 
     NS_IMETHOD Run()
     {
@@ -568,8 +551,6 @@ private:
     nsRefPtr<DisplayInfo> mDisplayInfo;
 };
 
-NS_IMPL_ISUPPORTS(NotifyTask, nsIRunnable)
-
 void
 NotifyDisplayChange(uint32_t aId, bool aConnected)
 {
@@ -582,6 +563,8 @@ void
 nsScreenManagerGonk::AddScreen(GonkDisplay::DisplayType aDisplayType,
                                android::IGraphicBufferProducer* aProducer)
 {
+    MOZ_ASSERT(NS_IsMainThread());
+
     uint32_t id = GetIdFromType(aDisplayType);
 
     GonkDisplay::NativeData nativeData = GetGonkDisplay()->GetNativeData(aDisplayType, aProducer);
@@ -595,6 +578,8 @@ nsScreenManagerGonk::AddScreen(GonkDisplay::DisplayType aDisplayType,
 void
 nsScreenManagerGonk::RemoveScreen(GonkDisplay::DisplayType aDisplayType)
 {
+    MOZ_ASSERT(NS_IsMainThread());
+
     uint32_t screenId = GetIdFromType(aDisplayType);
     for (size_t i = 0; i < mScreens.Length(); i++) {
         if (mScreens[i]->GetId() == screenId) {

@@ -124,7 +124,6 @@ public:
     void ConfigureAPZControllerThread() override;
 
     nsScreenGonk* GetScreen();
-    int GetPrevDispAcquireFd();
 
 protected:
     nsWindow* mParent;

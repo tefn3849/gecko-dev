@@ -252,15 +252,36 @@ HwcComposer2D::Invalidate()
     }
 }
 
+namespace {
+class HotplugEvent : public nsRunnable {
+public:
+    HotplugEvent(GonkDisplay::DisplayType aType, bool aConnected)
+        : mType(aType)
+        , mConnected(aConnected)
+    {
+    }
+
+    NS_IMETHOD Run()
+    {
+        nsRefPtr<nsScreenManagerGonk> screenManager =
+            nsScreenManagerGonk::GetInstance();
+        if (mConnected) {
+            screenManager->AddScreen(mType);
+        } else {
+            screenManager->RemoveScreen(mType);
+        }
+    }
+private:
+    GonkDisplay::DisplayType mType;
+    bool mConnected;
+};
+} // anonymous namespace
+
 void
 HwcComposer2D::Hotplug(int aDisplay, int aConnected)
 {
-    nsRefPtr<nsScreenManagerGonk> screenManager = nsScreenManagerGonk::GetInstance();
-    if (aConnected) {
-        screenManager->AddScreen(GonkDisplay::DISPLAY_EXTERNAL);
-    } else {
-        screenManager->RemoveScreen(GonkDisplay::DISPLAY_EXTERNAL);
-    }
+    NS_DispatchToMainThread(new HotplugEvent(GonkDisplay::DISPLAY_EXTERNAL,
+                                             aConnected));
 }
 #endif
 
@@ -857,9 +878,8 @@ HwcComposer2D::Prepare(buffer_handle_t dispHandle, int fence)
         LOGE("Multiple hwc prepare calls!");
     }
 
-    if (!mScreen->IsBlanked()) {
+    if (!mScreen->IsPrimaryScreen()) {
         mHwc->blank(mHwc, displaytype, 0);
-        mScreen->SetIsBlanked();
     }
 
     mHwc->prepare(mHwc, HWC_NUM_DISPLAY_TYPES, displays);

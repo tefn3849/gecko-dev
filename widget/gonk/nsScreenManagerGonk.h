@@ -69,8 +69,6 @@ public:
     void RegisterWindow(nsWindow* aWindow);
     void UnregisterWindow(nsWindow* aWindow);
     void BringToTop(nsWindow* aWindow);
-    bool IsBlanked();
-    void SetIsBlanked();
 
     const nsTArray<nsWindow*>& GetTopWindows() const
     {
@@ -90,7 +88,6 @@ protected:
     nsTArray<nsWindow*> mTopWindows;
     android::sp<android::DisplaySurface> mDisplaySurface;
     GonkDisplay::DisplayType mDisplayType;
-    bool mIsBlanked;
 };
 
 class nsScreenManagerGonk final : public nsIScreenManager

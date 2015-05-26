@@ -822,12 +822,6 @@ nsWindow::GetScreen()
     return mScreen;
 }
 
-int
-nsWindow::GetPrevDispAcquireFd()
-{
-    return mScreen->GetPrevDispAcquireFd();
-}
-
 bool
 nsWindow::NeedsPaint()
 {

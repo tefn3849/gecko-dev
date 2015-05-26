@@ -58,6 +58,7 @@
 #include "libdisplay/GonkDisplay.h"     // for GonkDisplay
 #include <ui/Fence.h>
 #include "nsWindow.h"
+#include "nsScreenManagerGonk.h"
 #endif
 
 namespace mozilla {
@@ -1298,7 +1299,8 @@ CompositorOGL::SetDispAcquireFence(Layer* aLayer)
     return;
   }
   nsWindow* window = static_cast<nsWindow*>(mWidget);
-  RefPtr<FenceHandle::FdObj> fence = new FenceHandle::FdObj(window->GetPrevDispAcquireFd());
+  RefPtr<FenceHandle::FdObj> fence = new FenceHandle::FdObj(
+      window->GetScreen()->GetPrevDispAcquireFd());
   mReleaseFenceHandle.Merge(FenceHandle(fence));
 }
 
