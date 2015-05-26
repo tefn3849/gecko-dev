@@ -12,6 +12,7 @@
 #include <utils/String8.h>
 #include <gui/IGraphicBufferProducer.h>
 #include "nsScreenManagerGonk.h"
+#include "nsThreadUtils.h"
 
 using namespace android;
 
@@ -46,16 +47,20 @@ public:
     virtual void onDisplayConnected(const sp<IGraphicBufferProducer>& bufferProducer,
             uint32_t width, uint32_t height, uint32_t flags, uint32_t session) {
         ALOGI("Callback onDisplayConnected");
-
         nsRefPtr<nsScreenManagerGonk> screenManager = nsScreenManagerGonk::GetInstance();
-        screenManager->AddScreen(GonkDisplay::DISPLAY_VIRTUAL, bufferProducer.get());
+        nsCOMPtr<nsIRunnable> r = NS_NewRunnableMethodWithArgs<GonkDisplay::DisplayType, IGraphicBufferProducer*>
+          (screenManager.get(), &nsScreenManagerGonk::AddScreen,
+           GonkDisplay::DISPLAY_VIRTUAL, bufferProducer.get());
+        NS_DispatchToMainThread(r);
     }
 
     virtual void onDisplayDisconnected() {
         ALOGI("Callback onDisplayDisconnected");
         enableAudioSubmix(false);
         nsRefPtr<nsScreenManagerGonk> screenManager = nsScreenManagerGonk::GetInstance();
-        screenManager->RemoveScreen(GonkDisplay::DISPLAY_VIRTUAL);
+        nsCOMPtr<nsIRunnable> r = NS_NewRunnableMethodWithArgs<GonkDisplay::DisplayType>
+          (screenManager.get(), &nsScreenManagerGonk::RemoveScreen, GonkDisplay::DISPLAY_VIRTUAL);
+        NS_DispatchToMainThread(r);
     }
 
     virtual void onDisplayError(int32_t error) {
