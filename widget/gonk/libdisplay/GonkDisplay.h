@@ -49,7 +49,9 @@ public:
 
     struct NativeData {
         android::sp<ANativeWindow> mNativeWindow;
+#if ANDROID_VERSION >= 17
         android::sp<android::DisplaySurface> mDisplaySurface;
+#endif
         float mXdpi;
     };
 

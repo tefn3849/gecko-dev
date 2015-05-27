@@ -19,7 +19,6 @@
 #include "mozilla/TouchEvents.h"
 #include "mozilla/Hal.h"
 #include "libdisplay/GonkDisplay.h"
-#include "libdisplay/DisplaySurface.h"
 #include "nsScreenManagerGonk.h"
 #include "nsThreadUtils.h"
 #include "HwcComposer2D.h"
@@ -33,6 +32,10 @@
 #include "nsTArray.h"
 #include "pixelflinger/format.h"
 #include "nsIDisplayInfo.h"
+
+#if ANDROID_VERSION >= 17
+#include "libdisplay/DisplaySurface.h"
+#endif
 
 #define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "nsScreenGonk" , ## args)
 #define LOGW(args...) __android_log_print(ANDROID_LOG_WARN, "nsScreenGonk", ## args)
@@ -112,7 +115,9 @@ nsScreenGonk::nsScreenGonk(uint32_t aId,
     , mDpi(aNativeData.mXdpi)
     , mScreenRotation(nsIScreen::ROTATION_0_DEG)
     , mPhysicalScreenRotation(nsIScreen::ROTATION_0_DEG)
+#if ANDROID_VERSION >= 17
     , mDisplaySurface(aNativeData.mDisplaySurface)
+#endif
     , mDisplayType(aDisplayType)
 {
     if (mNativeWindow->query(mNativeWindow.get(), NATIVE_WINDOW_WIDTH, &mVirtualBounds.width) ||
@@ -324,11 +329,13 @@ nsScreenGonk::BringToTop(nsWindow* aWindow)
     mTopWindows.InsertElementAt(0, aWindow);
 }
 
+#if ANDROID_VERSION >= 17
 android::DisplaySurface*
 nsScreenGonk::GetDisplaySurface()
 {
     return mDisplaySurface.get();
 }
+#endif
 
 GonkDisplay::DisplayType
 nsScreenGonk::GetDisplayType()
@@ -336,6 +343,7 @@ nsScreenGonk::GetDisplayType()
     return mDisplayType;
 }
 
+#if ANDROID_VERSION >= 17
 int
 nsScreenGonk::GetPrevDispAcquireFd()
 {
@@ -344,6 +352,7 @@ nsScreenGonk::GetPrevDispAcquireFd()
     }
     return mDisplaySurface->GetPrevDispAcquireFd();
 }
+#endif
 
 NS_IMPL_ISUPPORTS(nsScreenManagerGonk, nsIScreenManager)
 

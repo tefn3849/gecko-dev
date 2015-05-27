@@ -222,7 +222,6 @@ GonkDisplayICS::GetNativeData(uint32_t aDisplayType,
         StopBootAnimation();
 
         data.mNativeWindow = static_cast<ANativeWindow *>(mFBSurface.get());
-        data.mDisplaySurface = nullptr;
         data.mXdpi = xdpi;
     }
 

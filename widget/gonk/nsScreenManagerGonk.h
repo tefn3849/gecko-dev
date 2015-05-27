@@ -62,9 +62,12 @@ public:
     uint32_t EffectiveScreenRotation();
     ScreenConfiguration GetConfiguration();
     bool IsPrimaryScreen();
+
+#if ANDROID_VERSION >= 17
     android::DisplaySurface* GetDisplaySurface();
-    GonkDisplay::DisplayType GetDisplayType();
     int GetPrevDispAcquireFd();
+#endif
+    GonkDisplay::DisplayType GetDisplayType();
 
     void RegisterWindow(nsWindow* aWindow);
     void UnregisterWindow(nsWindow* aWindow);
@@ -86,7 +89,9 @@ protected:
     uint32_t mScreenRotation;
     uint32_t mPhysicalScreenRotation;
     nsTArray<nsWindow*> mTopWindows;
+#if ANDROID_VERSION >= 17
     android::sp<android::DisplaySurface> mDisplaySurface;
+#endif
     GonkDisplay::DisplayType mDisplayType;
 };
 
