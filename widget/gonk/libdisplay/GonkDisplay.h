@@ -72,8 +72,9 @@ public:
 
     virtual void UpdateDispSurface(EGLDisplay dpy, EGLSurface sur) = 0;
 
-    virtual NativeData GetNativeData(uint32_t aDisplayType,
-                                     android::IGraphicBufferProducer* aProducer = nullptr) = 0;
+    virtual NativeData GetNativeData(
+        uint32_t aDisplayType,
+        android::IGraphicBufferProducer* aProducer = nullptr) = 0;
 
     float xdpi;
     int32_t surfaceformat;

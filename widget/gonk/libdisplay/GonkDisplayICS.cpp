@@ -139,13 +139,6 @@ GonkDisplayICS::~GonkDisplayICS()
         hwc_close(mHwc);
 }
 
-ANativeWindow*
-GonkDisplayICS::GetNativeWindow()
-{
-    StopBootAnimation();
-    return static_cast<ANativeWindow *>(mFBSurface.get());
-}
-
 void
 GonkDisplayICS::SetEnabled(bool enabled)
 {
@@ -176,6 +169,8 @@ GonkDisplayICS::GetHWCDevice()
 bool
 GonkDisplayICS::SwapBuffers(EGLDisplay dpy, EGLSurface sur)
 {
+    StopBootAnimation();
+
     // Should be called when composition rendering is complete for a frame.
     // Only HWC v1.0 needs this call. ICS gonk always needs the call.
     mFBSurface->compositionComplete();
@@ -207,12 +202,31 @@ GonkDisplayICS::QueueBuffer(ANativeWindowBuffer *buf)
 void
 GonkDisplayICS::UpdateDispSurface(EGLDisplay dpy, EGLSurface sur)
 {
+    StopBootAnimation();
+
     eglSwapBuffers(dpy, sur);
 }
 
 void
 GonkDisplayICS::SetDispReleaseFd(int fd)
 {
+}
+
+GonkDisplay::NativeData
+GonkDisplayICS::GetNativeData(uint32_t aDisplayType,
+                              android::IGraphicBufferProducer* aProducer)
+{
+    NativeData data;
+
+    if (aDisplayType == DISPLAY_PRIMARY) {
+        StopBootAnimation();
+
+        data.mNativeWindow = static_cast<ANativeWindow *>(mFBSurface.get());
+        data.mDisplaySurface = nullptr;
+        data.mXdpi = xdpi;
+    }
+
+    return data;
 }
 
 __attribute__ ((visibility ("default")))

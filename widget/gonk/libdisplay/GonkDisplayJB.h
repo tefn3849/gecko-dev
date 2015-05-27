@@ -46,8 +46,9 @@ public:
 
     bool Post(buffer_handle_t buf, int fence);
 
-    virtual NativeData GetNativeData(uint32_t aDisplayType,
-                                     android::IGraphicBufferProducer* aProducer = nullptr);
+    virtual NativeData GetNativeData(
+        uint32_t aDisplayType,
+        android::IGraphicBufferProducer* aProducer = nullptr);
 
 private:
     void StopBootAnim();
