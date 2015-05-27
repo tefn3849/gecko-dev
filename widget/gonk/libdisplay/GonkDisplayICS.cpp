@@ -139,13 +139,6 @@ GonkDisplayICS::~GonkDisplayICS()
         hwc_close(mHwc);
 }
 
-ANativeWindow*
-GonkDisplayICS::GetNativeWindow()
-{
-    StopBootAnimation();
-    return static_cast<ANativeWindow *>(mFBSurface.get());
-}
-
 void
 GonkDisplayICS::SetEnabled(bool enabled)
 {
@@ -210,9 +203,28 @@ GonkDisplayICS::UpdateDispSurface(EGLDisplay dpy, EGLSurface sur)
     eglSwapBuffers(dpy, sur);
 }
 
-void
-GonkDisplayICS::SetDispReleaseFd(int fd)
+GonkDisplay::NativeData
+GonkDisplayICS::GetNativeData(uint32_t aDisplayType,
+                              android::IGraphicBufferProducer* aProducer)
 {
+    MOZ_ASSERT(DISPLAY_PRIMARY == aDisplayType, "ICS supports primary display only.");
+
+    NativeData data;
+
+    if (DISPLAY_PRIMARY != aDisplayType) {
+        data.mNativeWindow = nullptr;
+        data.mDisplaySurface = nullptr;
+        data.mXdpi = 0;
+        return data;
+    }
+
+    StopBootAnimation();
+
+    data.mNativeWindow = static_cast<ANativeWindow*>(mFBSurface.get());
+    data.mDisplaySurface = nullptr;
+    data.mXdpi = xdpi;
+
+    return data;
 }
 
 __attribute__ ((visibility ("default")))

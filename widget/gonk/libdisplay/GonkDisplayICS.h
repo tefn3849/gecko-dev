@@ -38,11 +38,6 @@ public:
 
     virtual void* GetHWCDevice();
 
-    virtual void* GetDispSurface()
-    {
-        return nullptr;
-    }
-
     virtual bool SwapBuffers(EGLDisplay dpy, EGLSurface sur);
 
     virtual ANativeWindowBuffer* DequeueBuffer();
@@ -51,12 +46,8 @@ public:
 
     virtual void UpdateDispSurface(EGLDisplay dpy, EGLSurface sur);
 
-    virtual void SetDispReleaseFd(int fd);
-
-    virtual int GetPrevDispAcquireFd()
-    {
-        return -1;
-    }
+    virtual NativeData GetNativeData(uint32_t aDisplayType,
+                                     android::IGraphicBufferProducer* aProducer = nullptr);
 
 private:
     hw_module_t const*        mModule;
