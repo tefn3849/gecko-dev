@@ -365,6 +365,7 @@ GonkDisplayJB::GetNativeData(uint32_t aDisplayType,
     NativeData data;
 
     if (aDisplayType == DISPLAY_PRIMARY) {
+        StopBootAnim();
         data.mNativeWindow = mSTClient;
         data.mDisplaySurface = mDispSurface;
         data.mXdpi = xdpi;
