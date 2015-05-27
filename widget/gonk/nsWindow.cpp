@@ -49,12 +49,8 @@
 #include "mozilla/layers/APZCTreeManager.h"
 #include "mozilla/layers/APZThreadUtils.h"
 #include "mozilla/layers/CompositorParent.h"
-#include "mozilla/layers/InputAPZContext.h"
-#include "mozilla/MouseEvents.h"
 #include "mozilla/TouchEvents.h"
-#include "nsThreadUtils.h"
 #include "HwcComposer2D.h"
-#include "VsyncSource.h"
 
 #define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Gonk" , ## args)
 #define LOGW(args...) __android_log_print(ANDROID_LOG_WARN, "Gonk", ## args)
