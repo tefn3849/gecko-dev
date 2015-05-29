@@ -11,7 +11,7 @@ function debug(str) {
 var shellRemote = {
 
   get homeURL() {
-    return "app://system.gaiamobile.org/index-remote.html";
+    return "app://system.gaiamobile.org/index_remote.html";
   },
 
   get manifestURL() {
