@@ -56,6 +56,7 @@ this.WifiP2pWorkerObserver = function(aDomMsgResponder) {
     this.isGroupOwner = aPeer.isGroupOwner;
     this.wpsCapabilities = aPeer.wpsCapabilities;
     this.connectionStatus = CONNECTION_STATUS_DISCONNECTED;
+    this.wfdDevInfo = aPeer.wfdDevInfo;
 
     // Since this object will be exposed to web, defined the exposed
     // properties here.
@@ -64,7 +65,8 @@ this.WifiP2pWorkerObserver = function(aDomMsgResponder) {
       name: "r",
       isGroupOwner: "r",
       wpsCapabilities: "r",
-      connectionStatus: "r"
+      connectionStatus: "r",
+      wfdDevInfo: "r",
     };
   }
 
@@ -216,7 +218,8 @@ this.WifiP2pWorkerObserver = function(aDomMsgResponder) {
         "WifiP2pManager:connect",
         "WifiP2pManager:disconnect",
         "WifiP2pManager:setPairingConfirmation",
-        "WifiP2pManager:setDeviceName"
+        "WifiP2pManager:setDeviceName",
+        "WifiP2pManager:listenForRemoteDisplay",
       ];
     },
 
@@ -306,6 +309,13 @@ this.WifiP2pWorkerObserver = function(aDomMsgResponder) {
             aDomMsgResponder.setDeviceName(newDeviceName, function(success) {
               returnMessage(aMessage.name, success, (success ? true : "ERROR"), msg);
             });
+          }
+          break;
+
+        case "WifiP2pManager:listenForRemoteDisplay":
+          {
+            aDomMsgResponder.listenForRemoteDisplay();
+            returnMessage(aMessage.name, true, true, msg);
           }
           break;
 

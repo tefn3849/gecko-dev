@@ -3901,7 +3901,7 @@ this.NSGetFactory = XPCOMUtils.generateNSGetFactory([WifiWorker]);
 
 var debug;
 function updateDebug() {
-  if (DEBUG) {
+  if (true) {
     debug = function (s) {
       dump("-*- WifiWorker component: " + s + "\n");
     };

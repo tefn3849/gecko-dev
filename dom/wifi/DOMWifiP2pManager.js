@@ -311,6 +311,12 @@ MozWifiP2pManager.prototype = {
     return request;
   },
 
+  listenForRemoteDisplay: function() {
+    let request = this.createRequest();
+    this._sendMessageForRequest("WifiP2pManager:listenForRemoteDisplay", null, request);
+    return request;
+  },
+
   // Helpers.
   defineEventHandlerGetterSetter: function(event) {
     Object.defineProperty(this, event, {

@@ -1051,6 +1051,11 @@ AudioManager::SetStreamVolumeIndex(int32_t aStream, uint32_t aIndex) {
               static_cast<audio_stream_type_t>(aStream),
               aIndex,
               AUDIO_DEVICE_OUT_BLUETOOTH_SCO_HEADSET);
+
+    status += AudioSystem::setStreamVolumeIndex(
+              static_cast<audio_stream_type_t>(aStream),
+              aIndex,
+              AUDIO_DEVICE_OUT_REMOTE_SUBMIX);
   } else {
     NS_WARNING("Can't set stream volume on error profile!");
   }

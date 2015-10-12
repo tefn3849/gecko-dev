@@ -306,7 +306,7 @@ class AbsoluteSymlinkFile(File):
 
         # Always verify the symlink target path exists.
         if not os.path.exists(self.path):
-            raise ErrorMessage('Symlink target path does not exist: %s' % self.path)
+            raise ErrorMessage('Symlink target path does not exist: %s AMY' % self.path)
 
         st = None
 

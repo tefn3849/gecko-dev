@@ -396,7 +396,9 @@ GonkDisplayJB::GetNativeData(GonkDisplay::DisplayType aDisplayType,
     } else if (aDisplayType == DISPLAY_VIRTUAL) {
         // TODO: Bug 1161874 (the support of WifiDisplay) should fill up the
         // implementation of virtual display.
-        MOZ_CRASH("Display type of virtual is not supported yet.");
+      data.mNativeWindow = new Surface(aProducer);
+      data.mDisplaySurface = nullptr;
+      data.mXdpi = 213;
     }
 
     return data;

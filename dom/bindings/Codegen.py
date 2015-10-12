@@ -12829,6 +12829,7 @@ class CGBindingRoot(CGThing):
         hasThreadChecks = hasWorkerStuff or any(d.hasThreadChecks() for d in descriptors)
         bindingHeaders["nsThreadUtils.h"] = hasThreadChecks
 
+
         dictionaries = config.getDictionaries(webIDLFile=webIDLFile)
         hasNonEmptyDictionaries = any(
             len(dict.members) > 0 for dict in dictionaries)
